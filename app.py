@@ -17,7 +17,7 @@ def aplicar_estilo_customizado():
         color: black; 
     }}
 
-    /* Container de Fundo Persistente (Aparece em todas as telas) */
+    /* Container de Fundo Persistente (Garante a imagem em todas as telas) */
     .main-bg-container {{
         position: fixed;
         top: 0;
@@ -60,7 +60,7 @@ def aplicar_estilo_customizado():
         opacity: 0.7;
     }}
 
-    /* Botões Modernos e Responsivos */
+    /* Botões Modernos */
     div.stButton > button {{
         background-color: #5CE65C !important;
         color: white !important;
@@ -74,13 +74,12 @@ def aplicar_estilo_customizado():
     
     div.stButton > button:hover {{ transform: scale(1.03); opacity: 0.95; }}
 
-    /* Estilização de Cards e Inputs */
+    /* Estilização de Inputs */
     .stTextInput, .stNumberInput, .stDateInput, .stSelectbox {{
         background-color: rgba(255, 255, 255, 0.8);
         border-radius: 12px;
     }}
 
-    /* Esconder Menu Streamlit */
     #MainMenu {{visibility: hidden;}}
     footer {{visibility: hidden;}}
     </style>
@@ -155,7 +154,6 @@ else:
 
     with tab1:
         st.markdown("### Registrar Produção")
-        # Ajuste visual e formato da data (DD/MM/YYYY)
         data_reg = st.date_input("📅 Data da Colheita", value=datetime.now().date(), format="DD/MM/YYYY")
         qtd_val = st.number_input("🥚 Quantidade de Ovos", min_value=0, step=1, format="%d")
         
@@ -191,7 +189,7 @@ else:
                 st.rerun()
         else:
             conn.close()
-            st.info("Nenhum registro encontrado para este usuário.")
+            st.info("Nenhum registro encontrado.")
 
     st.divider()
     st.markdown("### Desempenho Recente")
@@ -210,9 +208,12 @@ else:
         
         fig.update_layout(
             plot_bgcolor='rgba(0,0,0,0)', 
-            paper_bgcolor='rgba(0,0,0,0)', 
-            font=dict(color="black"),
-            margin=dict(l=0, r=0, t=10, b=0),
-            height=350
+            paper_bgcolor='rgba(0,0,0,0)',
+            # Força as cores das fontes para preto
+            font=dict(color="black", size=12),
+            xaxis=dict(tickfont=dict(color="black"), titlefont=dict(color="black")),
+            yaxis=dict(tickfont=dict(color="black"), titlefont=dict(color="black")),
+            margin=dict(l=0, r=0, t=30, b=0),
+            height=400
         )
         st.plotly_chart(fig, use_container_width=True)
