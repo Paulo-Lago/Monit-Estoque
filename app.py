@@ -12,7 +12,7 @@ def aplicar_estilo_customizado():
     <style>
     /* Configurações Gerais */
     .stApp {{ background-color: white; color: black; }}
-    
+
     /* Estilização do Ícone de Ovo */
     .egg-icon {{
         display: block;
@@ -27,7 +27,7 @@ def aplicar_estilo_customizado():
         color: #000000 !important;
         font-family: 'Segoe UI', sans-serif;
     }}
-    
+
     .sub-texto {{
         color: #000000 !important;
         text-align: center;
@@ -35,7 +35,7 @@ def aplicar_estilo_customizado():
         font-size: 1.1rem;
         font-weight: 500;
     }}
-    
+
     /* Botões (#5CE65C) permanecem com texto branco para contraste no verde */
     div.stButton > button:first-child {{
         background-color: #5CE65C;
@@ -51,7 +51,7 @@ def aplicar_estilo_customizado():
         background-color: #4dc24d;
         box-shadow: 0 4px 10px rgba(92, 230, 92, 0.4);
     }}
-    
+
     /* Ajuste de cor para labels de inputs */
     .stTextInput label, .stDateInput label, .stNumberInput label, .stSelectbox label {{
         color: black !important;
@@ -79,15 +79,15 @@ if 'username' not in st.session_state: st.session_state.username = ""
 if not st.session_state.logged_in:
     st.markdown(f'<img src="{URL_ICONE}" class="egg-icon">', unsafe_allow_html=True)
     st.markdown("<h1>Estoque de Ovos Pro</h1>", unsafe_allow_html=True)
-    st.markdown("<p class=\'sub-texto\'>Comece agora a controlar seu estoque de maneira eficiente</p>", unsafe_allow_html=True)
+    st.markdown("<p class='sub-texto'>Comece agora a controlar seu estoque de maneira eficiente</p>", unsafe_allow_html=True)
 
     with st.container():
         user = st.text_input("Nome de Usuário", placeholder="Insira seu usuário")
         pw = st.text_input("Senha", type="password", placeholder="Insira sua senha")
-        
+
         st.write("")
         col1, col2 = st.columns(2)
-        
+
         with col1:
             if st.button("Entrar"):
                 if user and pw:
@@ -122,7 +122,7 @@ if not st.session_state.logged_in:
 else:
     st.markdown(f'<img src="{URL_ICONE}" style="width:50px; display:block; margin:auto;">', unsafe_allow_html=True)
     st.markdown("<h1>Painel de Gerenciamento</h1>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style=\'text-align: center;\'>Bem-vindo, {st.session_state.username}!</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='text-align: center;'>Bem-vindo, {st.session_state.username}!</h3>", unsafe_allow_html=True)
 
     if st.sidebar.button("Sair / Logout"):
         st.session_state.logged_in = False
@@ -152,10 +152,10 @@ else:
     with tab2:
         st.markdown("### Gerenciar Histórico")
         conn = sqlite3.connect('estoque_ovos.db')
-        df_edit = pd.read_sql(f"SELECT rowid, data, quantidade FROM producao WHERE username=\'{st.session_state.username}\' ORDER BY data DESC", conn)
-        
+        df_edit = pd.read_sql(f"SELECT rowid, data, quantidade FROM producao WHERE username='{st.session_state.username}' ORDER BY data DESC", conn)
+
         if not df_edit.empty:
-            opcoes = df_edit.apply(lambda x: f"ID: {x[\'rowid\']} | Data: {x[\'data\']} | Qtd: {x[\'quantidade\']}", axis=1).tolist()
+            opcoes = df_edit.apply(lambda x: f"ID: {x['rowid']} | Data: {x['data']} | Qtd: {x['quantidade']}", axis=1).tolist()
             selecao = st.selectbox("Escolha o registro para alterar:", opcoes)
             novo_num = st.number_input("Corrigir quantidade:", min_value=0, step=1)
 
@@ -174,7 +174,7 @@ else:
     st.divider()
     st.markdown("### Gráfico de Produção")
     conn = sqlite3.connect('estoque_ovos.db')
-    df = pd.read_sql(f"SELECT data, quantidade FROM producao WHERE username=\'{st.session_state.username}\' ORDER BY data DESC LIMIT 30", conn)
+    df = pd.read_sql(f"SELECT data, quantidade FROM producao WHERE username='{st.session_state.username}' ORDER BY data DESC LIMIT 30", conn)
     conn.close()
     if not df.empty:
         st.line_chart(df.sort_values("data").set_index("data"), color="#5CE65C")
