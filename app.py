@@ -197,20 +197,27 @@ else:
     conn = sqlite3.connect('estoque_ovos.db')
     df = pd.read_sql(f"SELECT data, quantidade FROM producao WHERE username='{st.session_state.username}' ORDER BY data DESC LIMIT 30", conn)
     conn.close()
-    
+
     if not df.empty:
         df = df.sort_values("data")
         fig = px.bar(df, x='data', y='quantidade', 
                      title='Produção dos Últimos 30 Registros',
                      labels={'data': 'Data', 'quantidade': 'Ovos'},
                      color_discrete_sequence=['#5CE65C'])
+        
         fig.update_layout(
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
             xaxis_title="Data",
             yaxis_title="Quantidade",
-            title_x=0.5
+            title_x=0.5,
+            font=dict(color="black") # Garante que o texto seja preto
         )
+        
+        # Garante que os eixos e títulos fiquem pretos
+        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='LightGray', tickfont=dict(color='black'), title_font=dict(color='black'))
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightGray', tickfont=dict(color='black'), title_font=dict(color='black'))
+        
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Ainda não há dados para mostrar o gráfico.")
