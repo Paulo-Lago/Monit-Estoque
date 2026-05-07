@@ -1,0 +1,14 @@
+%%writefile .gitignore
+# Banco de dados local
+estoque_ovos.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Colab/Jupyter
+.ipynb_checkpoints/
