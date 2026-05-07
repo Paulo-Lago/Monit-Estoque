@@ -3,51 +3,62 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 
+# --- CONFIGURAÇÃO DE ÍCONE PERSONALIZADO ---
+URL_ICONE = "https://preview.redd.it/d7ajx3csqpzg1.jpeg?width=640&crop=smart&auto=webp&s=52f986fe2c31fe8b67d7502f4b1a02f9646cba1d"
+
 # 1. Função de Estilo Avançada (CSS)
 def aplicar_estilo_customizado():
-    st.markdown("""
+    st.markdown(f"""
     <style>
     /* Configurações Gerais */
-    .stApp { background-color: white; }
+    .stApp {{ background-color: white; color: black; }}
     
-    /* Estilização de Títulos e Textos */
-    h1, h2, h3 { color: #2e4053; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    .sub-texto { color: #666; text-align: center; margin-bottom: 2rem; font-size: 1.1rem; }
+    /* Estilização do Ícone de Ovo */
+    .egg-icon {{
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+        width: 80px;
+        margin-bottom: 10px;
+    }}
+
+    /* Títulos, Subtítulos e Textos em PRETO para destaque */
+    h1, h2, h3, p, span, label, .stMarkdown {{
+        color: #000000 !important;
+        font-family: 'Segoe UI', sans-serif;
+    }}
     
-    /* Botões Simétricos e Estilizados (#5CE65C) */
-    div.stButton > button:first-child {
+    .sub-texto {{
+        color: #000000 !important;
+        text-align: center;
+        margin-bottom: 2rem;
+        font-size: 1.1rem;
+        font-weight: 500;
+    }}
+    
+    /* Botões (#5CE65C) permanecem com texto branco para contraste no verde */
+    div.stButton > button:first-child {{
         background-color: #5CE65C;
-        color: white;
+        color: white !important;
         border-radius: 20px;
         font-weight: bold;
         border: none;
         width: 100%;
         height: 45px;
-        transition: all 0.3s ease;
         text-transform: uppercase;
-    }
-    div.stButton > button:first-child:hover {
+    }}
+    div.stButton > button:first-child:hover {{
         background-color: #4dc24d;
         box-shadow: 0 4px 10px rgba(92, 230, 92, 0.4);
-    }
+    }}
     
-    /* Estilização de Inputs */
-    .stTextInput input {
-        border-radius: 10px !important;
-    }
-    
-    /* Customização das Abas */
-    .stTabs [data-baseweb="tab-list"] button {
-        font-weight: bold;
-        color: #2e4053;
-    }
-    .stTabs [data-baseweb="tab-highlight"] {
-        background-color: #5CE65C !important;
-    }
+    /* Ajuste de cor para labels de inputs */
+    .stTextInput label, .stDateInput label, .stNumberInput label, .stSelectbox label {{
+        color: black !important;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Configurações e Banco de Dados
 st.set_page_config(page_title="Estoque Ovos Pro", layout="centered")
 aplicar_estilo_customizado()
 
@@ -61,20 +72,20 @@ def init_db():
 
 init_db()
 
-# Estado da Sessão
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'username' not in st.session_state: st.session_state.username = ""
 
 # --- TELA DE LOGIN ---
 if not st.session_state.logged_in:
-    st.markdown("<h1 style='text-align: center;'>🥚 Estoque de Ovos Pro</h1>", unsafe_allow_html=True)
-    st.markdown("<p class='sub-texto'>Comece agora a controlar seu estoque de maneira eficiente</p>", unsafe_allow_html=True)
+    st.markdown(f'<img src="{URL_ICONE}" class="egg-icon">', unsafe_allow_html=True)
+    st.markdown("<h1>Estoque de Ovos Pro</h1>", unsafe_allow_html=True)
+    st.markdown("<p class=\'sub-texto\'>Comece agora a controlar seu estoque de maneira eficiente</p>", unsafe_allow_html=True)
 
     with st.container():
         user = st.text_input("Nome de Usuário", placeholder="Insira seu usuário")
         pw = st.text_input("Senha", type="password", placeholder="Insira sua senha")
         
-        st.write("") # Espaço em branco
+        st.write("")
         col1, col2 = st.columns(2)
         
         with col1:
@@ -91,8 +102,6 @@ if not st.session_state.logged_in:
                         st.rerun()
                     else:
                         st.error("Usuário ou senha incorretos.")
-                else:
-                    st.warning("Preencha os campos de acesso.")
 
         with col2:
             if st.button("Criar Conta"):
@@ -103,16 +112,17 @@ if not st.session_state.logged_in:
                         c.execute("INSERT INTO usuarios (username, password) VALUES (?, ?)", (user, pw))
                         conn.commit()
                         conn.close()
-                        st.success("Usuário criado com sucesso! Clique em Entrar.")
+                        st.success("Usuário criado! Faça login.")
                     except sqlite3.IntegrityError:
-                        st.error("Este usuário já existe.")
+                        st.error("Este usuário já existe. Tente outro nome ou faça login.")
                 else:
-                    st.warning("Preencha os campos para cadastrar.")
+                    st.warning("Preencha usuário e senha para cadastrar.")
 
 # --- INTERFACE PRINCIPAL ---
 else:
-    st.title("📈 Painel de Gerenciamento")
-    st.subheader(f"Bem-vindo, {st.session_state.username}!")
+    st.markdown(f'<img src="{URL_ICONE}" style="width:50px; display:block; margin:auto;">', unsafe_allow_html=True)
+    st.markdown("<h1>Painel de Gerenciamento</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style=\'text-align: center;\'>Bem-vindo, {st.session_state.username}!</h3>", unsafe_allow_html=True)
 
     if st.sidebar.button("Sair / Logout"):
         st.session_state.logged_in = False
@@ -122,8 +132,9 @@ else:
     tab1, tab2 = st.tabs(["📝 Novo Registro", "🔍 Histórico e Edição"])
 
     with tab1:
+        st.markdown("### Registrar Colheita")
         data_reg = st.date_input("Data da Colheita", datetime.now().date())
-        qtd_val = st.text_input("Quantidade de Ovos", placeholder="Insira a quantidade de Ovos")
+        qtd_val = st.text_input("Quantidade de Ovos", placeholder="Ex: 12")
 
         if st.button("Salvar no Estoque"):
             if qtd_val.isdigit():
@@ -136,19 +147,20 @@ else:
                 st.balloons()
                 st.success(f"Registro de {qtd_val} ovos salvo!")
             else:
-                st.error("Insira apenas números inteiros.")
+                st.error("Por favor, insira um número válido.")
 
     with tab2:
+        st.markdown("### Gerenciar Histórico")
         conn = sqlite3.connect('estoque_ovos.db')
-        df_edit = pd.read_sql(f"SELECT rowid, data, quantidade FROM producao WHERE username='{st.session_state.username}' ORDER BY data DESC", conn)
+        df_edit = pd.read_sql(f"SELECT rowid, data, quantidade FROM producao WHERE username=\'{st.session_state.username}\' ORDER BY data DESC", conn)
         
         if not df_edit.empty:
-            opcoes = df_edit.apply(lambda x: f"ID: {x['rowid']} | Data: {x['data']} | Qtd: {x['quantidade']}", axis=1).tolist()
+            opcoes = df_edit.apply(lambda x: f"ID: {x[\'rowid\']} | Data: {x[\'data\']} | Qtd: {x[\'quantidade\']}", axis=1).tolist()
             selecao = st.selectbox("Escolha o registro para alterar:", opcoes)
-            novo_num = st.number_input("Corrigir para quanto?", min_value=0, step=1)
+            novo_num = st.number_input("Corrigir quantidade:", min_value=0, step=1)
 
             if st.button("Confirmar Alteração"):
-                rid = int(selecao.split('|')[0].replace('ID: ', '').strip())
+                rid = int(selecao.split("|")[0].replace("ID: ", "").strip())
                 c = conn.cursor()
                 c.execute("UPDATE producao SET quantidade = ? WHERE rowid = ?", (novo_num, rid))
                 conn.commit()
@@ -160,9 +172,9 @@ else:
             st.info("Nenhum dado registrado para este usuário.")
 
     st.divider()
-    st.subheader("Gráfico de Produção")
+    st.markdown("### Gráfico de Produção")
     conn = sqlite3.connect('estoque_ovos.db')
-    df = pd.read_sql(f"SELECT data, quantidade FROM producao WHERE username='{st.session_state.username}' ORDER BY data DESC LIMIT 30", conn)
+    df = pd.read_sql(f"SELECT data, quantidade FROM producao WHERE username=\'{st.session_state.username}\' ORDER BY data DESC LIMIT 30", conn)
     conn.close()
     if not df.empty:
-        st.line_chart(df.sort_values('data').set_index('data'), color="#5CE65C")
+        st.line_chart(df.sort_values("data").set_index("data"), color="#5CE65C")
