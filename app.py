@@ -156,7 +156,7 @@ else:
     with tab1:
         st.markdown("### Registrar Produção")
         # Ajuste visual da data para combinar com o tema
-        data_reg = st.date_input("📅 Data da Colheita", datetime.now().date())
+       data_reg = st.date_input("📅 Data da Colheita", value=datetime.now().date(), format="DD/MM/YYYY")
         qtd_val = st.number_input("🥚 Quantidade de Ovos", min_value=0, step=1, format="%d")
         
         st.write("")
