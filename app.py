@@ -17,17 +17,17 @@ def aplicar_estilo_customizado():
         color: black !important; 
     }}
 
-    /* Container de Fundo Persistente */
+    /* Container de Fundo Persistente (Garante a imagem em todas as telas) */
     .main-bg-container {{
         position: fixed;
         top: 0;
         left: 0;
         width: 100vw;
         height: 100vh;
-        display: flex;
+        display: flex !important;
         justify-content: center;
         align-items: center;
-        z-index: -1;
+        z-index: -1 !important;
         pointer-events: none;
         overflow: hidden;
     }}
@@ -35,7 +35,7 @@ def aplicar_estilo_customizado():
     .egg-icon-bg-persistent {{
         width: 80vw;
         max-width: 600px;
-        opacity: 0.10;
+        opacity: 0.12 !important;
         filter: grayscale(10%);
     }}
 
@@ -44,6 +44,7 @@ def aplicar_estilo_customizado():
         padding-top: 2rem !important;
         padding-bottom: 2rem !important;
         max-width: 800px !important;
+        background: transparent !important;
     }}
 
     h1, h2, h3, p, span, label, .stMarkdown {{
@@ -75,7 +76,7 @@ def aplicar_estilo_customizado():
     div.stButton > button:hover {{ transform: scale(1.03); opacity: 0.95; }}
 
     .stTextInput, .stNumberInput, .stDateInput, .stSelectbox {{
-        background-color: rgba(255, 255, 255, 0.8);
+        background-color: rgba(255, 255, 255, 0.8) !important;
         border-radius: 12px;
     }}
 
