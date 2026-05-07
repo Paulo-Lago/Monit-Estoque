@@ -13,16 +13,31 @@ def aplicar_estilo_customizado():
     /* Configurações Gerais */
     .stApp {{ background-color: white; color: black; }}
 
-    /* Estilização do Ícone de Ovo */
-    .egg-icon {{
-        display: block;
-        margin-left: auto;
-        margin-right: auto;
-        width: 80px;
-        margin-bottom: 10px;
+    /* Estilização do Ícone de Ovo como Fundo */
+    .egg-background-container {{
+        position: relative;
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 50px 0;
     }}
 
-    /* Títulos, Subtítulos e Textos em PRETO para destaque */
+    .egg-icon-bg {{
+        position: absolute;
+        width: 280px; /* Aumentado */
+        opacity: 0.15; /* Transparência para não atrapalhar a leitura */
+        z-index: 0;
+        pointer-events: none;
+    }}
+
+    /* Títulos e Formulário sobrepostos ao fundo */
+    .login-content {{
+        position: relative;
+        z-index: 1;
+        width: 100%;
+    }}
+
     h1, h2, h3, p, span, label, .stMarkdown {{
         color: #000000 !important;
         font-family: 'Segoe UI', sans-serif;
@@ -36,7 +51,7 @@ def aplicar_estilo_customizado():
         font-weight: 500;
     }}
 
-    /* Botões (#5CE65C) permanecem com texto branco para contraste no verde */
+    /* Botões */
     div.stButton > button:first-child {{
         background-color: #5CE65C;
         color: white !important;
@@ -52,7 +67,6 @@ def aplicar_estilo_customizado():
         box-shadow: 0 4px 10px rgba(92, 230, 92, 0.4);
     }}
 
-    /* Ajuste de cor para labels de inputs */
     .stTextInput label, .stDateInput label, .stNumberInput label, .stSelectbox label {{
         color: black !important;
     }}
@@ -77,9 +91,16 @@ if 'username' not in st.session_state: st.session_state.username = ""
 
 # --- TELA DE LOGIN ---
 if not st.session_state.logged_in:
-    st.markdown(f'<img src="{URL_ICONE}" class="egg-icon">', unsafe_allow_html=True)
-    st.markdown("<h1>Estoque de Ovos Pro</h1>", unsafe_allow_html=True)
-    st.markdown("<p class='sub-texto'>Comece agora a controlar seu estoque de maneira eficiente</p>", unsafe_allow_html=True)
+    # Container para efeito de camada (imagem atrás do texto)
+    st.markdown(f'''
+        <div class="egg-background-container">
+            <img src="{URL_ICONE}" class="egg-icon-bg">
+            <div class="login-content">
+                <h1 style="text-align:center;">Estoque de Ovos Pro</h1>
+                <p class="sub-texto">Comece agora a controlar seu estoque de maneira eficiente</p>
+            </div>
+        </div>
+    ''', unsafe_allow_html=True)
 
     with st.container():
         user = st.text_input("Nome de Usuário", placeholder="Insira seu usuário")
