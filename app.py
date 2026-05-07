@@ -155,8 +155,8 @@ else:
 
     with tab1:
         st.markdown("### Registrar Produção")
-        # Ajuste visual da data para combinar com o tema
-       data_reg = st.date_input("📅 Data da Colheita", value=datetime.now().date(), format="DD/MM/YYYY")
+        # Ajuste visual e formato da data (DD/MM/YYYY)
+        data_reg = st.date_input("📅 Data da Colheita", value=datetime.now().date(), format="DD/MM/YYYY")
         qtd_val = st.number_input("🥚 Quantidade de Ovos", min_value=0, step=1, format="%d")
         
         st.write("")
@@ -202,10 +202,10 @@ else:
     if not df.empty:
         df['data'] = pd.to_datetime(df['data'])
         df = df.sort_values("data")
-        df['data_br'] = df['data'].dt.strftime('%d/%m')
+        df['data_br'] = df['data'].dt.strftime('%d/%m/%Y')
         
         fig = px.bar(df, x='data_br', y='quantidade', 
-                     labels={'data_br': 'Dia', 'quantidade': 'Ovos'},
+                     labels={'data_br': 'Data', 'quantidade': 'Ovos'},
                      color_discrete_sequence=['#5CE65C'])
         
         fig.update_layout(
@@ -213,6 +213,6 @@ else:
             paper_bgcolor='rgba(0,0,0,0)', 
             font=dict(color="black"),
             margin=dict(l=0, r=0, t=10, b=0),
-            height=300
+            height=350
         )
         st.plotly_chart(fig, use_container_width=True)
