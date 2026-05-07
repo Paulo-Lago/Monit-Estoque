@@ -7,75 +7,87 @@ from datetime import datetime
 # --- CONFIGURAÇÃO DE ÍCONE PERSONALIZADO ---
 URL_ICONE = "https://preview.redd.it/d7ajx3csqpzg1.jpeg?width=640&crop=smart&auto=webp&s=52f986fe2c31fe8b67d7502f4b1a02f9646cba1d"
 
-# 1. Função de Estilo Avançada (CSS)
+# 1. Função de Estilo Avançada (CSS Responsivo e Persistente)
 def aplicar_estilo_customizado():
     st.markdown(f"""
     <style>
     /* Configurações Gerais */
-    .stApp {{ background-color: white; color: black; }}
+    .stApp {{ 
+        background-color: white; 
+        color: black; 
+    }}
 
-    /* Estilização do Ícone de Ovo como Fundo (MUITO MAIOR) */
-    .egg-background-container {{
-        position: relative;
-        width: 100%;
+    /* Container de Fundo Persistente (Aparece em todas as telas) */
+    .main-bg-container {{
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
         display: flex;
         justify-content: center;
         align-items: center;
-        padding: 60px 0;
-        overflow: visible;
-    }}
-
-    .egg-icon-bg {{
-        position: absolute;
-        width: 500px; /* Aumentado significativamente */
-        opacity: 0.12; /* Transparência suave para fundo */
-        z-index: 0;
+        z-index: -1;
         pointer-events: none;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
+        overflow: hidden;
     }}
 
-    /* Títulos e Formulário sobrepostos ao fundo */
-    .login-content {{
-        position: relative;
-        z-index: 1;
-        width: 100%;
+    .egg-icon-bg-persistent {{
+        width: 80vw;
+        max-width: 600px;
+        opacity: 0.10;
+        filter: grayscale(10%);
+    }}
+
+    /* Ajustes de Layout Responsivo */
+    .block-container {{
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
+        max-width: 800px !important;
     }}
 
     h1, h2, h3, p, span, label, .stMarkdown {{
         color: #000000 !important;
-        font-family: 'Segoe UI', sans-serif;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }}
 
+    h1 {{ font-size: calc(1.6rem + 1vw) !important; text-align: center; margin-bottom: 0.5rem; }}
+
     .sub-texto {{
-        color: #000000 !important;
         text-align: center;
         margin-bottom: 2rem;
         font-size: 1.1rem;
-        font-weight: 500;
+        opacity: 0.7;
     }}
 
-    /* Botões */
-    div.stButton > button:first-child {{
-        background-color: #5CE65C;
+    /* Botões Modernos e Responsivos */
+    div.stButton > button {{
+        background-color: #5CE65C !important;
         color: white !important;
-        border-radius: 20px;
-        font-weight: bold;
-        border: none;
-        width: 100%;
-        height: 45px;
-        text-transform: uppercase;
+        border-radius: 15px !important;
+        font-weight: bold !important;
+        width: 100% !important;
+        padding: 0.6rem !important;
+        border: none !important;
+        transition: 0.3s transform ease;
     }}
-    div.stButton > button:first-child:hover {{
-        background-color: #4dc24d;
-        box-shadow: 0 4px 10px rgba(92, 230, 92, 0.4);
+    
+    div.stButton > button:hover {{ transform: scale(1.03); opacity: 0.95; }}
+
+    /* Estilização de Cards e Inputs */
+    .stTextInput, .stNumberInput, .stDateInput, .stSelectbox {{
+        background-color: rgba(255, 255, 255, 0.8);
+        border-radius: 12px;
     }}
 
-    .stTextInput label, .stDateInput label, .stNumberInput label, .stSelectbox label {{
-        color: black !important;
-    }}
+    /* Esconder Menu Streamlit */
+    #MainMenu {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
     </style>
+
+    <div class="main-bg-container">
+        <img src="{URL_ICONE}" class="egg-icon-bg-persistent">
+    </div>
     """, unsafe_allow_html=True)
 
 st.set_page_config(page_title="Estoque Ovos Pro", layout="centered")
@@ -96,23 +108,15 @@ if 'username' not in st.session_state: st.session_state.username = ""
 
 # --- TELA DE LOGIN ---
 if not st.session_state.logged_in:
-    st.markdown(f'''
-        <div class="egg-background-container">
-            <img src="{URL_ICONE}" class="egg-icon-bg">
-            <div class="login-content">
-                <h1 style="text-align:center;">Estoque de Ovos Pro</h1>
-                <p class="sub-texto">Comece agora a controlar seu estoque de maneira eficiente</p>
-            </div>
-        </div>
-    ''', unsafe_allow_html=True)
+    st.markdown("<h1>Estoque de Ovos Pro</h1>", unsafe_allow_html=True)
+    st.markdown("<p class='sub-texto'>Sua produção organizada de forma profissional</p>", unsafe_allow_html=True)
 
     with st.container():
-        user = st.text_input("Nome de Usuário", placeholder="Insira seu usuário")
-        pw = st.text_input("Senha", type="password", placeholder="Insira sua senha")
-
+        user = st.text_input("Nome de Usuário", placeholder="Digite seu usuário")
+        pw = st.text_input("Senha", type="password", placeholder="Digite sua senha")
+        
         st.write("")
         col1, col2 = st.columns(2)
-
         with col1:
             if st.button("Entrar"):
                 if user and pw:
@@ -125,112 +129,90 @@ if not st.session_state.logged_in:
                         st.session_state.logged_in = True
                         st.session_state.username = user
                         st.rerun()
-                    else:
-                        st.error("Usuário ou senha incorretos.")
-
+                    else: st.error("Login ou senha inválidos.")
         with col2:
             if st.button("Criar Conta"):
                 if user and pw:
                     try:
                         conn = sqlite3.connect('estoque_ovos.db')
                         c = conn.cursor()
-                        c.execute("INSERT INTO usuarios (username, password) VALUES (?, ?)", (user, pw))
+                        c.execute("INSERT INTO usuarios VALUES (?, ?)", (user, pw))
                         conn.commit()
                         conn.close()
-                        st.success("Usuário criado! Faça login.")
-                    except sqlite3.IntegrityError:
-                        st.error("Este usuário já existe. Tente outro nome ou faça login.")
-                else:
-                    st.warning("Preencha usuário e senha para cadastrar.")
+                        st.success("Conta criada com sucesso!")
+                    except: st.error("Este usuário já existe.")
 
 # --- INTERFACE PRINCIPAL ---
 else:
-    st.markdown(f'<img src="{URL_ICONE}" style="width:50px; display:block; margin:auto;">', unsafe_allow_html=True)
-    st.markdown("<h1>Painel de Gerenciamento</h1>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='text-align: center;'>Bem-vindo, {st.session_state.username}!</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h1>Painel de Gerenciamento</h1>", unsafe_allow_html=True)
+    st.markdown(f"<p class='sub-texto'>Bem-vindo, <b>{st.session_state.username}</b></p>", unsafe_allow_html=True)
 
-    if st.sidebar.button("Sair / Logout"):
+    if st.sidebar.button("Sair / Logout"): 
         st.session_state.logged_in = False
-        st.session_state.username = ""
         st.rerun()
 
-    tab1, tab2 = st.tabs(["📝 Novo Registro", "🔍 Histórico e Edição"])
+    tab1, tab2 = st.tabs(["📝 Nova Colheita", "🔍 Histórico & Edição"])
 
     with tab1:
-        st.markdown("### Registrar Colheita")
-        data_reg = st.date_input("Data da Colheita", datetime.now().date())
-        qtd_val = st.text_input("Quantidade de Ovos", placeholder="Ex: 12")
-
-        if st.button("Salvar no Estoque"):
-            if qtd_val.isdigit():
-                conn = sqlite3.connect('estoque_ovos.db')
-                c = conn.cursor()
-                c.execute("INSERT INTO producao (username, data, quantidade) VALUES (?, ?, ?)",
-                          (st.session_state.username, data_reg, int(qtd_val)))
-                conn.commit()
-                conn.close()
-                st.balloons()
-                st.success(f"Registro de {qtd_val} ovos salvo!")
-            else:
-                st.error("Por favor, insira um número válido.")
+        st.markdown("### Registrar Produção")
+        # Ajuste visual da data para combinar com o tema
+        data_reg = st.date_input("📅 Data da Colheita", datetime.now().date())
+        qtd_val = st.number_input("🥚 Quantidade de Ovos", min_value=0, step=1, format="%d")
+        
+        st.write("")
+        if st.button("Salvar no Banco de Dados"):
+            conn = sqlite3.connect('estoque_ovos.db')
+            c = conn.cursor()
+            c.execute("INSERT INTO producao VALUES (?, ?, ?)", (st.session_state.username, data_reg, qtd_val))
+            conn.commit()
+            conn.close()
+            st.balloons()
+            st.success("Produção registrada com sucesso!")
 
     with tab2:
         st.markdown("### Gerenciar Histórico")
         conn = sqlite3.connect('estoque_ovos.db')
         df_edit = pd.read_sql(f"SELECT rowid, data, quantidade FROM producao WHERE username='{st.session_state.username}' ORDER BY data DESC", conn)
-
+        
         if not df_edit.empty:
-            # Formatação para o usuário (Dia/Mês/Ano)
-            df_edit['data_formatada'] = pd.to_datetime(df_edit['data']).dt.strftime('%d/%m/%Y')
-
-            # Criando uma label bonita para o Selectbox
-            opcoes_dict = {row['rowid']: f"📅 {row['data_formatada']} — 🥚 {row['quantidade']} Ovos" for _, row in df_edit.iterrows()}
-            selecao_label = st.selectbox("Selecione um registro para editar:", list(opcoes_dict.values()))
-
-            # Recuperando o rowid real baseado no texto selecionado
-            rid = [k for k, v in opcoes_dict.items() if v == selecao_label][0]
-            novo_num = st.number_input("Nova quantidade:", min_value=0, step=1)
-
+            df_edit['data_fmt'] = pd.to_datetime(df_edit['data']).dt.strftime('%d/%m/%Y')
+            opcoes = {row['rowid']: f"📅 {row['data_fmt']} — {row['quantidade']} ovos" for _, row in df_edit.iterrows()}
+            selecao = st.selectbox("Escolha um registro para corrigir:", list(opcoes.values()))
+            
+            rid = [k for k, v in opcoes.items() if v == selecao][0]
+            novo_val = st.number_input("Corrigir para esta quantidade:", min_value=0, step=1)
+            
             if st.button("Confirmar Alteração"):
                 c = conn.cursor()
-                c.execute("UPDATE producao SET quantidade = ? WHERE rowid = ?", (novo_num, rid))
+                c.execute("UPDATE producao SET quantidade = ? WHERE rowid = ?", (novo_val, rid))
                 conn.commit()
                 conn.close()
                 st.success("Registro atualizado!")
                 st.rerun()
         else:
             conn.close()
-            st.info("Nenhum dado registrado para este usuário.")
+            st.info("Nenhum registro encontrado para este usuário.")
 
     st.divider()
-    st.markdown("### Gráfico de Produção")
+    st.markdown("### Desempenho Recente")
     conn = sqlite3.connect('estoque_ovos.db')
-    df = pd.read_sql(f"SELECT data, quantidade FROM producao WHERE username='{st.session_state.username}' ORDER BY data DESC LIMIT 30", conn)
+    df = pd.read_sql(f"SELECT data, quantidade FROM producao WHERE username='{st.session_state.username}' ORDER BY data DESC LIMIT 15", conn)
     conn.close()
 
     if not df.empty:
         df['data'] = pd.to_datetime(df['data'])
         df = df.sort_values("data")
-        # Criando a string de data formatada para o gráfico (BR)
-        df['data_br'] = df['data'].dt.strftime('%d/%m/%Y')
-
+        df['data_br'] = df['data'].dt.strftime('%d/%m')
+        
         fig = px.bar(df, x='data_br', y='quantidade', 
-                     title='Produção dos Últimos 30 Registros',
-                     labels={'data_br': 'Data', 'quantidade': 'Ovos'},
+                     labels={'data_br': 'Dia', 'quantidade': 'Ovos'},
                      color_discrete_sequence=['#5CE65C'])
         
         fig.update_layout(
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            xaxis_title="Data",
-            yaxis_title="Quantidade",
-            title_x=0.5,
-            font=dict(color="black")
+            plot_bgcolor='rgba(0,0,0,0)', 
+            paper_bgcolor='rgba(0,0,0,0)', 
+            font=dict(color="black"),
+            margin=dict(l=0, r=0, t=10, b=0),
+            height=300
         )
-        
-        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='LightGray', tickfont=dict(color='black'), title_font=dict(color='black'))
-        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightGray', tickfont=dict(color='black'), title_font=dict(color='black'))
-        
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Ainda não há dados para mostrar o gráfico.")
