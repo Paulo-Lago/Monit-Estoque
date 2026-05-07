@@ -11,13 +11,18 @@ URL_ICONE = "https://preview.redd.it/d7ajx3csqpzg1.jpeg?width=640&crop=smart&aut
 def aplicar_estilo_customizado():
     st.markdown(f"""
     <style>
-    /* Configurações Gerais */
-    .stApp {{ 
-        background-color: white !important; 
-        color: black !important; 
+    /* Configurações Gerais - Removendo cores de fundo de todas as camadas */
+    .stApp, .stMain, .stHeader, .stAppHeader, .block-container {{
+        background-color: transparent !important;
+        color: black !important;
     }}
 
-    /* Container de Fundo Persistente (Garante a imagem em todas as telas) */
+    /* Forçando o fundo do body para branco para que a transparência funcione sobre ele */
+    body {{
+        background-color: white !important;
+    }}
+
+    /* Container de Fundo Persistente */
     .main-bg-container {{
         position: fixed;
         top: 0;
@@ -27,15 +32,15 @@ def aplicar_estilo_customizado():
         display: flex !important;
         justify-content: center;
         align-items: center;
-        z-index: -1 !important;
+        z-index: -2 !important;
         pointer-events: none;
         overflow: hidden;
     }}
 
     .egg-icon-bg-persistent {{
-        width: 80vw;
-        max-width: 600px;
-        opacity: 0.12 !important;
+        width: 85vw;
+        max-width: 650px;
+        opacity: 0.15 !important;
         filter: grayscale(10%);
     }}
 
@@ -44,7 +49,6 @@ def aplicar_estilo_customizado():
         padding-top: 2rem !important;
         padding-bottom: 2rem !important;
         max-width: 800px !important;
-        background: transparent !important;
     }}
 
     h1, h2, h3, p, span, label, .stMarkdown {{
@@ -72,12 +76,14 @@ def aplicar_estilo_customizado():
         border: none !important;
         transition: 0.3s transform ease;
     }}
-    
+
     div.stButton > button:hover {{ transform: scale(1.03); opacity: 0.95; }}
 
+    /* Inputs com fundo semi-transparente para não sumirem no branco */
     .stTextInput, .stNumberInput, .stDateInput, .stSelectbox {{
-        background-color: rgba(255, 255, 255, 0.8) !important;
+        background-color: rgba(255, 255, 255, 0.9) !important;
         border-radius: 12px;
+        border: 1px solid #ddd !important;
     }}
 
     #MainMenu {{visibility: hidden;}}
@@ -139,7 +145,7 @@ if not st.session_state.logged_in:
 else:
     st.markdown(f"<h1>Painel de Gerenciamento</h1>", unsafe_allow_html=True)
     st.markdown(f"<p class='sub-texto'>Bem-vindo, <b>{st.session_state.username}</b></p>", unsafe_allow_html=True)
-    if st.sidebar.button("Sair / Logout"): 
+    if st.sidebar.button("Sair / Logout"):
         st.session_state.logged_in = False
         st.rerun()
 
