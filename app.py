@@ -13,11 +13,11 @@ def aplicar_estilo_customizado():
     <style>
     /* Configurações Gerais */
     .stApp {{ 
-        background-color: white; 
-        color: black; 
+        background-color: white !important; 
+        color: black !important; 
     }}
 
-    /* Container de Fundo Persistente (Garante a imagem em todas as telas) */
+    /* Container de Fundo Persistente */
     .main-bg-container {{
         position: fixed;
         top: 0;
@@ -39,7 +39,7 @@ def aplicar_estilo_customizado():
         filter: grayscale(10%);
     }}
 
-    /* Ajustes de Layout Responsivo */
+    /* Ajustes de Layout */
     .block-container {{
         padding-top: 2rem !important;
         padding-bottom: 2rem !important;
@@ -74,7 +74,6 @@ def aplicar_estilo_customizado():
     
     div.stButton > button:hover {{ transform: scale(1.03); opacity: 0.95; }}
 
-    /* Estilização de Inputs */
     .stTextInput, .stNumberInput, .stDateInput, .stSelectbox {{
         background-color: rgba(255, 255, 255, 0.8);
         border-radius: 12px;
@@ -105,47 +104,40 @@ init_db()
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'username' not in st.session_state: st.session_state.username = ""
 
-# --- TELA DE LOGIN ---
+# --- LÓGICA DE INTERFACE ---
 if not st.session_state.logged_in:
     st.markdown("<h1>Estoque de Ovos Pro</h1>", unsafe_allow_html=True)
     st.markdown("<p class='sub-texto'>Sua produção organizada de forma profissional</p>", unsafe_allow_html=True)
-
-    with st.container():
-        user = st.text_input("Nome de Usuário", placeholder="Digite seu usuário")
-        pw = st.text_input("Senha", type="password", placeholder="Digite sua senha")
-        
-        st.write("")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Entrar"):
-                if user and pw:
+    user = st.text_input("Nome de Usuário", placeholder="Digite seu usuário")
+    pw = st.text_input("Senha", type="password", placeholder="Digite sua senha")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Entrar"):
+            if user and pw:
+                conn = sqlite3.connect('estoque_ovos.db')
+                c = conn.cursor()
+                c.execute("SELECT password FROM usuarios WHERE username = ?", (user,))
+                result = c.fetchone()
+                conn.close()
+                if result and result[0] == pw:
+                    st.session_state.logged_in = True
+                    st.session_state.username = user
+                    st.rerun()
+                else: st.error("Login ou senha inválidos.")
+    with col2:
+        if st.button("Criar Conta"):
+            if user and pw:
+                try:
                     conn = sqlite3.connect('estoque_ovos.db')
                     c = conn.cursor()
-                    c.execute("SELECT password FROM usuarios WHERE username = ?", (user,))
-                    result = c.fetchone()
+                    c.execute("INSERT INTO usuarios VALUES (?, ?)", (user, pw))
+                    conn.commit()
                     conn.close()
-                    if result and result[0] == pw:
-                        st.session_state.logged_in = True
-                        st.session_state.username = user
-                        st.rerun()
-                    else: st.error("Login ou senha inválidos.")
-        with col2:
-            if st.button("Criar Conta"):
-                if user and pw:
-                    try:
-                        conn = sqlite3.connect('estoque_ovos.db')
-                        c = conn.cursor()
-                        c.execute("INSERT INTO usuarios VALUES (?, ?)", (user, pw))
-                        conn.commit()
-                        conn.close()
-                        st.success("Conta criada com sucesso!")
-                    except: st.error("Este usuário já existe.")
-
-# --- INTERFACE PRINCIPAL ---
+                    st.success("Conta criada com sucesso!")
+                except: st.error("Este usuário já existe.")
 else:
     st.markdown(f"<h1>Painel de Gerenciamento</h1>", unsafe_allow_html=True)
     st.markdown(f"<p class='sub-texto'>Bem-vindo, <b>{st.session_state.username}</b></p>", unsafe_allow_html=True)
-
     if st.sidebar.button("Sair / Logout"): 
         st.session_state.logged_in = False
         st.rerun()
@@ -156,8 +148,6 @@ else:
         st.markdown("### Registrar Produção")
         data_reg = st.date_input("📅 Data da Colheita", value=datetime.now().date(), format="DD/MM/YYYY")
         qtd_val = st.number_input("🥚 Quantidade de Ovos", min_value=0, step=1, format="%d")
-        
-        st.write("")
         if st.button("Salvar no Banco de Dados"):
             conn = sqlite3.connect('estoque_ovos.db')
             c = conn.cursor()
@@ -165,27 +155,24 @@ else:
             conn.commit()
             conn.close()
             st.balloons()
-            st.success("Produção registrada com sucesso!")
+            st.success("Produção registrada!")
 
     with tab2:
         st.markdown("### Gerenciar Histórico")
         conn = sqlite3.connect('estoque_ovos.db')
         df_edit = pd.read_sql(f"SELECT rowid, data, quantidade FROM producao WHERE username='{st.session_state.username}' ORDER BY data DESC", conn)
-        
         if not df_edit.empty:
             df_edit['data_fmt'] = pd.to_datetime(df_edit['data']).dt.strftime('%d/%m/%Y')
             opcoes = {row['rowid']: f"📅 {row['data_fmt']} — {row['quantidade']} ovos" for _, row in df_edit.iterrows()}
             selecao = st.selectbox("Escolha um registro para corrigir:", list(opcoes.values()))
-            
             rid = [k for k, v in opcoes.items() if v == selecao][0]
             novo_val = st.number_input("Corrigir para esta quantidade:", min_value=0, step=1)
-            
             if st.button("Confirmar Alteração"):
                 c = conn.cursor()
                 c.execute("UPDATE producao SET quantidade = ? WHERE rowid = ?", (novo_val, rid))
                 conn.commit()
                 conn.close()
-                st.success("Registro atualizado!")
+                st.success("Atualizado!")
                 st.rerun()
         else:
             conn.close()
@@ -196,23 +183,17 @@ else:
     conn = sqlite3.connect('estoque_ovos.db')
     df = pd.read_sql(f"SELECT data, quantidade FROM producao WHERE username='{st.session_state.username}' ORDER BY data DESC LIMIT 15", conn)
     conn.close()
-
     if not df.empty:
         df['data'] = pd.to_datetime(df['data'])
         df = df.sort_values("data")
         df['data_br'] = df['data'].dt.strftime('%d/%m/%Y')
-        
-        fig = px.bar(df, x='data_br', y='quantidade', 
-                     labels={'data_br': 'Data', 'quantidade': 'Ovos'},
-                     color_discrete_sequence=['#5CE65C'])
-        
+        fig = px.bar(df, x='data_br', y='quantidade', labels={'data_br': 'Data', 'quantidade': 'Ovos'}, color_discrete_sequence=['#5CE65C'])
         fig.update_layout(
-            plot_bgcolor='rgba(0,0,0,0)', 
+            plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
-            # Força as cores das fontes para preto
             font=dict(color="black", size=12),
-            xaxis=dict(tickfont=dict(color="black"), titlefont=dict(color="black")),
-            yaxis=dict(tickfont=dict(color="black"), titlefont=dict(color="black")),
+            xaxis=dict(tickfont=dict(color="black"), title_font=dict(color="black")),
+            yaxis=dict(tickfont=dict(color="black"), title_font=dict(color="black")),
             margin=dict(l=0, r=0, t=30, b=0),
             height=400
         )
