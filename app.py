@@ -14,22 +14,26 @@ def aplicar_estilo_customizado():
     /* Configurações Gerais */
     .stApp {{ background-color: white; color: black; }}
 
-    /* Estilização do Ícone de Ovo como Fundo */
+    /* Estilização do Ícone de Ovo como Fundo (MUITO MAIOR) */
     .egg-background-container {{
         position: relative;
         width: 100%;
         display: flex;
         justify-content: center;
         align-items: center;
-        padding: 50px 0;
+        padding: 60px 0;
+        overflow: visible;
     }}
 
     .egg-icon-bg {{
         position: absolute;
-        width: 280px;
-        opacity: 0.15;
+        width: 500px; /* Aumentado significativamente */
+        opacity: 0.12; /* Transparência suave para fundo */
         z-index: 0;
         pointer-events: none;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
     }}
 
     /* Títulos e Formulário sobrepostos ao fundo */
@@ -178,11 +182,11 @@ else:
         if not df_edit.empty:
             # Formatação para o usuário (Dia/Mês/Ano)
             df_edit['data_formatada'] = pd.to_datetime(df_edit['data']).dt.strftime('%d/%m/%Y')
-            
+
             # Criando uma label bonita para o Selectbox
             opcoes_dict = {row['rowid']: f"📅 {row['data_formatada']} — 🥚 {row['quantidade']} Ovos" for _, row in df_edit.iterrows()}
             selecao_label = st.selectbox("Selecione um registro para editar:", list(opcoes_dict.values()))
-            
+
             # Recuperando o rowid real baseado no texto selecionado
             rid = [k for k, v in opcoes_dict.items() if v == selecao_label][0]
             novo_num = st.number_input("Nova quantidade:", min_value=0, step=1)
@@ -209,7 +213,7 @@ else:
         df = df.sort_values("data")
         # Criando a string de data formatada para o gráfico (BR)
         df['data_br'] = df['data'].dt.strftime('%d/%m/%Y')
-        
+
         fig = px.bar(df, x='data_br', y='quantidade', 
                      title='Produção dos Últimos 30 Registros',
                      labels={'data_br': 'Data', 'quantidade': 'Ovos'},
