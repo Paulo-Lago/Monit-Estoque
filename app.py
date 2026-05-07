@@ -1,6 +1,7 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
+import plotly.express as px
 from datetime import datetime
 
 # --- CONFIGURAÇÃO DE ÍCONE PERSONALIZADO ---
@@ -25,8 +26,8 @@ def aplicar_estilo_customizado():
 
     .egg-icon-bg {{
         position: absolute;
-        width: 280px; /* Aumentado */
-        opacity: 0.15; /* Transparência para não atrapalhar a leitura */
+        width: 280px;
+        opacity: 0.15;
         z-index: 0;
         pointer-events: none;
     }}
@@ -91,7 +92,6 @@ if 'username' not in st.session_state: st.session_state.username = ""
 
 # --- TELA DE LOGIN ---
 if not st.session_state.logged_in:
-    # Container para efeito de camada (imagem atrás do texto)
     st.markdown(f'''
         <div class="egg-background-container">
             <img src="{URL_ICONE}" class="egg-icon-bg">
@@ -197,5 +197,20 @@ else:
     conn = sqlite3.connect('estoque_ovos.db')
     df = pd.read_sql(f"SELECT data, quantidade FROM producao WHERE username='{st.session_state.username}' ORDER BY data DESC LIMIT 30", conn)
     conn.close()
+    
     if not df.empty:
-        st.line_chart(df.sort_values("data").set_index("data"), color="#5CE65C")
+        df = df.sort_values("data")
+        fig = px.bar(df, x='data', y='quantidade', 
+                     title='Produção dos Últimos 30 Registros',
+                     labels={'data': 'Data', 'quantidade': 'Ovos'},
+                     color_discrete_sequence=['#5CE65C'])
+        fig.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            xaxis_title="Data",
+            yaxis_title="Quantidade",
+            title_x=0.5
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Ainda não há dados para mostrar o gráfico.")
