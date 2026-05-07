@@ -176,12 +176,18 @@ else:
         df_edit = pd.read_sql(f"SELECT rowid, data, quantidade FROM producao WHERE username='{st.session_state.username}' ORDER BY data DESC", conn)
 
         if not df_edit.empty:
-            opcoes = df_edit.apply(lambda x: f"ID: {x['rowid']} | Data: {x['data']} | Qtd: {x['quantidade']}", axis=1).tolist()
-            selecao = st.selectbox("Escolha o registro para alterar:", opcoes)
-            novo_num = st.number_input("Corrigir quantidade:", min_value=0, step=1)
+            # Formatação para o usuário (Dia/Mês/Ano)
+            df_edit['data_formatada'] = pd.to_datetime(df_edit['data']).dt.strftime('%d/%m/%Y')
+            
+            # Criando uma label bonita para o Selectbox
+            opcoes_dict = {row['rowid']: f"📅 {row['data_formatada']} — 🥚 {row['quantidade']} Ovos" for _, row in df_edit.iterrows()}
+            selecao_label = st.selectbox("Selecione um registro para editar:", list(opcoes_dict.values()))
+            
+            # Recuperando o rowid real baseado no texto selecionado
+            rid = [k for k, v in opcoes_dict.items() if v == selecao_label][0]
+            novo_num = st.number_input("Nova quantidade:", min_value=0, step=1)
 
             if st.button("Confirmar Alteração"):
-                rid = int(selecao.split("|")[0].replace("ID: ", "").strip())
                 c = conn.cursor()
                 c.execute("UPDATE producao SET quantidade = ? WHERE rowid = ?", (novo_num, rid))
                 conn.commit()
@@ -199,10 +205,14 @@ else:
     conn.close()
 
     if not df.empty:
+        df['data'] = pd.to_datetime(df['data'])
         df = df.sort_values("data")
-        fig = px.bar(df, x='data', y='quantidade', 
+        # Criando a string de data formatada para o gráfico (BR)
+        df['data_br'] = df['data'].dt.strftime('%d/%m/%Y')
+        
+        fig = px.bar(df, x='data_br', y='quantidade', 
                      title='Produção dos Últimos 30 Registros',
-                     labels={'data': 'Data', 'quantidade': 'Ovos'},
+                     labels={'data_br': 'Data', 'quantidade': 'Ovos'},
                      color_discrete_sequence=['#5CE65C'])
         
         fig.update_layout(
@@ -211,10 +221,9 @@ else:
             xaxis_title="Data",
             yaxis_title="Quantidade",
             title_x=0.5,
-            font=dict(color="black") # Garante que o texto seja preto
+            font=dict(color="black")
         )
         
-        # Garante que os eixos e títulos fiquem pretos
         fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='LightGray', tickfont=dict(color='black'), title_font=dict(color='black'))
         fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightGray', tickfont=dict(color='black'), title_font=dict(color='black'))
         
