@@ -426,17 +426,25 @@ else:
 
                     df_galpao = df_filtrado[df_filtrado['galpao_norm'] == galpao]
 
-                    # === NOVO: Total de Ovos do Dia por Galpão ===
+                    # === Total de Ovos do Dia por Galpão ===
                     total_galpao = df_galpao['quantidade'].sum()
                     st.info(f"**Total de Ovos do Dia:** {total_galpao} ovos")
 
-                    # Por tipo
+                    # Por tipo (com exclusões específicas)
                     tipo_cols = st.columns(len(TIPOS_OVO))
                     for idx, tipo in enumerate(TIPOS_OVO):
                         with tipo_cols[idx]:
-                            total_tipo = df_galpao[df_galpao['tipo']
-                                                   == tipo]['quantidade'].sum()
-                            st.info(f"**{tipo}**: {total_tipo} ovos")
+                            # Exclusões solicitadas
+                            if galpao == "Galpão 2" and tipo == "B":
+                                # Oculta tipo B do Galpão 2
+                                st.info(f"**{tipo}**: -")
+                            elif galpao == "Galpão 3" and tipo == "Jumbo":
+                                # Oculta tipo Jumbo do Galpão 3
+                                st.info(f"**{tipo}**: -")
+                            else:
+                                total_tipo = df_galpao[df_galpao['tipo'] == tipo]['quantidade'].sum(
+                                )
+                                st.info(f"**{tipo}**: {total_tipo} ovos")
 
                     # Por cor
                     cor_cols = st.columns(len(CORES))
