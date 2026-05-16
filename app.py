@@ -117,9 +117,8 @@ def init_db():
     # Tabela de usuários
     c.execute('CREATE TABLE IF NOT EXISTS usuarios (username TEXT UNIQUE, password TEXT)')
     
-    # Tabela de produção (ovos)
+    # Tabela de produção (ovos) - usando rowid implícito do SQLite
     c.execute('''CREATE TABLE IF NOT EXISTS producao (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT,
         data DATE,
         quantidade INTEGER,
@@ -130,7 +129,6 @@ def init_db():
     
     # Tabela de aves
     c.execute('''CREATE TABLE IF NOT EXISTS aves (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT,
         galpao TEXT,
         quantidade_total INTEGER,
@@ -139,7 +137,6 @@ def init_db():
     
     # Tabela de aves mortas
     c.execute('''CREATE TABLE IF NOT EXISTS aves_mortas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT,
         galpao TEXT,
         quantidade INTEGER,
@@ -148,7 +145,6 @@ def init_db():
     
     # Tabela de ovos quebrados
     c.execute('''CREATE TABLE IF NOT EXISTS ovos_quebrados (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT,
         galpao TEXT,
         quantidade INTEGER,
@@ -304,7 +300,7 @@ else:
         
         conn = sqlite3.connect('estoque_ovos.db')
         df_edit = pd.read_sql(
-            "SELECT id, data, quantidade, tipo, galpao, cor FROM producao WHERE username=? ORDER BY data DESC",
+            "SELECT rowid, data, quantidade, tipo, galpao, cor FROM producao WHERE username=? ORDER BY rowid DESC",
             conn,
             params=(st.session_state.username,)
         )
@@ -314,14 +310,14 @@ else:
             df_edit['data_fmt'] = pd.to_datetime(df_edit['data']).dt.strftime('%d/%m/%Y')
             
             opcoes = {
-                row['id']: f"📅 {row['data_fmt']} | {row['quantidade']} ovos | {row['tipo']} | {row['cor']} | {row['galpao']}"
+                row['rowid']: f"📅 {row['data_fmt']} | {row['quantidade']} ovos | {row['tipo']} | {row['cor']} | {row['galpao']}"
                 for _, row in df_edit.iterrows()
             }
             
             selecao = st.selectbox("Escolha um registro para corrigir:", list(opcoes.values()))
             rid = [k for k, v in opcoes.items() if v == selecao][0]
             
-            registro = df_edit[df_edit['id'] == rid].iloc[0]
+            registro = df_edit[df_edit['rowid'] == rid].iloc[0]
             
             col1, col2 = st.columns(2)
             with col1:
@@ -336,7 +332,7 @@ else:
                 conn = sqlite3.connect('estoque_ovos.db')
                 c = conn.cursor()
                 c.execute(
-                    "UPDATE producao SET quantidade=?, tipo=?, galpao=?, cor=? WHERE id=?",
+                    "UPDATE producao SET quantidade=?, tipo=?, galpao=?, cor=? WHERE rowid=?",
                     (novo_val, novo_tipo, novo_galpao, nova_cor, rid)
                 )
                 conn.commit()
