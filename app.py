@@ -620,7 +620,7 @@ else:
             with col3:
                 st.metric(f"{galpao} - Vivas", f"{total_vivo} aves")
 
-    # ======================== ABA 5: GRÁFICOS ========================
+       # ======================== ABA 5: GRÁFICOS ========================
     with tabs[4]:
         st.markdown("### 📈 Gráficos e Análises")
 
@@ -632,101 +632,18 @@ else:
         )
         conn.close()
 
-        if not df_graficos.empty:
+        if df_graficos.empty:
+            st.info("📭 Nenhum dado disponível para gerar gráficos.")
+        else:
             df_graficos['data'] = pd.to_datetime(df_graficos['data'])
 
-            # Gráfico 1: Evolução temporal
-            st.markdown("#### 📉 Evolução Temporal de Produção")
-            df_tempo = df_graficos.groupby(
-                'data')['quantidade'].sum().reset_index()
-            fig_tempo = px.line(
-                df_tempo,
-                x='data',
-                y='quantidade',
-                markers=True,
-                labels={'data': 'Data', 'quantidade': 'Quantidade de Ovos'},
-                title="Produção ao Longo do Tempo"
-            )
-            fig_tempo.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(color="black", size=12),
-                hovermode='x unified'
-            )
-            st.plotly_chart(fig_tempo, use_container_width=True)
+            st.markdown(
+                "**Selecione os gráficos que deseja visualizar abaixo:**")
+            st.divider()
 
-            # Gráfico 2: Produção por galpão
-            st.markdown("#### 🏠 Produção por Galpão")
-            df_galpao = df_graficos.groupby(
-                'galpao')['quantidade'].sum().reset_index()
-            fig_galpao = px.bar(
-                df_galpao,
-                x='galpao',
-                y='quantidade',
-                color='galpao',
-                labels={'galpao': 'Galpão', 'quantidade': 'Total de Ovos'},
-                title="Total de Ovos por Galpão"
-            )
-            fig_galpao.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(color="black", size=12),
-                showlegend=False
-            )
-            st.plotly_chart(fig_galpao, use_container_width=True)
-
-            # Gráfico 3: Tipo de ovo
-            st.markdown("#### 🏷️ Distribuição por Tipo")
-            df_tipo = df_graficos.groupby(
-                'tipo')['quantidade'].sum().reset_index()
-            fig_tipo = px.pie(
-                df_tipo,
-                names='tipo',
-                values='quantidade',
-                title="Ovos por Tipo"
-            )
-            fig_tipo.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(color="black", size=12)
-            )
-            st.plotly_chart(fig_tipo, use_container_width=True)
-
-            # Gráfico 4: Cor de ovo
-            st.markdown("#### 🎨 Distribuição por Cor")
-            df_cor = df_graficos.groupby(
-                'cor')['quantidade'].sum().reset_index()
-            fig_cor = px.pie(
-                df_cor,
-                names='cor',
-                values='quantidade',
-                title="Ovos por Cor"
-            )
-            fig_cor.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(color="black", size=12)
-            )
-            st.plotly_chart(fig_cor, use_container_width=True)
-
-            # Gráfico 5: Heatmap Galpão x Tipo
-            st.markdown("#### 🔥 Heatmap: Galpão vs Tipo")
-            df_heatmap = df_graficos.groupby(['galpao', 'tipo'])[
-                'quantidade'].sum().reset_index()
-            df_pivot = df_heatmap.pivot(
-                index='galpao', columns='tipo', values='quantidade').fillna(0)
-
-            fig_heat = px.imshow(
-                df_pivot,
-                labels=dict(x='Tipo', y='Galpão', color='Quantidade'),
-                title="Produção por Galpão e Tipo",
-                color_continuous_scale='Greens'
-            )
-            fig_heat.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(color="black", size=12)
-            )
-            st.plotly_chart(fig_heat, use_container_width=True)
-        else:
-            st.info("📭 Nenhum dado disponível para gráficos.")
+            # Aqui você vai me dizer quais gráficos quer adicionar
+            st.info(
+                "👉 Me diga agora como quer os gráficos que eu vou implementando um por um.")
 
     # ======================== ABA 6: OVOS QUEBRADOS ========================
     with tabs[5]:
