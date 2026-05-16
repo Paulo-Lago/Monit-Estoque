@@ -27,11 +27,10 @@ def aplicar_estilo_customizado():
     <style>
     .stApp {{
         background-image: url("data:image/png;base64,{logo_base64}") !important;
-        background-size: cover !important;
+        background-size: contain !important;
         background-position: center !important;
         background-repeat: no-repeat !important;
         background-attachment: fixed !important;
-        background-color: white !important;
     }}
     </style>
     """, unsafe_allow_html=True)
