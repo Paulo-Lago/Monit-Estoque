@@ -17,26 +17,21 @@ LOGO_PATH = BASE_DIR / "assets" / "logomarca.png"
 # 1. Função de Estilo Avançada (CSS Responsivo e Persistente)
 
 def aplicar_estilo_customizado():
-    st.write("🔍 **DEBUG - Carregando imagem de fundo...**")
-    st.write(f"**Caminho esperado:** `{LOGO_PATH}`")
-    st.write(f"**Arquivo existe?** {LOGO_PATH.exists()}")
-
     try:
         with open(LOGO_PATH, "rb") as img_file:
             logo_base64 = base64.b64encode(img_file.read()).decode()
-            st.success(f"✅ Imagem carregada com sucesso! Tamanho do base64: {len(logo_base64)} caracteres")
-    except Exception as e:
+    except:
         logo_base64 = ""
-        st.error(f"❌ Erro ao carregar a imagem: {e}")
 
     st.markdown(f"""
     <style>
     .stApp {{
         background-image: url("data:image/png;base64,{logo_base64}") !important;
-        background-size: contain !important;
+        background-size: cover !important;
         background-position: center !important;
         background-repeat: no-repeat !important;
         background-attachment: fixed !important;
+        background-color: white !important;
     }}
     </style>
     """, unsafe_allow_html=True)
