@@ -6,7 +6,11 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # --- CONFIGURAÇÃO DE ÍCONE PERSONALIZADO ---
-URL_ICONE = "https://preview.redd.it/d7ajx3csqpzg1.jpeg?width=640&crop=smart&auto=webp&s=52f986fe2c31fe8b67d7502f4b1a02f9646cba1d"
+import base64
+from pathlib import Path
+
+# Caminho da imagem local
+LOGO_PATH = Path("assets/logomarca.png")
 
 # 1. Função de Estilo Avançada (CSS Responsivo e Persistente)
 
@@ -103,11 +107,20 @@ def aplicar_estilo_customizado():
     footer {{visibility: hidden;}}
     </style>
 
-    <div class="main-bg-container">
-        <img src="{URL_ICONE}" class="egg-icon-bg-persistent">
+        <div class="main-bg-container">
+        <img src="data:image/png;base64,{logo_base64}" class="egg-icon-bg-persistent">
     </div>
     """, unsafe_allow_html=True)
 
+# === Carregar imagem de fundo em base64 ===
+
+
+def get_base64_image(image_path):
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
+
+
+logo_base64 = get_base64_image(LOGO_PATH)
 
 st.set_page_config(page_title="Estoque Ovos Pro", layout="wide")
 aplicar_estilo_customizado()
