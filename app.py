@@ -369,8 +369,16 @@ else:
             
             # Total por galpão
             st.markdown("#### 🏠 Ovos por Galpão")
-            galpao_totais = df_producao.groupby('galpao')['quantidade'].sum().sort_values(ascending=False)
-            col_g1, col_g2 = st.columns(len(galpao_totais))
+galpao_totais = df_producao.groupby('galpao')['quantidade'].sum().sort_values(ascending=False)
+
+if not galpao_totais.empty:
+    cols = st.columns(len(galpao_totais))  # cria as colunas dinamicamente
+    
+    for idx, (galpao, total) in enumerate(galpao_totais.items()):
+        with cols[idx]:
+            st.metric(galpao, f"{total:,} ovos")
+else:
+    st.info("Nenhum galpão com produção registrada.")
             for idx, (galpao, total) in enumerate(galpao_totais.items()):
                 with st.columns(len(galpao_totais))[idx]:
                     st.metric(galpao, f"{total:,} ovos")
