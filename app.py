@@ -342,7 +342,7 @@ else:
         else:
             st.info("📭 Nenhum registro de colheita encontrado.")
 
-    # ======================== ABA 3: MONITORAMENTO ========================
+        # ======================== ABA 3: MONITORAMENTO ========================
     with tabs[2]:
         st.markdown("### 📊 Monitoramento de Produção")
         
@@ -354,79 +354,99 @@ else:
         )
         conn.close()
         
-        if not df_producao.empty:
-            # Total geral
-            total_geral = df_producao['quantidade'].sum()
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("🥚 Total de Ovos", f"{total_geral:,}")
-            with col2:
-                st.metric("📅 Registros", len(df_producao))
-            with col3:
-                st.metric("📊 Média por Registro", f"{total_geral / len(df_producao):.0f}")
+        if df_producao.empty:
+            st.info("📭 Nenhum registro de colheita encontrado.")
+        else:
+            df_producao['data'] = pd.to_datetime(df_producao['data'])
             
-            st.divider()
+            # === FILTRO POR DATA ===
+            st.markdown("#### 📅 Selecione o Dia para Análise")
             
-                       # Total por galpão
-            st.markdown("#### 🏠 Ovos por Galpão")
-            galpao_totais = df_producao.groupby('galpao')['quantidade'].sum().sort_values(ascending=False)
+            col_f1, col_f2 = st.columns([3, 1])
+            with col_f1:
+                data_selecionada = st.date_input(
+                    "Data", 
+                    value=datetime.now().date(),
+                    format="DD/MM/YYYY",
+                    key="data_monitor"
+                )
             
-            if not galpao_totais.empty:
-                cols = st.columns(len(galpao_totais))
-                for idx, (galpao, total) in enumerate(galpao_totais.items()):
-                    with cols[idx]:
-                        st.metric(galpao, f"{total:,} ovos")
+            with col_f2:
+                mostrar_todos = st.checkbox("Mostrar todos os dias", value=False)
+            
+            # Aplicando filtro
+            if mostrar_todos:
+                df_filtrado = df_producao.copy()
+                titulo_periodo = "Todo o Período"
             else:
-                st.info("Nenhum galpão com produção registrada.")
+                df_filtrado = df_producao[df_producao['data'].dt.date == data_selecionada]
+                titulo_periodo = f"Dia {data_selecionada.strftime('%d/%m/%Y')}"
             
+            st.markdown(f"**{titulo_periodo}**")
             st.divider()
             
-            # Total por tipo
-            st.markdown("#### 🏷️ Ovos por Tipo")
-            tipo_totais = df_producao.groupby('tipo')['quantidade'].sum().sort_values(ascending=False)
-            cols_tipo = st.columns(len(tipo_totais))
-            for idx, (tipo, total) in enumerate(tipo_totais.items()):
-                with cols_tipo[idx]:
-                    st.metric(tipo, f"{total:,} ovos")
-            
-            st.divider()
-            
-            # Total por cor
-            st.markdown("#### 🎨 Ovos por Cor")
-            cor_totais = df_producao.groupby('cor')['quantidade'].sum().sort_values(ascending=False)
-            cols_cor = st.columns(len(cor_totais))
-            for idx, (cor, total) in enumerate(cor_totais.items()):
-                with cols_cor[idx]:
-                    st.metric(cor, f"{total:,} ovos")
-            
-            st.divider()
-            
-            # Tabela detalhada
-            st.markdown("#### 📋 Detalhes por Galpão e Tipo")
-            
-            for galpao in sorted(df_producao['galpao'].unique()):
-                st.markdown(f"**{galpao}**")
-                
-                df_galpao = df_producao[df_producao['galpao'] == galpao]
-                
-                # Por tipo
-                tipo_cols = st.columns(len(TIPOS_OVO))
-                for idx, tipo in enumerate(TIPOS_OVO):
-                    with tipo_cols[idx]:
-                        total_tipo = df_galpao[df_galpao['tipo'] == tipo]['quantidade'].sum()
-                        st.info(f"**{tipo}**: {total_tipo} ovos")
-                
-                # Por cor
-                cor_cols = st.columns(len(CORES))
-                for idx, cor in enumerate(CORES):
-                    with cor_cols[idx]:
-                        total_cor = df_galpao[df_galpao['cor'] == cor]['quantidade'].sum()
-                        st.warning(f"**{cor}**: {total_cor} ovos")
+            if df_filtrado.empty:
+                st.warning(f"Nenhum registro encontrado para {data_selecionada.strftime('%d/%m/%Y')}")
+            else:
+                # Total geral
+                total_geral = df_filtrado['quantidade'].sum()
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("🥚 Total de Ovos", f"{total_geral:,}")
+                with col2:
+                    st.metric("📅 Registros", len(df_filtrado))
+                with col3:
+                    st.metric("📊 Média por Registro", f"{total_geral / len(df_filtrado):.0f}" if len(df_filtrado) > 0 else 0)
                 
                 st.divider()
-        else:
-            st.info("📭 Nenhum registro de colheita encontrado.")
-
+                
+                # Total por galpão
+                st.markdown("#### 🏠 Ovos por Galpão")
+                galpao_totais = df_filtrado.groupby('galpao')['quantidade'].sum().sort_values(ascending=False)
+                
+                if not galpao_totais.empty:
+                    cols = st.columns(len(galpao_totais))
+                    for idx, (galpao, total) in enumerate(galpao_totais.items()):
+                        with cols[idx]:
+                            st.metric(galpao, f"{total:,} ovos")
+                
+                st.divider()
+                
+                # Total por tipo
+                st.markdown("#### 🏷️ Ovos por Tipo")
+                tipo_totais = df_filtrado.groupby('tipo')['quantidade'].sum().sort_values(ascending=False)
+                if not tipo_totais.empty:
+                    cols_tipo = st.columns(len(tipo_totais))
+                    for idx, (tipo, total) in enumerate(tipo_totais.items()):
+                        with cols_tipo[idx]:
+                            st.metric(tipo, f"{total:,} ovos")
+                
+                st.divider()
+                
+                # Total por cor
+                st.markdown("#### 🎨 Ovos por Cor")
+                cor_totais = df_filtrado.groupby('cor')['quantidade'].sum().sort_values(ascending=False)
+                if not cor_totais.empty:
+                    cols_cor = st.columns(len(cor_totais))
+                    for idx, (cor, total) in enumerate(cor_totais.items()):
+                        with cols_cor[idx]:
+                            st.metric(cor, f"{total:,} ovos")
+                
+                st.divider()
+                
+                # Tabela detalhada
+                st.markdown("#### 📋 Registros do Dia")
+                df_display = df_filtrado.copy()
+                df_display['data_fmt'] = df_display['data'].dt.strftime('%d/%m/%Y')
+                df_display = df_display[['data_fmt', 'galpao', 'tipo', 'cor', 'quantidade']]
+                df_display = df_display.rename(columns={
+                    'data_fmt': 'Data',
+                    'galpao': 'Galpão',
+                    'tipo': 'Tipo',
+                    'cor': 'Cor',
+                    'quantidade': 'Quantidade'
+                })
+                st.dataframe(df_display.sort_values(by='Data', ascending=False), use_container_width=True, hide_index=True)
     # ======================== ABA 4: REGISTRAR AVES ========================
     with tabs[3]:
         st.markdown("### 🐔 Gerenciamento de Aves")
