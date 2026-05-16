@@ -9,8 +9,10 @@ from datetime import datetime
 import base64
 from pathlib import Path
 
-# Caminho da imagem local
-LOGO_PATH = Path("assets/logomarca.png")
+# === CAMINHO SEGURO DA IMAGEM ===
+BASE_DIR = Path(__file__).parent          # pasta onde está o app.py
+LOGO_PATH = BASE_DIR / "assets" / "logomarca.png"
+
 
 # 1. Função de Estilo Avançada (CSS Responsivo e Persistente)
 
@@ -107,7 +109,7 @@ def aplicar_estilo_customizado():
     footer {{visibility: hidden;}}
     </style>
 
-        <div class="main-bg-container">
+            <div class="main-bg-container">
         <img src="data:image/png;base64,{logo_base64}" class="egg-icon-bg-persistent">
     </div>
     """, unsafe_allow_html=True)
@@ -115,9 +117,21 @@ def aplicar_estilo_customizado():
 # === Carregar imagem de fundo em base64 ===
 
 
+BASE_DIR = Path(__file__).parent
+LOGO_PATH = BASE_DIR / "assets" / "logomarca.png"
+
+
 def get_base64_image(image_path):
-    with open(image_path, "rb") as img_file:
-        return base64.b64encode(img_file.read()).decode()
+    """Carrega a imagem e converte para base64"""
+    if not image_path.exists():
+        st.error(f"❌ Arquivo de imagem não encontrado em: {image_path}")
+        return ""
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar a imagem: {e}")
+        return ""
 
 
 logo_base64 = get_base64_image(LOGO_PATH)
