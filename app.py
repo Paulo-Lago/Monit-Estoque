@@ -452,34 +452,18 @@ else:
 
                 st.divider()
 
-                # Tabela detalhada - Mantida conforme solicitado
+                # ==================== DETALHES POR GALPÃO E TIPO ====================
                 st.markdown("#### 📋 Detalhes por Galpão e Tipo")
 
-                # Debug: mostrar galpões disponíveis (temporário - pode remover depois)
-                # st.write("Galpões encontrados:", sorted(df_filtrado['galpao'].unique()))
+                # Normalização para evitar problemas de nome
+                df_filtrado = df_filtrado.copy()
+                df_filtrado['galpao_norm'] = df_filtrado['galpao'].str.strip()
 
-                for galpao in sorted(df_filtrado['galpao'].unique()):
+                for galpao in sorted(df_filtrado['galpao_norm'].unique()):
                     st.markdown(f"**{galpao}**")
 
-                    df_galpao = df_filtrado[df_filtrado['galpao'] == galpao]
+                    df_galpao = df_filtrado[df_filtrado['galpao_norm'] == galpao]
 
-                    # Por tipo
-                    tipo_cols = st.columns(len(TIPOS_OVO))
-                    for idx, tipo in enumerate(TIPOS_OVO):
-                        with tipo_cols[idx]:
-                            total_tipo = df_galpao[df_galpao['tipo']
-                                                   == tipo]['quantidade'].sum()
-                            st.info(f"**{tipo}**: {total_tipo} ovos")
-
-                    # Por cor
-                    cor_cols = st.columns(len(CORES))
-                    for idx, cor in enumerate(CORES):
-                        with cor_cols[idx]:
-                            total_cor = df_galpao[df_galpao['cor']
-                                                  == cor]['quantidade'].sum()
-                            st.warning(f"**{cor}**: {total_cor} ovos")
-
-                    st.divider()
                     # Por tipo
                     tipo_cols = st.columns(len(TIPOS_OVO))
                     for idx, tipo in enumerate(TIPOS_OVO):
