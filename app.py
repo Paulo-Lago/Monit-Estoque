@@ -483,7 +483,7 @@ else:
 
                     st.divider()
 
-       # ======================== ABA 4: REGISTRAR AVES ========================
+          # ======================== ABA 4: REGISTRAR AVES ========================
     with tabs[3]:
         st.markdown("### 🐔 Gerenciamento de Aves")
 
@@ -499,16 +499,16 @@ else:
 
             col1, col2 = st.columns(2)
             with col1:
-                data_aves = st.date_input("📅 Data", value=datetime.now(
-                ).date(), format="DD/MM/YYYY", key="data_aves_reg")
+                data_aves = st.date_input("📅 Data", value=datetime.now().date(), format="DD/MM/YYYY",
+                                          key="data_aves_reg_v2")
                 galpao_aves = st.selectbox(
-                    "🏠 Galpão", GALPOES, key="galpao_aves_reg")
+                    "🏠 Galpão", GALPOES, key="galpao_aves_reg_v2")
 
             with col2:
-                qtd_aves = st.number_input(
-                    "🐔 Quantidade de Aves", min_value=1, step=1, format="%d", key="qtd_aves_reg")
+                qtd_aves = st.number_input("🐔 Quantidade de Aves", min_value=1, step=1, format="%d",
+                                           key="qtd_aves_reg_v2")
 
-            if st.button("✅ Registrar Aves", use_container_width=True, type="primary"):
+            if st.button("✅ Registrar Aves", use_container_width=True, type="primary", key="btn_reg_aves_v2"):
                 if qtd_aves > 0:
                     conn = sqlite3.connect('estoque_ovos.db')
                     c = conn.cursor()
@@ -520,10 +520,8 @@ else:
                     conn.commit()
                     conn.close()
                     st.success(
-                        f"✅ {qtd_aves} aves registradas no {galpao_aves} em {data_aves.strftime('%d/%m/%Y')}!")
+                        f"✅ {qtd_aves} aves registradas no {galpao_aves}!")
                     st.rerun()
-                else:
-                    st.error("Quantidade deve ser maior que zero.")
 
         # ===================== SUBABA 2: AVES MORTAS =====================
         with tab_mortas:
@@ -531,16 +529,16 @@ else:
 
             col1, col2 = st.columns(2)
             with col1:
-                data_morta = st.date_input("📅 Data", value=datetime.now(
-                ).date(), format="DD/MM/YYYY", key="data_morta")
+                data_morta = st.date_input("📅 Data", value=datetime.now().date(), format="DD/MM/YYYY",
+                                           key="data_morta_v2")
                 galpao_morta = st.selectbox(
-                    "🏠 Galpão", GALPOES, key="galpao_aves_morta")
+                    "🏠 Galpão", GALPOES, key="galpao_morta_v2")
 
             with col2:
-                qtd_morta = st.number_input(
-                    "🪦 Quantidade de Aves Mortas", min_value=1, step=1, format="%d", key="qtd_morta")
+                qtd_morta = st.number_input("🪦 Quantidade de Aves Mortas", min_value=1, step=1, format="%d",
+                                            key="qtd_morta_v2")
 
-            if st.button("✅ Registrar Morte", use_container_width=True, type="primary"):
+            if st.button("✅ Registrar Morte", use_container_width=True, type="primary", key="btn_morta_v2"):
                 conn = sqlite3.connect('estoque_ovos.db')
                 c = conn.cursor()
                 c.execute(
@@ -549,8 +547,7 @@ else:
                 )
                 conn.commit()
                 conn.close()
-                st.success(
-                    f"✅ {qtd_morta} aves mortas registradas no {galpao_morta}!")
+                st.success(f"✅ {qtd_morta} aves mortas registradas!")
                 st.rerun()
 
         # ===================== SUBABA 3: HISTÓRICO =====================
@@ -559,21 +556,14 @@ else:
 
             conn = sqlite3.connect('estoque_ovos.db')
 
-            # Histórico de aves registradas
             df_aves = pd.read_sql("""
-                SELECT data_registro as Data, galpao as Galpão, 
-                       quantidade_total as 'Quantidade Registrada'
-                FROM aves 
-                WHERE username=? 
-                ORDER BY data_registro DESC
+                SELECT data_registro as Data, galpao as Galpão, quantidade_total as 'Registradas'
+                FROM aves WHERE username=? ORDER BY data_registro DESC
             """, conn, params=(st.session_state.username,))
 
-            # Histórico de aves mortas
             df_mortas = pd.read_sql("""
-                SELECT data as Data, galpao as Galpão, quantidade as 'Aves Mortas'
-                FROM aves_mortas 
-                WHERE username=? 
-                ORDER BY data DESC
+                SELECT data as Data, galpao as Galpão, quantidade as 'Mortas'
+                FROM aves_mortas WHERE username=? ORDER BY data DESC
             """, conn, params=(st.session_state.username,))
 
             conn.close()
@@ -585,7 +575,7 @@ else:
                     st.dataframe(
                         df_aves, use_container_width=True, hide_index=True)
                 else:
-                    st.info("Nenhum registro de aves.")
+                    st.info("Nenhum registro encontrado.")
 
             with col_h2:
                 st.markdown("**Aves Mortas**")
@@ -593,19 +583,15 @@ else:
                     st.dataframe(
                         df_mortas, use_container_width=True, hide_index=True)
                 else:
-                    st.info("Nenhum registro de mortes.")
+                    st.info("Nenhum registro encontrado.")
 
         st.divider()
 
         # ===================== RESUMO ATUAL =====================
         st.markdown("#### 📊 Resumo Atual de Aves por Galpão")
-
         for galpao in GALPOES:
-            total_reg, total_morto = 0, 0
-
             conn = sqlite3.connect('estoque_ovos.db')
             c = conn.cursor()
-
             c.execute("SELECT COALESCE(SUM(quantidade_total), 0) FROM aves WHERE username=? AND galpao=?",
                       (st.session_state.username, galpao))
             total_reg = c.fetchone()[0]
@@ -623,8 +609,7 @@ else:
             with col2:
                 st.metric(f"{galpao} - Mortas", f"{total_morto} aves")
             with col3:
-                st.metric(f"{galpao} - Vivas",
-                          f"{total_vivo} aves", delta=None)
+                st.metric(f"{galpao} - Vivas", f"{total_vivo} aves")
 
     # ======================== ABA 5: GRÁFICOS ========================
     with tabs[4]:
