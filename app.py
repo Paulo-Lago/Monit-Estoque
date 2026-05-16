@@ -109,8 +109,8 @@ def aplicar_estilo_customizado():
     footer {{visibility: hidden;}}
     </style>
 
-    <div class="main-bg-container">
-        <img class="egg-icon-bg-persistent">
+     <div class="main-bg-container">
+        <img src="{LOGO_PATH.as_posix()}" class="egg-icon-bg-persistent">
     </div>
     """, unsafe_allow_html=True)
 
