@@ -620,26 +620,23 @@ else:
             with col3:
                 st.metric(f"{galpao} - Vivas", f"{total_vivo} aves")
 
-          # ======================== ABA 5: GRÁFICOS ========================
+              # ======================== ABA 5: GRÁFICOS ========================
     with tabs[4]:
         st.markdown("### 📈 Gráficos e Análises")
 
         # Carregando dados necessários
         conn = sqlite3.connect('estoque_ovos.db')
 
-        # Produção de Ovos
         df_producao = pd.read_sql(
             "SELECT data, quantidade, tipo, galpao FROM producao WHERE username=? ORDER BY data",
             conn, params=(st.session_state.username,)
         )
 
-        # Ovos Quebrados
         df_quebrados = pd.read_sql(
             "SELECT data, quantidade, galpao FROM ovos_quebrados WHERE username=? ORDER BY data",
             conn, params=(st.session_state.username,)
         )
 
-        # Aves Mortas
         df_mortas = pd.read_sql(
             "SELECT data, quantidade, galpao FROM aves_mortas WHERE username=? ORDER BY data",
             conn, params=(st.session_state.username,)
@@ -658,7 +655,6 @@ else:
             if not df_mortas.empty:
                 df_mortas['data'] = pd.to_datetime(df_mortas['data'])
 
-            # Sub-abas
             tab_prod, tab_quebrados, tab_mortas = st.tabs([
                 "🥚 Produção de Ovos",
                 "🔨 Ovos Quebrados",
@@ -672,7 +668,6 @@ else:
                 if df_producao.empty:
                     st.info("Nenhum registro de produção.")
                 else:
-                    # Últimos 7 dias
                     data_atual = datetime.now().date()
                     data_inicio = data_atual - pd.Timedelta(days=6)
 
@@ -688,16 +683,11 @@ else:
                             st.markdown(f"**{galpao}**")
 
                             df_g = df_prod_7[df_prod_7['galpao'] == galpao]
-
-                            # Agregando por data e tipo (apenas tipos com registro)
                             df_agg = df_g.groupby(['data', 'tipo'])[
                                 'quantidade'].sum().reset_index()
 
-                            # Pivot para gráfico de barras agrupadas
                             df_pivot = df_agg.pivot(
                                 index='data', columns='tipo', values='quantidade').fillna(0)
-
-                            # Remover colunas (tipos) que são totalmente zero
                             df_pivot = df_pivot.loc[:,
                                                     (df_pivot != 0).any(axis=0)]
 
@@ -713,39 +703,30 @@ else:
                                     labels={
                                         'x': 'Data', 'value': 'Quantidade de Ovos', 'variable': 'Tipo'},
                                     text_auto=True,
-                                    barmode='group'   # ou 'stack' se preferir empilhado
+                                    barmode='group'
                                 )
+
+                                # === AJUSTE DE CORES PARA TEXTO PRETO ===
                                 fig.update_layout(
-                                    xaxis_title="Data",
-                                    yaxis_title="Quantidade",
-                                    legend_title="Tipo de Ovo",
                                     plot_bgcolor='rgba(0,0,0,0)',
                                     paper_bgcolor='rgba(0,0,0,0)',
-                                    font=dict(color="black")
+                                    font=dict(color="black", size=13),
+                                    title_font=dict(color="black", size=16),
+                                    legend_title_font=dict(color="black"),
+                                    legend_font=dict(color="black"),
+                                    xaxis=dict(
+                                        title_font=dict(color="black"),
+                                        tickfont=dict(color="black")
+                                    ),
+                                    yaxis=dict(
+                                        title_font=dict(color="black"),
+                                        tickfont=dict(color="black")
+                                    )
                                 )
                                 fig.update_xaxes(tickformat='%d/%m')
                                 st.plotly_chart(fig, use_container_width=True)
 
                             st.divider()
-
-            # ===================== OVOS QUEBRADOS =====================
-            with tab_quebrados:
-                st.markdown("#### 🔨 Ovos Quebrados - Últimos 7 dias")
-                if df_quebrados.empty:
-                    st.info("Nenhum registro de ovos quebrados.")
-                else:
-                    # (Implementação básica - você pode pedir ajustes depois)
-                    st.info(
-                        "Gráfico de Ovos Quebrados em desenvolvimento. Me diga como quer o layout.")
-
-            # ===================== AVES MORTAS =====================
-            with tab_mortas:
-                st.markdown("#### 🐔 Aves Mortas - Últimos 7 dias")
-                if df_mortas.empty:
-                    st.info("Nenhum registro de aves mortas.")
-                else:
-                    st.info(
-                        "Gráfico de Aves Mortas em desenvolvimento. Me diga como quer o layout.")
 
     # ======================== ABA 6: OVOS QUEBRADOS ========================
     with tabs[5]:
