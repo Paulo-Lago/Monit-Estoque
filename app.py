@@ -25,16 +25,25 @@ def aplicar_estilo_customizado():
 
     st.markdown(f"""
     <style>
-    .stApp {{
-        background-image: url("data:image/png;base64,{logo_base64}") !important;
-        background-size: 35% !important;
-        background-position: center !important;
-        background-repeat: no-repeat !important;
-        background-attachment: fixed !important;
+    .stApp::before {{
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: url("data:image/png;base64,{logo_base64}");
+        background-size: 35%;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        opacity: 0.25;           /* ← Ajuste aqui a opacidade */
+        z-index: -1;
+        pointer-events: none;
     }}
     </style>
     """, unsafe_allow_html=True)
-
+    
 st.set_page_config(page_title="Estoque Ovos Pro", layout="wide")
 aplicar_estilo_customizado()
 
