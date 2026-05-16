@@ -16,102 +16,33 @@ LOGO_PATH = BASE_DIR / "assets" / "logomarca.png"
 
 # 1. Função de Estilo Avançada (CSS Responsivo e Persistente)
 
-
 def aplicar_estilo_customizado():
     st.markdown(f"""
     <style>
-    /* Configurações Gerais - Removendo cores de fundo de todas as camadas */
-    .stApp, .stMain, .stHeader, .stAppHeader, .block-container {{
-        background-color: transparent !important;
-        color: black !important;
-    }}
-
-    /* Forçando o fundo do body para branco para que a transparência funcione sobre ele */
-    body {{
-        background-color: white !important;
-    }}
-
-    /* Container de Fundo Persistente */
+    /* Container do fundo */
     .main-bg-container {{
         position: fixed;
         top: 0;
         left: 0;
         width: 100vw;
         height: 100vh;
-        display: flex !important;
-        justify-content: center;
-        align-items: center;
-        z-index: -2 !important;
+        z-index: -2;
         pointer-events: none;
-        overflow: hidden;
+        background-image: url("{LOGO_PATH.as_posix()}");
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+        opacity: 0.12;
+        filter: grayscale(15%);
     }}
 
+    /* Remove qualquer estilo antigo do img */
     .egg-icon-bg-persistent {{
-        width: 85vw;
-        max-width: 650px;
-        opacity: 0.15 !important;
-        filter: grayscale(10%);
+        display: none;
     }}
-
-    /* Ajustes de Layout */
-    .block-container {{
-        padding-top: 2rem !important;
-        padding-bottom: 2rem !important;
-        max-width: 1000px !important;
-    }}
-
-    h1, h2, h3, p, span, label, .stMarkdown {{
-        color: #000000 !important;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }}
-
-    h1 {{ font-size: calc(1.6rem + 1vw) !important; text-align: center; margin-bottom: 0.5rem; }}
-
-    .sub-texto {{
-        text-align: center;
-        margin-bottom: 2rem;
-        font-size: 1.1rem;
-        opacity: 0.7;
-    }}
-
-    /* Botões Modernos */
-    div.stButton > button {{
-        background-color: #5CE65C !important;
-        color: white !important;
-        border-radius: 15px !important;
-        font-weight: bold !important;
-        width: 100% !important;
-        padding: 0.6rem !important;
-        border: none !important;
-        transition: 0.3s transform ease;
-    }}
-
-    div.stButton > button:hover {{ transform: scale(1.03); opacity: 0.95; }}
-
-    /* Inputs com fundo semi-transparente para não sumirem no branco */
-    .stTextInput, .stNumberInput, .stDateInput, .stSelectbox {{
-        background-color: rgba(255, 255, 255, 0.9) !important;
-        border-radius: 12px;
-        border: 1px solid #ddd !important;
-    }}
-
-    /* Métrica cards */
-    .metric-card {{
-        background: linear-gradient(135deg, #5CE65C 0%, #3db82e 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 12px;
-        text-align: center;
-        margin: 10px 0;
-    }}
-
-    #MainMenu {{visibility: hidden;}}
-    footer {{visibility: hidden;}}
     </style>
 
-     <div class="main-bg-container">
-        <img src="{LOGO_PATH.as_posix()}" class="egg-icon-bg-persistent">
-    </div>
+    <div class="main-bg-container"></div>
     """, unsafe_allow_html=True)
 
 
