@@ -17,9 +17,15 @@ LOGO_PATH = BASE_DIR / "assets" / "logomarca.png"
 # 1. Função de Estilo Avançada (CSS Responsivo e Persistente)
 
 def aplicar_estilo_customizado():
+    # Tenta carregar a imagem em base64
+    try:
+        with open(LOGO_PATH, "rb") as img_file:
+            logo_base64 = base64.b64encode(img_file.read()).decode()
+    except:
+        logo_base64 = ""  # Se não encontrar a imagem, não quebra o app
+
     st.markdown(f"""
     <style>
-    /* Container do fundo */
     .main-bg-container {{
         position: fixed;
         top: 0;
@@ -28,17 +34,12 @@ def aplicar_estilo_customizado():
         height: 100vh;
         z-index: -2;
         pointer-events: none;
-        background-image: url("{LOGO_PATH.as_posix()}");
+        background-image: url("data:image/png;base64,{logo_base64}");
         background-size: contain;
         background-position: center;
         background-repeat: no-repeat;
-        opacity: 0.12;
-        filter: grayscale(15%);
-    }}
-
-    /* Remove qualquer estilo antigo do img */
-    .egg-icon-bg-persistent {{
-        display: none;
+        opacity: 0.13;
+        filter: grayscale(12%);
     }}
     </style>
 
