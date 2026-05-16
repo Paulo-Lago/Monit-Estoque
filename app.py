@@ -342,7 +342,7 @@ else:
         else:
             st.info("📭 Nenhum registro de colheita encontrado.")
 
-            # ======================== ABA 3: MONITORAMENTO ========================
+               # ======================== ABA 3: MONITORAMENTO ========================
     with tabs[2]:
         st.markdown("### 📊 Monitoramento de Produção")
         
@@ -378,17 +378,6 @@ else:
                 for idx, (galpao, total) in enumerate(galpao_totais.items()):
                     with cols[idx]:
                         st.metric(galpao, f"{total:,} ovos")
-            
-            st.divider()
-            
-            # Total por tipo
-            st.markdown("#### 🏷️ Ovos por Tipo")
-            tipo_totais = df_producao.groupby('tipo')['quantidade'].sum().sort_values(ascending=False)
-            if not tipo_totais.empty:
-                cols_tipo = st.columns(len(tipo_totais))
-                for idx, (tipo, total) in enumerate(tipo_totais.items()):
-                    with cols_tipo[idx]:
-                        st.metric(tipo, f"{total:,} ovos")
             
             st.divider()
             
