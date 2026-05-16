@@ -550,7 +550,7 @@ else:
                 st.success(f"✅ {qtd_morta} aves mortas registradas!")
                 st.rerun()
 
-        # ===================== SUBABA 3: HISTÓRICO =====================
+                # ===================== SUBABA 3: HISTÓRICO =====================
         with tab_historico:
             st.markdown("#### 📋 Histórico de Aves")
 
@@ -567,6 +567,15 @@ else:
             """, conn, params=(st.session_state.username,))
 
             conn.close()
+
+            # Formatação das datas
+            if not df_aves.empty:
+                df_aves['Data'] = pd.to_datetime(
+                    df_aves['Data']).dt.strftime('%d/%m/%Y')
+
+            if not df_mortas.empty:
+                df_mortas['Data'] = pd.to_datetime(
+                    df_mortas['Data']).dt.strftime('%d/%m/%Y')
 
             col_h1, col_h2 = st.columns(2)
             with col_h1:
