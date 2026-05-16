@@ -27,7 +27,7 @@ def aplicar_estilo_customizado():
     <style>
     .stApp {{
         background-image: url("data:image/png;base64,{logo_base64}") !important;
-        background-size: contain !important;
+        background-size: 50% !important;
         background-position: center !important;
         background-repeat: no-repeat !important;
         background-attachment: fixed !important;
