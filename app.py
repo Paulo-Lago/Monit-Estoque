@@ -109,7 +109,7 @@ def aplicar_estilo_customizado():
 st.set_page_config(page_title="Estoque Ovos Pro", layout="wide")
 aplicar_estilo_customizado()
 
-# --- INICIALIZAÇÃO DO BANCO DE DADOS ---
+# --- INICIALIZAÇÃO DO BANCO DE DADOS COM MIGRAÇÃO ---
 def init_db():
     conn = sqlite3.connect('estoque_ovos.db')
     c = conn.cursor()
@@ -123,9 +123,9 @@ def init_db():
         username TEXT,
         data DATE,
         quantidade INTEGER,
-        tipo TEXT,
-        galpao TEXT,
-        cor TEXT
+        tipo TEXT DEFAULT 'A',
+        galpao TEXT DEFAULT 'Galpão 2',
+        cor TEXT DEFAULT 'Branco'
     )''')
     
     # Tabela de aves
@@ -154,6 +154,22 @@ def init_db():
         quantidade INTEGER,
         data DATE
     )''')
+    
+    # Migração: Adicionar colunas se não existirem
+    try:
+        c.execute("ALTER TABLE producao ADD COLUMN tipo TEXT DEFAULT 'A'")
+    except:
+        pass
+    
+    try:
+        c.execute("ALTER TABLE producao ADD COLUMN galpao TEXT DEFAULT 'Galpão 2'")
+    except:
+        pass
+    
+    try:
+        c.execute("ALTER TABLE producao ADD COLUMN cor TEXT DEFAULT 'Branco'")
+    except:
+        pass
     
     conn.commit()
     conn.close()
