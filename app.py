@@ -455,11 +455,24 @@ else:
                 # ==================== DETALHES POR GALPÃO E TIPO ====================
                 st.markdown("#### 📋 Detalhes por Galpão e Tipo")
 
-                # Normalização para evitar problemas de nome
-                df_filtrado = df_filtrado.copy()
-                df_filtrado['galpao_norm'] = df_filtrado['galpao'].str.strip()
+                # === DIAGNÓSTICO (temporário) ===
+                st.caption("🔍 Diagnóstico:")
+                st.write("**Galpões no filtro:**",
+                         sorted(df_filtrado['galpao'].unique()))
+                st.write("**Total registros filtrados:**", len(df_filtrado))
+                if not df_filtrado.empty:
+                    st.write("**Amostra de dados:**")
+                    st.dataframe(df_filtrado[['data', 'galpao', 'tipo', 'cor', 'quantidade']].head(
+                        10), hide_index=True)
 
-                for galpao in sorted(df_filtrado['galpao_norm'].unique()):
+                # Normalização
+                df_filtrado = df_filtrado.copy()
+                df_filtrado['galpao_norm'] = df_filtrado['galpao'].astype(
+                    str).str.strip()
+
+                galpoes_unicos = sorted(df_filtrado['galpao_norm'].unique())
+
+                for galpao in galpoes_unicos:
                     st.markdown(f"**{galpao}**")
 
                     df_galpao = df_filtrado[df_filtrado['galpao_norm'] == galpao]
