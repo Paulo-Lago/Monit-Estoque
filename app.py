@@ -9,6 +9,8 @@ from datetime import datetime
 URL_ICONE = "https://preview.redd.it/d7ajx3csqpzg1.jpeg?width=640&crop=smart&auto=webp&s=52f986fe2c31fe8b67d7502f4b1a02f9646cba1d"
 
 # 1. Função de Estilo Avançada (CSS Responsivo e Persistente)
+
+
 def aplicar_estilo_customizado():
     st.markdown(f"""
     <style>
@@ -106,17 +108,21 @@ def aplicar_estilo_customizado():
     </div>
     """, unsafe_allow_html=True)
 
+
 st.set_page_config(page_title="Estoque Ovos Pro", layout="wide")
 aplicar_estilo_customizado()
 
 # --- INICIALIZAÇÃO DO BANCO DE DADOS COM MIGRAÇÃO ---
+
+
 def init_db():
     conn = sqlite3.connect('estoque_ovos.db')
     c = conn.cursor()
-    
+
     # Tabela de usuários
-    c.execute('CREATE TABLE IF NOT EXISTS usuarios (username TEXT UNIQUE, password TEXT)')
-    
+    c.execute(
+        'CREATE TABLE IF NOT EXISTS usuarios (username TEXT UNIQUE, password TEXT)')
+
     # Tabela de produção (ovos) - usando rowid implícito do SQLite
     c.execute('''CREATE TABLE IF NOT EXISTS producao (
         username TEXT,
@@ -126,7 +132,7 @@ def init_db():
         galpao TEXT DEFAULT 'Galpão 2',
         cor TEXT DEFAULT 'Branco'
     )''')
-    
+
     # Tabela de aves
     c.execute('''CREATE TABLE IF NOT EXISTS aves (
         username TEXT,
@@ -134,7 +140,7 @@ def init_db():
         quantidade_total INTEGER,
         data_registro DATE
     )''')
-    
+
     # Tabela de aves mortas
     c.execute('''CREATE TABLE IF NOT EXISTS aves_mortas (
         username TEXT,
@@ -142,7 +148,7 @@ def init_db():
         quantidade INTEGER,
         data DATE
     )''')
-    
+
     # Tabela de ovos quebrados
     c.execute('''CREATE TABLE IF NOT EXISTS ovos_quebrados (
         username TEXT,
@@ -150,25 +156,26 @@ def init_db():
         quantidade INTEGER,
         data DATE
     )''')
-    
+
     # Migração: Adicionar colunas se não existirem
     try:
         c.execute("ALTER TABLE producao ADD COLUMN tipo TEXT DEFAULT 'A'")
     except:
         pass
-    
+
     try:
         c.execute("ALTER TABLE producao ADD COLUMN galpao TEXT DEFAULT 'Galpão 2'")
     except:
         pass
-    
+
     try:
         c.execute("ALTER TABLE producao ADD COLUMN cor TEXT DEFAULT 'Branco'")
     except:
         pass
-    
+
     conn.commit()
     conn.close()
+
 
 init_db()
 
@@ -184,21 +191,24 @@ GALPOES = ["Galpão 2", "Galpão 3"]
 CORES = ["Branco", "Vermelho"]
 
 # --- FUNÇÕES AUXILIARES ---
+
+
 def get_total_aves_vivas(username, galpao):
     """Calcula total de aves vivas (registradas - mortas)"""
     conn = sqlite3.connect('estoque_ovos.db')
     c = conn.cursor()
-    
+
     # Total registrado
     c.execute("SELECT COALESCE(SUM(quantidade_total), 0) FROM aves WHERE username=? AND galpao=?", (username, galpao))
     total_reg = c.fetchone()[0]
-    
+
     # Total morto
     c.execute("SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas WHERE username=? AND galpao=?", (username, galpao))
     total_morto = c.fetchone()[0]
-    
+
     conn.close()
     return max(0, total_reg - total_morto)
+
 
 def get_aves_mortas_galpao(username, galpao):
     """Retorna total de aves mortas por galpão"""
@@ -209,21 +219,25 @@ def get_aves_mortas_galpao(username, galpao):
     conn.close()
     return result
 
+
 # --- INTERFACE DE LOGIN ---
 if not st.session_state.logged_in:
     st.markdown("<h1>🐔 Estoque de Ovos Pro</h1>", unsafe_allow_html=True)
-    st.markdown("<p class='sub-texto'>Sua produção organizada de forma profissional</p>", unsafe_allow_html=True)
-    
+    st.markdown("<p class='sub-texto'>Sua produção organizada de forma profissional</p>",
+                unsafe_allow_html=True)
+
     user = st.text_input("Nome de Usuário", placeholder="Digite seu usuário")
-    pw = st.text_input("Senha", type="password", placeholder="Digite sua senha")
-    
+    pw = st.text_input("Senha", type="password",
+                       placeholder="Digite sua senha")
+
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Entrar", use_container_width=True):
             if user and pw:
                 conn = sqlite3.connect('estoque_ovos.db')
                 c = conn.cursor()
-                c.execute("SELECT password FROM usuarios WHERE username = ?", (user,))
+                c.execute(
+                    "SELECT password FROM usuarios WHERE username = ?", (user,))
                 result = c.fetchone()
                 conn.close()
                 if result and result[0] == pw:
@@ -250,8 +264,9 @@ if not st.session_state.logged_in:
 else:
     # --- PAINEL PRINCIPAL ---
     st.markdown(f"<h1>🐔 Painel de Gerenciamento</h1>", unsafe_allow_html=True)
-    st.markdown(f"<p class='sub-texto'>Bem-vindo, <b>{st.session_state.username}</b></p>", unsafe_allow_html=True)
-    
+    st.markdown(
+        f"<p class='sub-texto'>Bem-vindo, <b>{st.session_state.username}</b></p>", unsafe_allow_html=True)
+
     if st.sidebar.button("🚪 Sair / Logout"):
         st.session_state.logged_in = False
         st.rerun()
@@ -269,35 +284,39 @@ else:
     # ======================== ABA 1: NOVA COLHEITA ========================
     with tabs[0]:
         st.markdown("### 📝 Registrar Nova Colheita")
-        
+
         col1, col2 = st.columns(2)
         with col1:
-            data_reg = st.date_input("📅 Data da Colheita", value=datetime.now().date(), format="DD/MM/YYYY", key="data_colheita")
-            qtd_val = st.number_input("🥚 Quantidade de Ovos", min_value=0, step=1, format="%d", key="qtd_colheita")
-        
+            data_reg = st.date_input("📅 Data da Colheita", value=datetime.now(
+            ).date(), format="DD/MM/YYYY", key="data_colheita")
+            qtd_val = st.number_input(
+                "🥚 Quantidade de Ovos", min_value=0, step=1, format="%d", key="qtd_colheita")
+
         with col2:
-            tipo_ovo = st.selectbox("🏷️ Tipo de Ovo", TIPOS_OVO, key="tipo_ovo")
+            tipo_ovo = st.selectbox(
+                "🏷️ Tipo de Ovo", TIPOS_OVO, key="tipo_ovo")
             galpao = st.selectbox("🏠 Galpão", GALPOES, key="galpao_colheita")
-        
+
         cor = st.selectbox("🎨 Cor do Ovo", CORES, key="cor_ovo")
-        
+
         if st.button("✅ Salvar Colheita", use_container_width=True):
             if qtd_val > 0:
                 conn = sqlite3.connect('estoque_ovos.db')
                 c = conn.cursor()
                 c.execute("INSERT INTO producao (username, data, quantidade, tipo, galpao, cor) VALUES (?, ?, ?, ?, ?, ?)",
-                         (st.session_state.username, data_reg, qtd_val, tipo_ovo, galpao, cor))
+                          (st.session_state.username, data_reg, qtd_val, tipo_ovo, galpao, cor))
                 conn.commit()
                 conn.close()
                 st.balloons()
-                st.success(f"✅ {qtd_val} ovos ({tipo_ovo}, {cor}) do {galpao} registrados com sucesso!")
+                st.success(
+                    f"✅ {qtd_val} ovos ({tipo_ovo}, {cor}) do {galpao} registrados com sucesso!")
             else:
                 st.error("Quantidade deve ser maior que zero.")
 
     # ======================== ABA 2: HISTÓRICO & EDIÇÃO ========================
     with tabs[1]:
         st.markdown("### 🔍 Gerenciar Histórico")
-        
+
         conn = sqlite3.connect('estoque_ovos.db')
         df_edit = pd.read_sql(
             "SELECT rowid, data, quantidade, tipo, galpao, cor FROM producao WHERE username=? ORDER BY rowid DESC",
@@ -305,29 +324,35 @@ else:
             params=(st.session_state.username,)
         )
         conn.close()
-        
+
         if not df_edit.empty:
-            df_edit['data_fmt'] = pd.to_datetime(df_edit['data']).dt.strftime('%d/%m/%Y')
-            
+            df_edit['data_fmt'] = pd.to_datetime(
+                df_edit['data']).dt.strftime('%d/%m/%Y')
+
             opcoes = {
                 row['rowid']: f"📅 {row['data_fmt']} | {row['quantidade']} ovos | {row['tipo']} | {row['cor']} | {row['galpao']}"
                 for _, row in df_edit.iterrows()
             }
-            
-            selecao = st.selectbox("Escolha um registro para corrigir:", list(opcoes.values()))
+
+            selecao = st.selectbox(
+                "Escolha um registro para corrigir:", list(opcoes.values()))
             rid = [k for k, v in opcoes.items() if v == selecao][0]
-            
+
             registro = df_edit[df_edit['rowid'] == rid].iloc[0]
-            
+
             col1, col2 = st.columns(2)
             with col1:
-                novo_val = st.number_input("Corrigir quantidade:", min_value=0, step=1, value=int(registro['quantidade']))
-                novo_tipo = st.selectbox("Corrigir tipo:", TIPOS_OVO, index=TIPOS_OVO.index(registro['tipo']))
-            
+                novo_val = st.number_input(
+                    "Corrigir quantidade:", min_value=0, step=1, value=int(registro['quantidade']))
+                novo_tipo = st.selectbox(
+                    "Corrigir tipo:", TIPOS_OVO, index=TIPOS_OVO.index(registro['tipo']))
+
             with col2:
-                novo_galpao = st.selectbox("Corrigir galpão:", GALPOES, index=GALPOES.index(registro['galpao']))
-                nova_cor = st.selectbox("Corrigir cor:", CORES, index=CORES.index(registro['cor']))
-            
+                novo_galpao = st.selectbox(
+                    "Corrigir galpão:", GALPOES, index=GALPOES.index(registro['galpao']))
+                nova_cor = st.selectbox(
+                    "Corrigir cor:", CORES, index=CORES.index(registro['cor']))
+
             if st.button("✅ Confirmar Alteração", use_container_width=True):
                 conn = sqlite3.connect('estoque_ovos.db')
                 c = conn.cursor()
@@ -342,10 +367,10 @@ else:
         else:
             st.info("📭 Nenhum registro de colheita encontrado.")
 
-               # ======================== ABA 3: MONITORAMENTO ========================
+            # ======================== ABA 3: MONITORAMENTO ========================
     with tabs[2]:
         st.markdown("### 📊 Monitoramento de Produção")
-        
+
         conn = sqlite3.connect('estoque_ovos.db')
         df_producao = pd.read_sql(
             "SELECT data, quantidade, tipo, galpao, cor FROM producao WHERE username=? ORDER BY data DESC",
@@ -353,88 +378,128 @@ else:
             params=(st.session_state.username,)
         )
         conn.close()
-        
-        if not df_producao.empty:
-            df_producao['data'] = pd.to_datetime(df_producao['data'])
-            
-            # Total geral
-            total_geral = df_producao['quantidade'].sum()
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("🥚 Total de Ovos", f"{total_geral:,}")
-            with col2:
-                st.metric("📅 Registros", len(df_producao))
-            with col3:
-                st.metric("📊 Média por Registro", f"{total_geral / len(df_producao):.0f}")
-            
-            st.divider()
-            
-            # Total por galpão
-            st.markdown("#### 🏠 Ovos por Galpão")
-            galpao_totais = df_producao.groupby('galpao')['quantidade'].sum().sort_values(ascending=False)
-            
-            if not galpao_totais.empty:
-                cols = st.columns(len(galpao_totais))
-                for idx, (galpao, total) in enumerate(galpao_totais.items()):
-                    with cols[idx]:
-                        st.metric(galpao, f"{total:,} ovos")
-            
-            st.divider()
-            
-            # Total por cor
-            st.markdown("#### 🎨 Ovos por Cor")
-            cor_totais = df_producao.groupby('cor')['quantidade'].sum().sort_values(ascending=False)
-            if not cor_totais.empty:
-                cols_cor = st.columns(len(cor_totais))
-                for idx, (cor, total) in enumerate(cor_totais.items()):
-                    with cols_cor[idx]:
-                        st.metric(cor, f"{total:,} ovos")
-            
-            st.divider()
-            
-            # Tabela detalhada
-            st.markdown("#### 📋 Detalhes por Galpão e Tipo")
-            
-            for galpao in sorted(df_producao['galpao'].unique()):
-                st.markdown(f"**{galpao}**")
-                
-                df_galpao = df_producao[df_producao['galpao'] == galpao]
-                
-                # Por tipo
-                tipo_cols = st.columns(len(TIPOS_OVO))
-                for idx, tipo in enumerate(TIPOS_OVO):
-                    with tipo_cols[idx]:
-                        total_tipo = df_galpao[df_galpao['tipo'] == tipo]['quantidade'].sum()
-                        st.info(f"**{tipo}**: {total_tipo} ovos")
-                
-                # Por cor
-                cor_cols = st.columns(len(CORES))
-                for idx, cor in enumerate(CORES):
-                    with cor_cols[idx]:
-                        total_cor = df_galpao[df_galpao['cor'] == cor]['quantidade'].sum()
-                        st.warning(f"**{cor}**: {total_cor} ovos")
-                
-                st.divider()
-        else:
+
+        if df_producao.empty:
             st.info("📭 Nenhum registro de colheita encontrado.")
+        else:
+            df_producao['data'] = pd.to_datetime(df_producao['data'])
+
+            # === FILTRO POR DATA ===
+            st.markdown("#### 📅 Selecione o Dia para Análise")
+            col_f1, col_f2 = st.columns([3, 1])
+            with col_f1:
+                data_selecionada = st.date_input(
+                    "Data",
+                    value=datetime.now().date(),
+                    format="DD/MM/YYYY",
+                    key="data_monitor"
+                )
+            with col_f2:
+                mostrar_todos = st.checkbox(
+                    "Mostrar todos os dias", value=False)
+
+            # Aplicando filtro
+            if mostrar_todos:
+                df_filtrado = df_producao.copy()
+                titulo_periodo = "Todo o Período"
+            else:
+                df_filtrado = df_producao[df_producao['data'].dt.date ==
+                                          data_selecionada]
+                titulo_periodo = f"Dia {data_selecionada.strftime('%d/%m/%Y')}"
+
+            st.markdown(f"**{titulo_periodo}**")
+            st.divider()
+
+            if df_filtrado.empty:
+                st.warning(
+                    f"Nenhum registro encontrado para a data selecionada.")
+            else:
+                # Total geral
+                total_geral = df_filtrado['quantidade'].sum()
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("🥚 Total de Ovos", f"{total_geral:,}")
+                with col2:
+                    st.metric("📅 Registros", len(df_filtrado))
+                with col3:
+                    st.metric("📊 Média por Registro",
+                              f"{total_geral / len(df_filtrado):.0f}")
+
+                st.divider()
+
+                # Total por galpão
+                st.markdown("#### 🏠 Ovos por Galpão")
+                galpao_totais = df_filtrado.groupby(
+                    'galpao')['quantidade'].sum().sort_values(ascending=False)
+
+                if not galpao_totais.empty:
+                    cols = st.columns(len(galpao_totais))
+                    for idx, (galpao, total) in enumerate(galpao_totais.items()):
+                        with cols[idx]:
+                            st.metric(galpao, f"{total:,} ovos")
+
+                st.divider()
+
+                # Total por cor
+                st.markdown("#### 🎨 Ovos por Cor")
+                cor_totais = df_filtrado.groupby(
+                    'cor')['quantidade'].sum().sort_values(ascending=False)
+                if not cor_totais.empty:
+                    cols_cor = st.columns(len(cor_totais))
+                    for idx, (cor, total) in enumerate(cor_totais.items()):
+                        with cols_cor[idx]:
+                            st.metric(cor, f"{total:,} ovos")
+
+                st.divider()
+
+                # Tabela detalhada - Mantida conforme solicitado
+                st.markdown("#### 📋 Detalhes por Galpão e Tipo")
+
+                for galpao in sorted(df_filtrado['galpao'].unique()):
+                    st.markdown(f"**{galpao}**")
+
+                    df_galpao = df_filtrado[df_filtrado['galpao'] == galpao]
+
+                    # Por tipo
+                    tipo_cols = st.columns(len(TIPOS_OVO))
+                    for idx, tipo in enumerate(TIPOS_OVO):
+                        with tipo_cols[idx]:
+                            total_tipo = df_galpao[df_galpao['tipo']
+                                                   == tipo]['quantidade'].sum()
+                            st.info(f"**{tipo}**: {total_tipo} ovos")
+
+                    # Por cor
+                    cor_cols = st.columns(len(CORES))
+                    for idx, cor in enumerate(CORES):
+                        with cor_cols[idx]:
+                            total_cor = df_galpao[df_galpao['cor']
+                                                  == cor]['quantidade'].sum()
+                            st.warning(f"**{cor}**: {total_cor} ovos")
+
+                    st.divider()
+
     # ======================== ABA 4: REGISTRAR AVES ========================
     with tabs[3]:
         st.markdown("### 🐔 Gerenciamento de Aves")
-        
-        tab_reg_aves, tab_mortas = st.tabs(["➕ Registrar Aves", "⚠️ Aves Mortas"])
-        
+
+        tab_reg_aves, tab_mortas = st.tabs(
+            ["➕ Registrar Aves", "⚠️ Aves Mortas"])
+
         # Subaba: Registrar Aves
         with tab_reg_aves:
             st.markdown("#### ➕ Adicionar Novas Aves")
-            
+
             col1, col2 = st.columns(2)
             with col1:
-                data_aves = st.date_input("📅 Data", value=datetime.now().date(), format="DD/MM/YYYY", key="data_aves")
-                galpao_aves = st.selectbox("🏠 Galpão", GALPOES, key="galpao_aves_reg")
-            
+                data_aves = st.date_input("📅 Data", value=datetime.now(
+                ).date(), format="DD/MM/YYYY", key="data_aves")
+                galpao_aves = st.selectbox(
+                    "🏠 Galpão", GALPOES, key="galpao_aves_reg")
+
             with col2:
-                qtd_aves = st.number_input("🐔 Quantidade de Aves", min_value=1, step=1, format="%d", key="qtd_aves")
-            
+                qtd_aves = st.number_input(
+                    "🐔 Quantidade de Aves", min_value=1, step=1, format="%d", key="qtd_aves")
+
             if st.button("✅ Registrar Aves", use_container_width=True):
                 conn = sqlite3.connect('estoque_ovos.db')
                 c = conn.cursor()
@@ -446,19 +511,22 @@ else:
                 conn.close()
                 st.success(f"✅ {qtd_aves} aves registradas no {galpao_aves}!")
                 st.rerun()
-        
+
         # Subaba: Aves Mortas
         with tab_mortas:
             st.markdown("#### ⚠️ Registrar Aves Mortas")
-            
+
             col1, col2 = st.columns(2)
             with col1:
-                data_morta = st.date_input("📅 Data", value=datetime.now().date(), format="DD/MM/YYYY", key="data_morta")
-                galpao_morta = st.selectbox("🏠 Galpão", GALPOES, key="galpao_aves_morta")
-            
+                data_morta = st.date_input("📅 Data", value=datetime.now(
+                ).date(), format="DD/MM/YYYY", key="data_morta")
+                galpao_morta = st.selectbox(
+                    "🏠 Galpão", GALPOES, key="galpao_aves_morta")
+
             with col2:
-                qtd_morta = st.number_input("🪦 Quantidade de Aves Mortas", min_value=1, step=1, format="%d", key="qtd_morta")
-            
+                qtd_morta = st.number_input(
+                    "🪦 Quantidade de Aves Mortas", min_value=1, step=1, format="%d", key="qtd_morta")
+
             if st.button("✅ Registrar Morte", use_container_width=True):
                 conn = sqlite3.connect('estoque_ovos.db')
                 c = conn.cursor()
@@ -468,43 +536,45 @@ else:
                 )
                 conn.commit()
                 conn.close()
-                st.success(f"✅ {qtd_morta} aves mortas registradas no {galpao_morta}.")
+                st.success(
+                    f"✅ {qtd_morta} aves mortas registradas no {galpao_morta}.")
                 st.rerun()
-        
+
         st.divider()
-        
+
         # Resumo de aves por galpão
         st.markdown("#### 📊 Resumo de Aves por Galpão")
-        
+
         for galpao in GALPOES:
             col1, col2, col3 = st.columns(3)
-            
+
             # Total registrado
             conn = sqlite3.connect('estoque_ovos.db')
             c = conn.cursor()
             c.execute("SELECT COALESCE(SUM(quantidade_total), 0) FROM aves WHERE username=? AND galpao=?",
-                     (st.session_state.username, galpao))
+                      (st.session_state.username, galpao))
             total_reg = c.fetchone()[0]
-            
+
             # Total morto
             c.execute("SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas WHERE username=? AND galpao=?",
-                     (st.session_state.username, galpao))
+                      (st.session_state.username, galpao))
             total_morto = c.fetchone()[0]
             conn.close()
-            
+
             total_vivo = max(0, total_reg - total_morto)
-            
+
             with col1:
                 st.metric(f"{galpao} - Registradas", f"{total_reg} aves")
             with col2:
                 st.metric(f"{galpao} - Mortas", f"{total_morto} aves")
             with col3:
-                st.metric(f"{galpao} - Vivas", f"{total_vivo} aves", delta=None)
+                st.metric(f"{galpao} - Vivas",
+                          f"{total_vivo} aves", delta=None)
 
     # ======================== ABA 5: GRÁFICOS ========================
     with tabs[4]:
         st.markdown("### 📈 Gráficos e Análises")
-        
+
         conn = sqlite3.connect('estoque_ovos.db')
         df_graficos = pd.read_sql(
             "SELECT data, quantidade, tipo, galpao, cor FROM producao WHERE username=? ORDER BY data",
@@ -512,13 +582,14 @@ else:
             params=(st.session_state.username,)
         )
         conn.close()
-        
+
         if not df_graficos.empty:
             df_graficos['data'] = pd.to_datetime(df_graficos['data'])
-            
+
             # Gráfico 1: Evolução temporal
             st.markdown("#### 📉 Evolução Temporal de Produção")
-            df_tempo = df_graficos.groupby('data')['quantidade'].sum().reset_index()
+            df_tempo = df_graficos.groupby(
+                'data')['quantidade'].sum().reset_index()
             fig_tempo = px.line(
                 df_tempo,
                 x='data',
@@ -534,10 +605,11 @@ else:
                 hovermode='x unified'
             )
             st.plotly_chart(fig_tempo, use_container_width=True)
-            
+
             # Gráfico 2: Produção por galpão
             st.markdown("#### 🏠 Produção por Galpão")
-            df_galpao = df_graficos.groupby('galpao')['quantidade'].sum().reset_index()
+            df_galpao = df_graficos.groupby(
+                'galpao')['quantidade'].sum().reset_index()
             fig_galpao = px.bar(
                 df_galpao,
                 x='galpao',
@@ -553,10 +625,11 @@ else:
                 showlegend=False
             )
             st.plotly_chart(fig_galpao, use_container_width=True)
-            
+
             # Gráfico 3: Tipo de ovo
             st.markdown("#### 🏷️ Distribuição por Tipo")
-            df_tipo = df_graficos.groupby('tipo')['quantidade'].sum().reset_index()
+            df_tipo = df_graficos.groupby(
+                'tipo')['quantidade'].sum().reset_index()
             fig_tipo = px.pie(
                 df_tipo,
                 names='tipo',
@@ -568,10 +641,11 @@ else:
                 font=dict(color="black", size=12)
             )
             st.plotly_chart(fig_tipo, use_container_width=True)
-            
+
             # Gráfico 4: Cor de ovo
             st.markdown("#### 🎨 Distribuição por Cor")
-            df_cor = df_graficos.groupby('cor')['quantidade'].sum().reset_index()
+            df_cor = df_graficos.groupby(
+                'cor')['quantidade'].sum().reset_index()
             fig_cor = px.pie(
                 df_cor,
                 names='cor',
@@ -583,12 +657,14 @@ else:
                 font=dict(color="black", size=12)
             )
             st.plotly_chart(fig_cor, use_container_width=True)
-            
+
             # Gráfico 5: Heatmap Galpão x Tipo
             st.markdown("#### 🔥 Heatmap: Galpão vs Tipo")
-            df_heatmap = df_graficos.groupby(['galpao', 'tipo'])['quantidade'].sum().reset_index()
-            df_pivot = df_heatmap.pivot(index='galpao', columns='tipo', values='quantidade').fillna(0)
-            
+            df_heatmap = df_graficos.groupby(['galpao', 'tipo'])[
+                'quantidade'].sum().reset_index()
+            df_pivot = df_heatmap.pivot(
+                index='galpao', columns='tipo', values='quantidade').fillna(0)
+
             fig_heat = px.imshow(
                 df_pivot,
                 labels=dict(x='Tipo', y='Galpão', color='Quantidade'),
@@ -606,57 +682,62 @@ else:
     # ======================== ABA 6: OVOS QUEBRADOS ========================
     with tabs[5]:
         st.markdown("### 🔨 Gerenciamento de Ovos Quebrados")
-        
+
         # Formulário de registro
         st.markdown("#### 🔨 Registrar Ovos Quebrados")
-        
+
         col1, col2 = st.columns(2)
         with col1:
-            data_quebrados = st.date_input("📅 Data", value=datetime.now().date(), format="DD/MM/YYYY", key="data_quebrados")
-            galpao_quebrados = st.selectbox("🏠 Galpão", GALPOES, key="galpao_quebrados")
-        
+            data_quebrados = st.date_input("📅 Data", value=datetime.now(
+            ).date(), format="DD/MM/YYYY", key="data_quebrados")
+            galpao_quebrados = st.selectbox(
+                "🏠 Galpão", GALPOES, key="galpao_quebrados")
+
         with col2:
-            qtd_quebrados = st.number_input("🔨 Quantidade de Ovos Quebrados", min_value=1, step=1, format="%d", key="qtd_quebrados")
-        
+            qtd_quebrados = st.number_input(
+                "🔨 Quantidade de Ovos Quebrados", min_value=1, step=1, format="%d", key="qtd_quebrados")
+
         if st.button("✅ Registrar Quebrados", use_container_width=True):
             conn = sqlite3.connect('estoque_ovos.db')
             c = conn.cursor()
             c.execute(
                 "INSERT INTO ovos_quebrados (username, galpao, quantidade, data) VALUES (?, ?, ?, ?)",
-                (st.session_state.username, galpao_quebrados, qtd_quebrados, data_quebrados)
+                (st.session_state.username, galpao_quebrados,
+                 qtd_quebrados, data_quebrados)
             )
             conn.commit()
             conn.close()
-            st.success(f"✅ {qtd_quebrados} ovos quebrados registrados no {galpao_quebrados}!")
+            st.success(
+                f"✅ {qtd_quebrados} ovos quebrados registrados no {galpao_quebrados}!")
             st.rerun()
-        
+
         st.divider()
-        
+
         # Resumo por galpão
         st.markdown("#### 📊 Resumo de Ovos Quebrados por Galpão")
-        
+
         conn = sqlite3.connect('estoque_ovos.db')
-        
+
         total_quebrados_geral = 0
         cols_quebrados = st.columns(len(GALPOES))
-        
+
         for idx, galpao in enumerate(GALPOES):
             c = conn.cursor()
             c.execute("SELECT COALESCE(SUM(quantidade), 0) FROM ovos_quebrados WHERE username=? AND galpao=?",
-                     (st.session_state.username, galpao))
+                      (st.session_state.username, galpao))
             total = c.fetchone()[0]
             total_quebrados_geral += total
-            
+
             with cols_quebrados[idx]:
                 st.metric(galpao, f"{total} ovos quebrados")
-        
+
         conn.close()
-        
+
         st.divider()
-        
+
         # Histórico
         st.markdown("#### 📋 Histórico de Ovos Quebrados")
-        
+
         conn = sqlite3.connect('estoque_ovos.db')
         df_quebrados = pd.read_sql(
             "SELECT data, galpao, quantidade FROM ovos_quebrados WHERE username=? ORDER BY data DESC",
@@ -664,9 +745,11 @@ else:
             params=(st.session_state.username,)
         )
         conn.close()
-        
+
         if not df_quebrados.empty:
-            df_quebrados['data'] = pd.to_datetime(df_quebrados['data']).dt.strftime('%d/%m/%Y')
-            st.dataframe(df_quebrados.rename(columns={'data': 'Data', 'galpao': 'Galpão', 'quantidade': 'Quantidade'}), use_container_width=True, hide_index=True)
+            df_quebrados['data'] = pd.to_datetime(
+                df_quebrados['data']).dt.strftime('%d/%m/%Y')
+            st.dataframe(df_quebrados.rename(columns={
+                         'data': 'Data', 'galpao': 'Galpão', 'quantidade': 'Quantidade'}), use_container_width=True, hide_index=True)
         else:
             st.info("📭 Nenhum registro de ovos quebrados.")
