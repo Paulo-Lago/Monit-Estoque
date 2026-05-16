@@ -813,6 +813,79 @@ else:
                                 st.plotly_chart(fig, use_container_width=True)
 
                             st.divider()
+            # ===================== AVES MORTAS =====================
+            with tab_mortas:
+                st.markdown("#### 🐔 Aves Mortas por Período")
+
+                if df_mortas.empty:
+                    st.info("Nenhum registro de aves mortas.")
+                else:
+                    col_d1, col_d2 = st.columns(2)
+                    with col_d1:
+                        data_inicio_m = st.date_input(
+                            "Data Inicial",
+                            value=datetime.now().date() - pd.Timedelta(days=6),
+                            format="DD/MM/YYYY",
+                            key="data_inicio_mortas"
+                        )
+                    with col_d2:
+                        data_fim_m = st.date_input(
+                            "Data Final",
+                            value=datetime.now().date(),
+                            format="DD/MM/YYYY",
+                            key="data_fim_mortas"
+                        )
+
+                    df_filtrado_m = df_mortas[
+                        (df_mortas['data'].dt.date >= data_inicio_m) &
+                        (df_mortas['data'].dt.date <= data_fim_m)
+                    ].copy()
+
+                    if df_filtrado_m.empty:
+                        st.warning(
+                            "Nenhum registro encontrado no período selecionado.")
+                    else:
+                        for galpao in sorted(df_filtrado_m['galpao'].unique()):
+                            st.markdown(f"**{galpao}**")
+
+                            df_g = df_filtrado_m[df_filtrado_m['galpao'] == galpao]
+
+                            # Agrupar por dia (total de aves mortas por dia)
+                            df_agg = df_g.groupby(
+                                'data')['quantidade'].sum().reset_index()
+                            df_agg = df_agg.sort_values('data')
+
+                            if df_agg.empty:
+                                st.info(
+                                    f"Nenhum registro para {galpao} no período selecionado.")
+                            else:
+                                fig = px.bar(
+                                    df_agg,
+                                    x='data',
+                                    y='quantidade',
+                                    title=f"Aves Mortas - {galpao} ({data_inicio_m.strftime('%d/%m/%Y')} a {data_fim_m.strftime('%d/%m/%Y')})",
+                                    labels={
+                                        'data': 'Data', 'quantidade': 'Quantidade de Aves Mortas'},
+                                    text_auto=True,
+                                    # Roxo para diferenciar
+                                    color_discrete_sequence=['#8E44AD']
+                                )
+
+                                fig.update_layout(
+                                    plot_bgcolor='rgba(0,0,0,0)',
+                                    paper_bgcolor='rgba(0,0,0,0)',
+                                    font=dict(color="black", size=13),
+                                    title_font=dict(color="black", size=16),
+                                    xaxis=dict(title_font=dict(
+                                        color="black"), tickfont=dict(color="black")),
+                                    yaxis=dict(title_font=dict(
+                                        color="black"), tickfont=dict(color="black"))
+                                )
+                                fig.update_xaxes(tickformat='%d/%m')
+                                fig.update_traces(textposition='outside')
+                                st.plotly_chart(fig, use_container_width=True)
+
+                            st.divider()
 
     # ======================== ABA 6: OVOS QUEBRADOS ========================
     with tabs[5]:
