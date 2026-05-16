@@ -396,7 +396,7 @@ else:
                 )
             with col_f2:
                 mostrar_todos = st.checkbox(
-                    "Mostrar todos os dias", value=False)
+                    "Mostrar todos os dias", value=False, key="checkbox_todos_dias")
 
             # Aplicando filtro
             if mostrar_todos:
@@ -414,48 +414,9 @@ else:
                 st.warning(
                     f"Nenhum registro encontrado para a data selecionada.")
             else:
-                # Total geral
-                total_geral = df_filtrado['quantidade'].sum()
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("🥚 Total de Ovos", f"{total_geral:,}")
-                with col2:
-                    st.metric("📅 Registros", len(df_filtrado))
-                with col3:
-                    st.metric("📊 Média por Registro",
-                              f"{total_geral / len(df_filtrado):.0f}")
-
-                st.divider()
-
-                # Total por galpão
-                st.markdown("#### 🏠 Ovos por Galpão")
-                galpao_totais = df_filtrado.groupby(
-                    'galpao')['quantidade'].sum().sort_values(ascending=False)
-
-                if not galpao_totais.empty:
-                    cols = st.columns(len(galpao_totais))
-                    for idx, (galpao, total) in enumerate(galpao_totais.items()):
-                        with cols[idx]:
-                            st.metric(galpao, f"{total:,} ovos")
-
-                st.divider()
-
-                # Total por cor
-                st.markdown("#### 🎨 Ovos por Cor")
-                cor_totais = df_filtrado.groupby(
-                    'cor')['quantidade'].sum().sort_values(ascending=False)
-                if not cor_totais.empty:
-                    cols_cor = st.columns(len(cor_totais))
-                    for idx, (cor, total) in enumerate(cor_totais.items()):
-                        with cols_cor[idx]:
-                            st.metric(cor, f"{total:,} ovos")
-
-                st.divider()
-
-                # ==================== DETALHES POR GALPÃO E TIPO ====================
+                # ===================== DETALHES POR GALPÃO E TIPO =====================
                 st.markdown("#### 📋 Detalhes por Galpão e Tipo")
 
-                # Normalização para evitar problemas de nome
                 df_filtrado = df_filtrado.copy()
                 df_filtrado['galpao_norm'] = df_filtrado['galpao'].astype(
                     str).str.strip()
@@ -464,6 +425,10 @@ else:
                     st.markdown(f"**{galpao}**")
 
                     df_galpao = df_filtrado[df_filtrado['galpao_norm'] == galpao]
+
+                    # === NOVO: Total de Ovos do Dia por Galpão ===
+                    total_galpao = df_galpao['quantidade'].sum()
+                    st.info(f"**Total de Ovos do Dia:** {total_galpao} ovos")
 
                     # Por tipo
                     tipo_cols = st.columns(len(TIPOS_OVO))
@@ -482,7 +447,6 @@ else:
                             st.warning(f"**{cor}**: {total_cor} ovos")
 
                     st.divider()
-
           # ======================== ABA 4: REGISTRAR AVES ========================
     with tabs[3]:
         st.markdown("### 🐔 Gerenciamento de Aves")
