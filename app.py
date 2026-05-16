@@ -620,11 +620,11 @@ else:
             with col3:
                 st.metric(f"{galpao} - Vivas", f"{total_vivo} aves")
 
-              # ======================== ABA 5: GRÁFICOS ========================
+                # ======================== ABA 5: GRÁFICOS ========================
     with tabs[4]:
         st.markdown("### 📈 Gráficos e Análises")
 
-        # Carregando dados necessários
+        # Carregando dados
         conn = sqlite3.connect('estoque_ovos.db')
 
         df_producao = pd.read_sql(
@@ -647,7 +647,6 @@ else:
         if df_producao.empty and df_quebrados.empty and df_mortas.empty:
             st.info("📭 Nenhum dado disponível para gerar gráficos.")
         else:
-            # Conversão de datas
             if not df_producao.empty:
                 df_producao['data'] = pd.to_datetime(df_producao['data'])
             if not df_quebrados.empty:
@@ -663,26 +662,42 @@ else:
 
             # ===================== PRODUÇÃO DE OVOS =====================
             with tab_prod:
-                st.markdown("#### Produção de Ovos - Últimos 7 dias")
+                st.markdown("#### Produção de Ovos por Período")
 
                 if df_producao.empty:
                     st.info("Nenhum registro de produção.")
                 else:
-                    data_atual = datetime.now().date()
-                    data_inicio = data_atual - pd.Timedelta(days=6)
+                    # Filtros de data
+                    col_d1, col_d2 = st.columns(2)
+                    with col_d1:
+                        data_inicio = st.date_input(
+                            "Data Inicial",
+                            value=datetime.now().date() - pd.Timedelta(days=6),
+                            format="DD/MM/YYYY",
+                            key="data_inicio_prod"
+                        )
+                    with col_d2:
+                        data_fim = st.date_input(
+                            "Data Final",
+                            value=datetime.now().date(),
+                            format="DD/MM/YYYY",
+                            key="data_fim_prod"
+                        )
 
-                    df_prod_7 = df_producao[
+                    # Filtrando dados
+                    df_filtrado = df_producao[
                         (df_producao['data'].dt.date >= data_inicio) &
-                        (df_producao['data'].dt.date <= data_atual)
+                        (df_producao['data'].dt.date <= data_fim)
                     ].copy()
 
-                    if df_prod_7.empty:
-                        st.info("Nenhum registro nos últimos 7 dias.")
+                    if df_filtrado.empty:
+                        st.warning(
+                            "Nenhum registro encontrado no período selecionado.")
                     else:
-                        for galpao in sorted(df_prod_7['galpao'].unique()):
+                        for galpao in sorted(df_filtrado['galpao'].unique()):
                             st.markdown(f"**{galpao}**")
 
-                            df_g = df_prod_7[df_prod_7['galpao'] == galpao]
+                            df_g = df_filtrado[df_filtrado['galpao'] == galpao]
                             df_agg = df_g.groupby(['data', 'tipo'])[
                                 'quantidade'].sum().reset_index()
 
@@ -693,20 +708,19 @@ else:
 
                             if df_pivot.empty:
                                 st.info(
-                                    f"Nenhum registro para {galpao} nos últimos 7 dias.")
+                                    f"Nenhum registro para {galpao} no período selecionado.")
                             else:
                                 fig = px.bar(
                                     df_pivot,
                                     x=df_pivot.index,
                                     y=df_pivot.columns,
-                                    title=f"Produção - {galpao} (Últimos 7 dias)",
+                                    title=f"Produção - {galpao} ({data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')})",
                                     labels={
                                         'x': 'Data', 'value': 'Quantidade de Ovos', 'variable': 'Tipo'},
                                     text_auto=True,
                                     barmode='group'
                                 )
 
-                                # === AJUSTE DE CORES PARA TEXTO PRETO ===
                                 fig.update_layout(
                                     plot_bgcolor='rgba(0,0,0,0)',
                                     paper_bgcolor='rgba(0,0,0,0)',
