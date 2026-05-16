@@ -483,41 +483,49 @@ else:
 
                     st.divider()
 
-    # ======================== ABA 4: REGISTRAR AVES ========================
+       # ======================== ABA 4: REGISTRAR AVES ========================
     with tabs[3]:
         st.markdown("### 🐔 Gerenciamento de Aves")
 
-        tab_reg_aves, tab_mortas = st.tabs(
-            ["➕ Registrar Aves", "⚠️ Aves Mortas"])
+        tab_reg_aves, tab_mortas, tab_historico = st.tabs([
+            "➕ Registrar Aves",
+            "⚠️ Aves Mortas",
+            "📋 Histórico"
+        ])
 
-        # Subaba: Registrar Aves
+        # ===================== SUBABA 1: REGISTRAR AVES =====================
         with tab_reg_aves:
             st.markdown("#### ➕ Adicionar Novas Aves")
 
             col1, col2 = st.columns(2)
             with col1:
                 data_aves = st.date_input("📅 Data", value=datetime.now(
-                ).date(), format="DD/MM/YYYY", key="data_aves")
+                ).date(), format="DD/MM/YYYY", key="data_aves_reg")
                 galpao_aves = st.selectbox(
                     "🏠 Galpão", GALPOES, key="galpao_aves_reg")
 
             with col2:
                 qtd_aves = st.number_input(
-                    "🐔 Quantidade de Aves", min_value=1, step=1, format="%d", key="qtd_aves")
+                    "🐔 Quantidade de Aves", min_value=1, step=1, format="%d", key="qtd_aves_reg")
 
-            if st.button("✅ Registrar Aves", use_container_width=True):
-                conn = sqlite3.connect('estoque_ovos.db')
-                c = conn.cursor()
-                c.execute(
-                    "INSERT INTO aves (username, galpao, quantidade_total, data_registro) VALUES (?, ?, ?, ?)",
-                    (st.session_state.username, galpao_aves, qtd_aves, data_aves)
-                )
-                conn.commit()
-                conn.close()
-                st.success(f"✅ {qtd_aves} aves registradas no {galpao_aves}!")
-                st.rerun()
+            if st.button("✅ Registrar Aves", use_container_width=True, type="primary"):
+                if qtd_aves > 0:
+                    conn = sqlite3.connect('estoque_ovos.db')
+                    c = conn.cursor()
+                    c.execute(
+                        "INSERT INTO aves (username, galpao, quantidade_total, data_registro) VALUES (?, ?, ?, ?)",
+                        (st.session_state.username,
+                         galpao_aves, qtd_aves, data_aves)
+                    )
+                    conn.commit()
+                    conn.close()
+                    st.success(
+                        f"✅ {qtd_aves} aves registradas no {galpao_aves} em {data_aves.strftime('%d/%m/%Y')}!")
+                    st.rerun()
+                else:
+                    st.error("Quantidade deve ser maior que zero.")
 
-        # Subaba: Aves Mortas
+        # ===================== SUBABA 2: AVES MORTAS =====================
         with tab_mortas:
             st.markdown("#### ⚠️ Registrar Aves Mortas")
 
@@ -532,7 +540,7 @@ else:
                 qtd_morta = st.number_input(
                     "🪦 Quantidade de Aves Mortas", min_value=1, step=1, format="%d", key="qtd_morta")
 
-            if st.button("✅ Registrar Morte", use_container_width=True):
+            if st.button("✅ Registrar Morte", use_container_width=True, type="primary"):
                 conn = sqlite3.connect('estoque_ovos.db')
                 c = conn.cursor()
                 c.execute(
@@ -542,25 +550,66 @@ else:
                 conn.commit()
                 conn.close()
                 st.success(
-                    f"✅ {qtd_morta} aves mortas registradas no {galpao_morta}.")
+                    f"✅ {qtd_morta} aves mortas registradas no {galpao_morta}!")
                 st.rerun()
+
+        # ===================== SUBABA 3: HISTÓRICO =====================
+        with tab_historico:
+            st.markdown("#### 📋 Histórico de Aves")
+
+            conn = sqlite3.connect('estoque_ovos.db')
+
+            # Histórico de aves registradas
+            df_aves = pd.read_sql("""
+                SELECT data_registro as Data, galpao as Galpão, 
+                       quantidade_total as 'Quantidade Registrada'
+                FROM aves 
+                WHERE username=? 
+                ORDER BY data_registro DESC
+            """, conn, params=(st.session_state.username,))
+
+            # Histórico de aves mortas
+            df_mortas = pd.read_sql("""
+                SELECT data as Data, galpao as Galpão, quantidade as 'Aves Mortas'
+                FROM aves_mortas 
+                WHERE username=? 
+                ORDER BY data DESC
+            """, conn, params=(st.session_state.username,))
+
+            conn.close()
+
+            col_h1, col_h2 = st.columns(2)
+            with col_h1:
+                st.markdown("**Aves Registradas**")
+                if not df_aves.empty:
+                    st.dataframe(
+                        df_aves, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nenhum registro de aves.")
+
+            with col_h2:
+                st.markdown("**Aves Mortas**")
+                if not df_mortas.empty:
+                    st.dataframe(
+                        df_mortas, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nenhum registro de mortes.")
 
         st.divider()
 
-        # Resumo de aves por galpão
-        st.markdown("#### 📊 Resumo de Aves por Galpão")
+        # ===================== RESUMO ATUAL =====================
+        st.markdown("#### 📊 Resumo Atual de Aves por Galpão")
 
         for galpao in GALPOES:
-            col1, col2, col3 = st.columns(3)
+            total_reg, total_morto = 0, 0
 
-            # Total registrado
             conn = sqlite3.connect('estoque_ovos.db')
             c = conn.cursor()
+
             c.execute("SELECT COALESCE(SUM(quantidade_total), 0) FROM aves WHERE username=? AND galpao=?",
                       (st.session_state.username, galpao))
             total_reg = c.fetchone()[0]
 
-            # Total morto
             c.execute("SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas WHERE username=? AND galpao=?",
                       (st.session_state.username, galpao))
             total_morto = c.fetchone()[0]
@@ -568,6 +617,7 @@ else:
 
             total_vivo = max(0, total_reg - total_morto)
 
+            col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric(f"{galpao} - Registradas", f"{total_reg} aves")
             with col2:
