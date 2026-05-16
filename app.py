@@ -17,36 +17,24 @@ LOGO_PATH = BASE_DIR / "assets" / "logomarca.png"
 # 1. Função de Estilo Avançada (CSS Responsivo e Persistente)
 
 def aplicar_estilo_customizado():
-    # Tenta carregar a imagem em base64
     try:
         with open(LOGO_PATH, "rb") as img_file:
             logo_base64 = base64.b64encode(img_file.read()).decode()
     except:
-        logo_base64 = ""  # Se não encontrar a imagem, não quebra o app
+        logo_base64 = ""
 
     st.markdown(f"""
     <style>
-    .main-bg-container {{
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        z-index: -2;
-        pointer-events: none;
-        background-image: url("data:image/png;base64,{logo_base64}");
-        background-size: contain;
-        background-position: center;
-        background-repeat: no-repeat;
-        opacity: 0.13;
-        filter: grayscale(12%);
+    .stApp {{
+        background-image: url("data:image/png;base64,{logo_base64}") !important;
+        background-size: 35% !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        background-attachment: fixed !important;
     }}
     </style>
-
-    <div class="main-bg-container"></div>
     """, unsafe_allow_html=True)
-
-
+    
 st.set_page_config(page_title="Estoque Ovos Pro", layout="wide")
 aplicar_estilo_customizado()
 
