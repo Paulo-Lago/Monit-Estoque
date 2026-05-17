@@ -683,8 +683,11 @@ with tabs[5]:
             if not df_mortas.empty:
                 df_mortas['data'] = pd.to_datetime(df_mortas['data'])
 
-            tab_prod, tab_quebrados, tab_mortas = st.tabs([
-                "🥚 Produção de Ovos", "🔨 Ovos Quebrados", "🐔 Aves Mortas"
+            tab_prod, tab_quebrados, tab_mortas, tab_caixas = st.tabs([
+                "🥚 Produção de Ovos",
+                "🔨 Ovos Quebrados",
+                "🐔 Aves Mortas",
+                "📦 Caixas de Ovos"
             ])
 
             # ===================== PRODUÇÃO DE OVOS =====================
@@ -824,6 +827,70 @@ with tabs[5]:
 
     except Exception as e:
         st.error(f"Erro ao carregar gráficos: {e}")
+# ===================== SUB-ABA: CAIXAS DE OVOS =====================
+with tab_caixas:
+    st.markdown("#### 📦 Caixas de Ovos Fechadas por Galpão")
+
+    if df_producao.empty:
+        st.info("Nenhum registro de produção.")
+    else:
+        col_d1, col_d2 = st.columns(2)
+        with col_d1:
+            data_inicio_c = st.date_input(
+                "Data Inicial",
+                value=datetime.now().date() - pd.Timedelta(days=29),
+                format="DD/MM/YYYY",
+                key="data_inicio_caixas"
+            )
+        with col_d2:
+            data_fim_c = st.date_input(
+                "Data Final",
+                value=datetime.now().date(),
+                format="DD/MM/YYYY",
+                key="data_fim_caixas"
+            )
+
+        df_filtrado_c = df_producao[
+            (df_producao['data'].dt.date >= data_inicio_c) &
+            (df_producao['data'].dt.date <= data_fim_c)
+        ].copy()
+
+        if df_filtrado_c.empty:
+            st.warning("Nenhum registro encontrado no período selecionado.")
+        else:
+            # Calcular caixas por dia e galpão
+            df_caixas = df_filtrado_c.groupby(['data', 'galpao'])[
+                'quantidade'].sum().reset_index()
+            df_caixas['caixas'] = df_caixas['quantidade'] // 360
+
+            for galpao in sorted(df_caixas['galpao'].unique()):
+                st.markdown(f"**{galpao}**")
+
+                df_g = df_caixas[df_caixas['galpao'] == galpao]
+                df_agg = df_g.groupby('data')['caixas'].sum().reset_index()
+                df_agg = df_agg.sort_values('data')
+
+                if not df_agg.empty:
+                    fig = px.bar(
+                        df_agg,
+                        x='data',
+                        y='caixas',
+                        title=f"Caixas Fechadas - {galpao}",
+                        labels={'data': 'Data',
+                                'caixas': 'Quantidade de Caixas'},
+                        text_auto=True,
+                        color_discrete_sequence=['#27AE60']
+                    )
+                    fig.update_layout(
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        font=dict(color="black", size=12),
+                        xaxis=dict(tickformat='%d/%m')
+                    )
+                    fig.update_traces(textposition='outside')
+                    st.plotly_chart(fig, use_container_width=True)
+                st.divider()
+
 
 # ======================== ABA 6: OVOS QUEBRADOS (SUPABASE) ========================
 with tabs[6]:
