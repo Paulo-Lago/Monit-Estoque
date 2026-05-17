@@ -239,37 +239,47 @@ else:
         "🔨 Ovos Quebrados"
     ])
 
-    # ======================== ABA 1: NOVA COLHEITA ========================
+ # ======================== ABA 1: NOVA COLHEITA (SUPABASE) ========================
     with tabs[0]:
         st.markdown("### 📝 Registrar Nova Colheita")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            data_reg = st.date_input("📅 Data da Colheita", value=datetime.now(
-            ).date(), format="DD/MM/YYYY", key="data_colheita")
-            qtd_val = st.number_input(
-                "🥚 Quantidade de Ovos", min_value=0, step=1, format="%d", key="qtd_colheita")
+    col1, col2 = st.columns(2)
+    with col1:
+        data_reg = st.date_input("📅 Data da Colheita", value=datetime.now().date(),
+                                 format="DD/MM/YYYY", key="data_colheita")
+        qtd_val = st.number_input("🥚 Quantidade de Ovos", min_value=0, step=1,
+                                  format="%d", key="qtd_colheita")
 
-        with col2:
-            tipo_ovo = st.selectbox(
-                "🏷️ Tipo de Ovo", TIPOS_OVO, key="tipo_ovo")
-            galpao = st.selectbox("🏠 Galpão", GALPOES, key="galpao_colheita")
+    with col2:
+        tipo_ovo = st.selectbox("🏷️ Tipo de Ovo", TIPOS_OVO, key="tipo_ovo")
+        galpao = st.selectbox("🏠 Galpão", GALPOES, key="galpao_colheita")
 
-        cor = st.selectbox("🎨 Cor do Ovo", CORES, key="cor_ovo")
+    cor = st.selectbox("🎨 Cor do Ovo", CORES, key="cor_ovo")
 
-        if st.button("✅ Salvar Colheita", use_container_width=True):
-            if qtd_val > 0:
-                conn = sqlite3.connect('estoque_ovos.db')
-                c = conn.cursor()
-                c.execute("INSERT INTO producao (username, data, quantidade, tipo, galpao, cor) VALUES (?, ?, ?, ?, ?, ?)",
-                          (st.session_state.username, data_reg, qtd_val, tipo_ovo, galpao, cor))
-                conn.commit()
-                conn.close()
+    if st.button("✅ Salvar Colheita", use_container_width=True):
+        if qtd_val > 0:
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text("""
+                        INSERT INTO producao (username, data, quantidade, tipo, galpao, cor)
+                        VALUES (:username, :data, :quantidade, :tipo, :galpao, :cor)
+                    """), {
+                        "username": st.session_state.username,
+                        "data": data_reg,
+                        "quantidade": qtd_val,
+                        "tipo": tipo_ovo,
+                        "galpao": galpao,
+                        "cor": cor
+                    })
+                    conn.commit()
+
                 st.balloons()
                 st.success(
                     f"✅ {qtd_val} ovos ({tipo_ovo}, {cor}) do {galpao} registrados com sucesso!")
-            else:
-                st.error("Quantidade deve ser maior que zero.")
+            except Exception as e:
+                st.error(f"Erro ao salvar colheita: {e}")
+        else:
+            st.error("Quantidade deve ser maior que zero.")
 
     # ======================== ABA 2: HISTÓRICO & EDIÇÃO ========================
     with tabs[1]:
