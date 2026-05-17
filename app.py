@@ -144,6 +144,7 @@ tabs = st.tabs([
     "🐔 Registrar Aves",
     "📈 Gráficos",
     "🔨 Ovos Quebrados"
+    "⚙️ Configurações"
 ])
 
 # ======================== ABA 0: DASHBOARD ========================
@@ -872,3 +873,52 @@ with tabs[6]:
             st.info("📭 Nenhum registro de ovos quebrados.")
     except Exception as e:
         st.error(f"Erro ao carregar histórico: {e}")
+
+# ======================== ABA 7: CONFIGURAÇÕES ========================
+with tabs[7]:
+    st.markdown("### ⚙️ Configurações da Conta")
+
+    st.markdown(f"**Usuário atual:** `{st.session_state.username}`")
+
+    st.divider()
+    st.markdown("#### 🔐 Alterar Senha")
+
+    with st.form("change_password_form"):
+        current_pw = st.text_input("Senha Atual", type="password")
+        new_pw = st.text_input("Nova Senha", type="password")
+        confirm_pw = st.text_input("Confirmar Nova Senha", type="password")
+
+        submitted = st.form_submit_button("✅ Alterar Senha")
+
+        if submitted:
+            if not current_pw or not new_pw or not confirm_pw:
+                st.error("Preencha todos os campos.")
+            elif new_pw != confirm_pw:
+                st.error("As senhas novas não coincidem.")
+            elif len(new_pw) < 4:
+                st.error("A nova senha deve ter pelo menos 4 caracteres.")
+            else:
+                try:
+                    with engine.connect() as conn:
+                        # Verifica senha atual
+                        result = conn.execute(text("""
+                            SELECT password FROM usuarios 
+                            WHERE username = :u
+                        """), {"u": st.session_state.username}).fetchone()
+
+                        if result and result[0] == current_pw:
+                            # Atualiza a senha
+                            conn.execute(text("""
+                                UPDATE usuarios 
+                                SET password = :new_pw 
+                                WHERE username = :u
+                            """), {
+                                "new_pw": new_pw,
+                                "u": st.session_state.username
+                            })
+                            conn.commit()
+                            st.success("✅ Senha alterada com sucesso!")
+                        else:
+                            st.error("Senha atual incorreta.")
+                except Exception as e:
+                    st.error(f"Erro ao alterar senha: {e}")
