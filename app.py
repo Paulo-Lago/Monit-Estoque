@@ -124,6 +124,8 @@ if not st.session_state.logged_in:
                         st.error(f"Erro ao criar conta: {e}")
             else:
                 st.error("Preencha usuário e senha.")
+# 🛑 ISSO IMPEDE QUE O RESTANTE DA PÁGINA SEJA EXECUTADO SE NÃO ESTIVER LOGADO
+    st.stop()
 
 else:
     # ==================== PAINEL PRINCIPAL ====================
