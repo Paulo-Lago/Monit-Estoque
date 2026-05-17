@@ -137,6 +137,7 @@ else:
 
     # --- ABAS PRINCIPAIS ---
 tabs = st.tabs([
+    "📊 Dashboard",
     "📝 Nova Colheita",
     "🔍 Histórico & Edição",
     "📊 Monitoramento",
@@ -145,8 +146,90 @@ tabs = st.tabs([
     "🔨 Ovos Quebrados"
 ])
 
-# ======================== ABA 1: NOVA COLHEITA ========================
+# ======================== ABA 0: DASHBOARD ========================
 with tabs[0]:
+    st.markdown("### 📊 Dashboard Geral")
+
+    try:
+        # ==================== CARDS DE RESUMO ====================
+        st.markdown("#### 📈 Visão Geral")
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with engine.connect() as conn:
+            # Total de ovos produzidos (todo o período)
+            total_ovos = conn.execute(text("""
+                SELECT COALESCE(SUM(quantidade), 0) FROM producao 
+                WHERE username = :u
+            """), {"u": st.session_state.username}).scalar()
+
+            # Total de aves vivas
+            total_reg = conn.execute(text("""
+                SELECT COALESCE(SUM(quantidade_total), 0) FROM aves 
+                WHERE username = :u
+            """), {"u": st.session_state.username}).scalar()
+
+            total_mortas = conn.execute(text("""
+                SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas 
+                WHERE username = :u
+            """), {"u": st.session_state.username}).scalar()
+
+            total_vivas = max(0, total_reg - total_mortas)
+
+            # Total de ovos quebrados
+            total_quebrados = conn.execute(text("""
+                SELECT COALESCE(SUM(quantidade), 0) FROM ovos_quebrados 
+                WHERE username = :u
+            """), {"u": st.session_state.username}).scalar()
+
+        with col1:
+            st.metric("🥚 Total de Ovos", f"{total_ovos:,}")
+        with col2:
+            st.metric("🐔 Aves Vivas", f"{total_vivas:,}")
+        with col3:
+            st.metric("🔨 Ovos Quebrados", f"{total_quebrados:,}")
+        with col4:
+            st.metric("🪦 Aves Mortas", f"{total_mortas:,}")
+
+        st.divider()
+
+        # ==================== RESUMO POR GALPÃO ====================
+        st.markdown("#### 🏠 Resumo por Galpão")
+
+        for galpao in GALPOES:
+            with engine.connect() as conn:
+                ovos_galpao = conn.execute(text("""
+                    SELECT COALESCE(SUM(quantidade), 0) FROM producao 
+                    WHERE username = :u AND galpao = :g
+                """), {"u": st.session_state.username, "g": galpao}).scalar()
+
+                reg = conn.execute(text("""
+                    SELECT COALESCE(SUM(quantidade_total), 0) FROM aves 
+                    WHERE username = :u AND galpao = :g
+                """), {"u": st.session_state.username, "g": galpao}).scalar()
+
+                mortas = conn.execute(text("""
+                    SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas 
+                    WHERE username = :u AND galpao = :g
+                """), {"u": st.session_state.username, "g": galpao}).scalar()
+
+            vivas = max(0, reg - mortas)
+
+            st.markdown(f"**{galpao}**")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.metric("Ovos Produzidos", f"{ovos_galpao:,}")
+            with c2:
+                st.metric("Aves Vivas", f"{vivas:,}")
+            with c3:
+                st.metric("Aves Mortas", f"{mortas:,}")
+            st.divider()
+
+    except Exception as e:
+        st.error(f"Erro ao carregar Dashboard: {e}")
+
+# ======================== ABA 1: NOVA COLHEITA ========================
+with tabs[1]:
     st.markdown("### 📝 Registrar Nova Colheita")
 
     col1, col2 = st.columns(2)
@@ -186,7 +269,7 @@ with tabs[0]:
             st.error("Quantidade deve ser maior que zero.")
 
 # ======================== ABA 2: HISTÓRICO & EDIÇÃO ========================
-with tabs[1]:
+with tabs[2]:
     st.markdown("### 🔍 Gerenciar Histórico")
 
     try:
@@ -251,7 +334,7 @@ with tabs[1]:
         st.error(f"Erro ao carregar histórico: {e}")
 
 # ======================== ABA 3: MONITORAMENTO ========================
-with tabs[2]:
+with tabs[3]:
     st.markdown("### 📊 Monitoramento de Produção")
 
     try:
@@ -345,7 +428,7 @@ with tabs[2]:
         st.error(f"Erro ao carregar monitoramento: {e}")
 
 # ======================== ABA 4: REGISTRAR AVES ========================
-with tabs[3]:
+with tabs[4]:
     st.markdown("### 🐔 Gerenciamento de Aves")
 
     tab_reg_aves, tab_mortas, tab_historico = st.tabs([
@@ -478,7 +561,7 @@ with tabs[3]:
             st.error(f"Erro ao calcular resumo: {e}")
 
 # ======================== ABA 5: GRÁFICOS (SUPABASE) ========================
-with tabs[4]:
+with tabs[5]:
     st.markdown("### 📈 Gráficos e Análises")
 
     try:
@@ -657,7 +740,7 @@ with tabs[4]:
         st.error(f"Erro ao carregar gráficos: {e}")
 
 # ======================== ABA 6: OVOS QUEBRADOS (SUPABASE) ========================
-with tabs[5]:
+with tabs[6]:
     st.markdown("### 🔨 Gerenciamento de Ovos Quebrados")
 
     # Formulário de registro
