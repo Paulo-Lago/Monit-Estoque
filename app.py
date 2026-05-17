@@ -653,7 +653,7 @@ with tabs[5]:
     try:
         # Carregando dados do Supabase
         df_producao = pd.read_sql(text("""
-            SELECT data, quantidade, tipo, galpao 
+            SELECT data, quantidade, tipo, galpao, cor
             FROM producao 
             WHERE username = :username 
             ORDER BY data
