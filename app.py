@@ -643,7 +643,82 @@ with tabs[4]:
     except Exception as e:
         st.error(f"Erro ao carregar gráficos: {e}")
 
-# ======================== ABA 6: OVOS QUEBRADOS (ainda com SQLite) ========================
+# ======================== ABA 6: OVOS QUEBRADOS (SUPABASE) ========================
 with tabs[5]:
     st.markdown("### 🔨 Gerenciamento de Ovos Quebrados")
-    st.info("Ovos Quebrados ainda estão em SQLite. Vamos migrar na próxima etapa.")
+
+    # Formulário de registro
+    st.markdown("#### 🔨 Registrar Ovos Quebrados")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        data_quebrados = st.date_input("📅 Data", value=datetime.now().date(),
+                                       format="DD/MM/YYYY", key="data_quebrados")
+        galpao_quebrados = st.selectbox(
+            "🏠 Galpão", GALPOES, key="galpao_quebrados")
+    with col2:
+        qtd_quebrados = st.number_input("🔨 Quantidade de Ovos Quebrados", min_value=1, step=1,
+                                        format="%d", key="qtd_quebrados")
+
+    if st.button("✅ Registrar Quebrados", use_container_width=True):
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("""
+                    INSERT INTO ovos_quebrados (username, galpao, quantidade, data)
+                    VALUES (:username, :galpao, :qtd, :data)
+                """), {
+                    "username": st.session_state.username,
+                    "galpao": galpao_quebrados,
+                    "qtd": qtd_quebrados,
+                    "data": data_quebrados
+                })
+                conn.commit()
+            st.success(
+                f"✅ {qtd_quebrados} ovos quebrados registrados no {galpao_quebrados}!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Erro ao registrar: {e}")
+
+    st.divider()
+
+    # Resumo por galpão
+    st.markdown("#### 📊 Resumo de Ovos Quebrados por Galpão")
+
+    try:
+        cols_quebrados = st.columns(len(GALPOES))
+        for idx, galpao in enumerate(GALPOES):
+            with engine.connect() as conn:
+                total = conn.execute(text("""
+                    SELECT COALESCE(SUM(quantidade), 0) 
+                    FROM ovos_quebrados 
+                    WHERE username = :u AND galpao = :g
+                """), {"u": st.session_state.username, "g": galpao}).scalar()
+
+            with cols_quebrados[idx]:
+                st.metric(galpao, f"{total} ovos quebrados")
+    except Exception as e:
+        st.error(f"Erro ao carregar resumo: {e}")
+
+    st.divider()
+
+    # Histórico
+    st.markdown("#### 📋 Histórico de Ovos Quebrados")
+
+    try:
+        df_quebrados = pd.read_sql(text("""
+            SELECT data, galpao, quantidade 
+            FROM ovos_quebrados 
+            WHERE username = :username 
+            ORDER BY data DESC
+        """), engine, params={"username": st.session_state.username})
+
+        if not df_quebrados.empty:
+            df_quebrados['data'] = pd.to_datetime(
+                df_quebrados['data']).dt.strftime('%d/%m/%Y')
+            st.dataframe(df_quebrados.rename(columns={
+                'data': 'Data', 'galpao': 'Galpão', 'quantidade': 'Quantidade'
+            }), use_container_width=True, hide_index=True)
+        else:
+            st.info("📭 Nenhum registro de ovos quebrados.")
+    except Exception as e:
+        st.error(f"Erro ao carregar histórico: {e}")
