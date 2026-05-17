@@ -271,31 +271,43 @@ with tabs[2]:
         else:
             df_producao['data'] = pd.to_datetime(df_producao['data'])
 
-            st.markdown("#### 📅 Selecione o Dia para Análise")
-            col_f1, col_f2 = st.columns([3, 1])
-            with col_f1:
-                data_selecionada = st.date_input("Data", value=datetime.now().date(),
-                                                 format="DD/MM/YYYY", key="data_monitor")
-            with col_f2:
-                mostrar_todos = st.checkbox(
-                    "Mostrar todos os dias", value=False, key="checkbox_todos_dias")
+            # === FILTRO POR PERÍODO ===
+            st.markdown("#### 📅 Selecione o Período para Análise")
 
-            if mostrar_todos:
-                df_filtrado = df_producao.copy()
-                titulo_periodo = "Todo o Período"
-            else:
-                df_filtrado = df_producao[df_producao['data'].dt.date ==
-                                          data_selecionada]
-                titulo_periodo = f"Dia {data_selecionada.strftime('%d/%m/%Y')}"
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                data_inicio = st.date_input(
+                    "Data Inicial",
+                    value=datetime.now().date() - pd.Timedelta(days=6),
+                    format="DD/MM/YYYY",
+                    key="data_inicio_monitor"
+                )
+            with col_f2:
+                data_fim = st.date_input(
+                    "Data Final",
+                    value=datetime.now().date(),
+                    format="DD/MM/YYYY",
+                    key="data_fim_monitor"
+                )
+
+            # Aplicando filtro por período
+            df_filtrado = df_producao[
+                (df_producao['data'].dt.date >= data_inicio) &
+                (df_producao['data'].dt.date <= data_fim)
+            ].copy()
+
+            titulo_periodo = f"Período: {data_inicio.strftime('%d/%m/%Y')} até {data_fim.strftime('%d/%m/%Y')}"
 
             st.markdown(f"**{titulo_periodo}**")
             st.divider()
 
             if df_filtrado.empty:
                 st.warning(
-                    "Nenhum registro encontrado para a data selecionada.")
+                    "Nenhum registro encontrado para o período selecionado.")
             else:
+                # ===================== DETALHES POR GALPÃO E TIPO =====================
                 st.markdown("#### 📋 Detalhes por Galpão e Tipo")
+
                 df_filtrado = df_filtrado.copy()
                 df_filtrado['galpao_norm'] = df_filtrado['galpao'].astype(
                     str).str.strip()
@@ -328,6 +340,7 @@ with tabs[2]:
                                                   == cor]['quantidade'].sum()
                             st.warning(f"**{cor}**: {total_cor} ovos")
                     st.divider()
+
     except Exception as e:
         st.error(f"Erro ao carregar monitoramento: {e}")
 
