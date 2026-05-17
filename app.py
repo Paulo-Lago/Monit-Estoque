@@ -648,21 +648,22 @@ with tabs[4]:
         except Exception as e:
             st.error(f"Erro ao calcular resumo: {e}")
 
-# ======================== ABA 5: GRÁFICOS (SUPABASE) ========================
+# ======================== ABA 5: GRÁFICOS ========================
 with tabs[5]:
     st.markdown("### 📈 Gráficos e Análises")
 
-# Sempre cria as sub-abas primeiro (para evitar NameError)
+    # Sempre cria as sub-abas primeiro
     tab_prod, tab_quebrados, tab_mortas, tab_caixas = st.tabs([
         "🥚 Produção de Ovos",
         "🔨 Ovos Quebrados",
         "🐔 Aves Mortas",
         "📦 Caixas de Ovos"
     ])
+
     try:
-        # Carregando dados do Supabase
+        # Carregando dados
         df_producao = pd.read_sql(text("""
-            SELECT data, quantidade, tipo, galpao, cor
+            SELECT data, quantidade, tipo, galpao, cor 
             FROM producao 
             WHERE username = :username 
             ORDER BY data
@@ -681,6 +682,14 @@ with tabs[5]:
             WHERE username = :username 
             ORDER BY data
         """), engine, params={"username": st.session_state.username})
+
+        # === CONVERSÃO PARA DATETIME (obrigatório) ===
+        if not df_producao.empty:
+            df_producao['data'] = pd.to_datetime(df_producao['data'])
+        if not df_quebrados.empty:
+            df_quebrados['data'] = pd.to_datetime(df_quebrados['data'])
+        if not df_mortas.empty:
+            df_mortas['data'] = pd.to_datetime(df_mortas['data'])
 
      # ===================== PRODUÇÃO DE OVOS =====================
         with tab_prod:
