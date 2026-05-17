@@ -414,28 +414,18 @@ with tabs[3]:
 
             col_f1, col_f2 = st.columns(2)
             with col_f1:
-                data_inicio = st.date_input(
-                    "Data Inicial",
-                    value=datetime.now().date() - pd.Timedelta(days=6),
-                    format="DD/MM/YYYY",
-                    key="data_inicio_monitor"
-                )
+                data_inicio = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=6),
+                                            format="DD/MM/YYYY", key="data_inicio_monitor")
             with col_f2:
-                data_fim = st.date_input(
-                    "Data Final",
-                    value=datetime.now().date(),
-                    format="DD/MM/YYYY",
-                    key="data_fim_monitor"
-                )
+                data_fim = st.date_input("Data Final", value=datetime.now().date(),
+                                         format="DD/MM/YYYY", key="data_fim_monitor")
 
-            # Aplicando filtro por período
             df_filtrado = df_producao[
                 (df_producao['data'].dt.date >= data_inicio) &
                 (df_producao['data'].dt.date <= data_fim)
             ].copy()
 
             titulo_periodo = f"Período: {data_inicio.strftime('%d/%m/%Y')} até {data_fim.strftime('%d/%m/%Y')}"
-
             st.markdown(f"**{titulo_periodo}**")
             st.divider()
 
@@ -443,41 +433,82 @@ with tabs[3]:
                 st.warning(
                     "Nenhum registro encontrado para o período selecionado.")
             else:
-                # ===================== DETALHES POR GALPÃO E TIPO =====================
-                st.markdown("#### 📋 Detalhes por Galpão e Tipo")
+                # ===================== SUB-ABAS =====================
+                sub_tabs = st.tabs(
+                    ["📋 Detalhes por Galpão e Tipo", "📦 Caixas de Ovos"])
 
-                df_filtrado = df_filtrado.copy()
-                df_filtrado['galpao_norm'] = df_filtrado['galpao'].astype(
-                    str).str.strip()
+                # ========== SUB-ABA 1: DETALHES ==========
+                with sub_tabs[0]:
+                    st.markdown("#### 📋 Detalhes por Galpão e Tipo")
 
-                for galpao in sorted(df_filtrado['galpao_norm'].unique()):
-                    st.markdown(f"**{galpao}**")
-                    df_galpao = df_filtrado[df_filtrado['galpao_norm'] == galpao]
+                    df_temp = df_filtrado.copy()
+                    df_temp['galpao_norm'] = df_temp['galpao'].astype(
+                        str).str.strip()
 
-                    total_galpao = df_galpao['quantidade'].sum()
-                    st.info(f"**Total de Ovos do Dia:** {total_galpao} ovos")
+                    for galpao in sorted(df_temp['galpao_norm'].unique()):
+                        st.markdown(f"**{galpao}**")
+                        df_g = df_temp[df_temp['galpao_norm'] == galpao]
 
-                    tipos_para_mostrar = [t for t in TIPOS_OVO]
-                    if galpao == "Galpão 2":
-                        tipos_para_mostrar = [t for t in TIPOS_OVO if t != "B"]
-                    elif galpao == "Galpão 3":
-                        tipos_para_mostrar = [
-                            t for t in TIPOS_OVO if t != "Jumbo"]
+                        total_galpao = df_g['quantidade'].sum()
+                        st.info(f"**Total de Ovos:** {total_galpao} ovos")
 
-                    tipo_cols = st.columns(len(tipos_para_mostrar))
-                    for idx, tipo in enumerate(tipos_para_mostrar):
-                        with tipo_cols[idx]:
-                            total_tipo = df_galpao[df_galpao['tipo']
-                                                   == tipo]['quantidade'].sum()
-                            st.info(f"**{tipo}**: {total_tipo} ovos")
+                        tipos_para_mostrar = [t for t in TIPOS_OVO]
+                        if galpao == "Galpão 2":
+                            tipos_para_mostrar = [
+                                t for t in TIPOS_OVO if t != "B"]
+                        elif galpao == "Galpão 3":
+                            tipos_para_mostrar = [
+                                t for t in TIPOS_OVO if t != "Jumbo"]
 
-                    cor_cols = st.columns(len(CORES))
-                    for idx, cor in enumerate(CORES):
-                        with cor_cols[idx]:
-                            total_cor = df_galpao[df_galpao['cor']
-                                                  == cor]['quantidade'].sum()
-                            st.warning(f"**{cor}**: {total_cor} ovos")
-                    st.divider()
+                        tipo_cols = st.columns(len(tipos_para_mostrar))
+                        for idx, tipo in enumerate(tipos_para_mostrar):
+                            with tipo_cols[idx]:
+                                total_tipo = df_g[df_g['tipo']
+                                                  == tipo]['quantidade'].sum()
+                                st.info(f"**{tipo}**: {total_tipo} ovos")
+
+                        cor_cols = st.columns(len(CORES))
+                        for idx, cor in enumerate(CORES):
+                            with cor_cols[idx]:
+                                total_cor = df_g[df_g['cor']
+                                                 == cor]['quantidade'].sum()
+                                st.warning(f"**{cor}**: {total_cor} ovos")
+                        st.divider()
+
+                # ========== SUB-ABA 2: CAIXAS DE OVOS ==========
+                with sub_tabs[1]:
+                    st.markdown("#### 📦 Caixas de Ovos Fechadas")
+                    st.caption("Cada caixa comporta **360 ovos**")
+
+                    df_caixas = df_filtrado.copy()
+                    df_caixas['galpao_norm'] = df_caixas['galpao'].astype(
+                        str).str.strip()
+
+                    # Agrupar por galpão, tipo e cor
+                    resumo = df_caixas.groupby(['galpao_norm', 'tipo', 'cor'])[
+                        'quantidade'].sum().reset_index()
+                    resumo['caixas'] = resumo['quantidade'] // 360
+                    resumo['ovos_restantes'] = resumo['quantidade'] % 360
+
+                    for galpao in sorted(resumo['galpao_norm'].unique()):
+                        st.markdown(f"**{galpao}**")
+                        df_g = resumo[resumo['galpao_norm'] == galpao]
+
+                        if not df_g.empty:
+                            st.dataframe(
+                                df_g[['tipo', 'cor', 'quantidade', 'caixas', 'ovos_restantes']].rename(columns={
+                                    'tipo': 'Tipo',
+                                    'cor': 'Cor',
+                                    'quantidade': 'Total de Ovos',
+                                    'caixas': 'Caixas Completas (360)',
+                                    'ovos_restantes': 'Ovos Restantes'
+                                }),
+                                use_container_width=True,
+                                hide_index=True
+                            )
+                        else:
+                            st.info("Nenhum registro neste galpão.")
+                        st.divider()
 
     except Exception as e:
         st.error(f"Erro ao carregar monitoramento: {e}")
