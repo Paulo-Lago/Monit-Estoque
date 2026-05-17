@@ -285,17 +285,21 @@ with tabs[1]:
     except Exception as e:
         st.error(f"Erro ao carregar histórico: {e}")
 
-        # ======================== ABA 3: MONITORAMENTO ========================
-    with tabs[2]:
-        st.markdown("### 📊 Monitoramento de Produção")
+        # ======================== ABA 3: MONITORAMENTO (SUPABASE) ========================
+with tabs[2]:
+    st.markdown("### 📊 Monitoramento de Produção")
 
-        conn = sqlite3.connect('estoque_ovos.db')
+    try:
         df_producao = pd.read_sql(
-            "SELECT data, quantidade, tipo, galpao, cor FROM producao WHERE username=? ORDER BY data DESC",
-            conn,
-            params=(st.session_state.username,)
+            text("""
+                SELECT data, quantidade, tipo, galpao, cor 
+                FROM producao 
+                WHERE username = :username 
+                ORDER BY data DESC
+            """),
+            engine,
+            params={"username": st.session_state.username}
         )
-        conn.close()
 
         if df_producao.empty:
             st.info("📭 Nenhum registro de colheita encontrado.")
@@ -307,10 +311,7 @@ with tabs[1]:
             col_f1, col_f2 = st.columns([3, 1])
             with col_f1:
                 data_selecionada = st.date_input(
-                    "Data",
-                    value=datetime.now().date(),
-                    format="DD/MM/YYYY",
-                    key="data_monitor"
+                    "Data", value=datetime.now().date(), format="DD/MM/YYYY", key="data_monitor"
                 )
             with col_f2:
                 mostrar_todos = st.checkbox(
@@ -330,7 +331,7 @@ with tabs[1]:
 
             if df_filtrado.empty:
                 st.warning(
-                    f"Nenhum registro encontrado para a data selecionada.")
+                    "Nenhum registro encontrado para a data selecionada.")
             else:
                 # ===================== DETALHES POR GALPÃO E TIPO =====================
                 st.markdown("#### 📋 Detalhes por Galpão e Tipo")
@@ -348,9 +349,8 @@ with tabs[1]:
                     total_galpao = df_galpao['quantidade'].sum()
                     st.info(f"**Total de Ovos do Dia:** {total_galpao} ovos")
 
-                    # Por tipo (removendo tipos específicos por galpão)
+                    # Por tipo
                     tipos_para_mostrar = [t for t in TIPOS_OVO]
-
                     if galpao == "Galpão 2":
                         tipos_para_mostrar = [t for t in TIPOS_OVO if t != "B"]
                     elif galpao == "Galpão 3":
@@ -374,7 +374,11 @@ with tabs[1]:
                             st.warning(f"**{cor}**: {total_cor} ovos")
 
                     st.divider()
-          # ======================== ABA 4: REGISTRAR AVES ========================
+
+    except Exception as e:
+        st.error(f"Erro ao carregar monitoramento: {e}")
+
+        # ======================== ABA 4: REGISTRAR AVES ========================
     with tabs[3]:
         st.markdown("### 🐔 Gerenciamento de Aves")
 
