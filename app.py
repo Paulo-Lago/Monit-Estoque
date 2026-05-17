@@ -463,10 +463,184 @@ with tabs[3]:
         except Exception as e:
             st.error(f"Erro ao calcular resumo: {e}")
 
-# ======================== ABA 5: GRÁFICOS (ainda com SQLite) ========================
+# ======================== ABA 5: GRÁFICOS (SUPABASE) ========================
 with tabs[4]:
     st.markdown("### 📈 Gráficos e Análises")
-    st.info("Gráficos ainda estão em SQLite. Vamos migrar na próxima etapa.")
+
+    try:
+        # Carregando dados do Supabase
+        df_producao = pd.read_sql(text("""
+            SELECT data, quantidade, tipo, galpao 
+            FROM producao 
+            WHERE username = :username 
+            ORDER BY data
+        """), engine, params={"username": st.session_state.username})
+
+        df_quebrados = pd.read_sql(text("""
+            SELECT data, quantidade, galpao 
+            FROM ovos_quebrados 
+            WHERE username = :username 
+            ORDER BY data
+        """), engine, params={"username": st.session_state.username})
+
+        df_mortas = pd.read_sql(text("""
+            SELECT data, quantidade, galpao 
+            FROM aves_mortas 
+            WHERE username = :username 
+            ORDER BY data
+        """), engine, params={"username": st.session_state.username})
+
+        if df_producao.empty and df_quebrados.empty and df_mortas.empty:
+            st.info("📭 Nenhum dado disponível para gerar gráficos.")
+        else:
+            if not df_producao.empty:
+                df_producao['data'] = pd.to_datetime(df_producao['data'])
+            if not df_quebrados.empty:
+                df_quebrados['data'] = pd.to_datetime(df_quebrados['data'])
+            if not df_mortas.empty:
+                df_mortas['data'] = pd.to_datetime(df_mortas['data'])
+
+            tab_prod, tab_quebrados, tab_mortas = st.tabs([
+                "🥚 Produção de Ovos", "🔨 Ovos Quebrados", "🐔 Aves Mortas"
+            ])
+
+            # ===================== PRODUÇÃO DE OVOS =====================
+            with tab_prod:
+                st.markdown("#### Produção de Ovos por Período")
+
+                if df_producao.empty:
+                    st.info("Nenhum registro de produção.")
+                else:
+                    col_d1, col_d2 = st.columns(2)
+                    with col_d1:
+                        data_inicio = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=6),
+                                                    format="DD/MM/YYYY", key="data_inicio_prod")
+                    with col_d2:
+                        data_fim = st.date_input("Data Final", value=datetime.now().date(),
+                                                 format="DD/MM/YYYY", key="data_fim_prod")
+
+                    df_filtrado = df_producao[
+                        (df_producao['data'].dt.date >= data_inicio) &
+                        (df_producao['data'].dt.date <= data_fim)
+                    ].copy()
+
+                    if df_filtrado.empty:
+                        st.warning(
+                            "Nenhum registro encontrado no período selecionado.")
+                    else:
+                        for galpao in sorted(df_filtrado['galpao'].unique()):
+                            st.markdown(f"**{galpao}**")
+                            df_g = df_filtrado[df_filtrado['galpao'] == galpao]
+                            df_agg = df_g.groupby(['data', 'tipo'])[
+                                'quantidade'].sum().reset_index()
+                            df_pivot = df_agg.pivot(
+                                index='data', columns='tipo', values='quantidade').fillna(0)
+                            df_pivot = df_pivot.loc[:,
+                                                    (df_pivot != 0).any(axis=0)]
+
+                            if not df_pivot.empty:
+                                fig = px.bar(
+                                    df_pivot, x=df_pivot.index, y=df_pivot.columns,
+                                    title=f"Produção - {galpao}",
+                                    labels={
+                                        'x': 'Data', 'value': 'Quantidade', 'variable': 'Tipo'},
+                                    text_auto=True, barmode='group'
+                                )
+                                fig.update_layout(
+                                    plot_bgcolor='rgba(0,0,0,0)',
+                                    paper_bgcolor='rgba(0,0,0,0)',
+                                    font=dict(color="black", size=12),
+                                    xaxis=dict(tickformat='%d/%m')
+                                )
+                                st.plotly_chart(fig, use_container_width=True)
+                            st.divider()
+
+            # ===================== OVOS QUEBRADOS =====================
+            with tab_quebrados:
+                st.markdown("#### 🔨 Ovos Quebrados por Período")
+                if df_quebrados.empty:
+                    st.info("Nenhum registro de ovos quebrados.")
+                else:
+                    col_d1, col_d2 = st.columns(2)
+                    with col_d1:
+                        data_inicio_q = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=6),
+                                                      format="DD/MM/YYYY", key="data_inicio_quebrados")
+                    with col_d2:
+                        data_fim_q = st.date_input("Data Final", value=datetime.now().date(),
+                                                   format="DD/MM/YYYY", key="data_fim_quebrados")
+
+                    df_filtrado_q = df_quebrados[
+                        (df_quebrados['data'].dt.date >= data_inicio_q) &
+                        (df_quebrados['data'].dt.date <= data_fim_q)
+                    ].copy()
+
+                    if df_filtrado_q.empty:
+                        st.warning(
+                            "Nenhum registro encontrado no período selecionado.")
+                    else:
+                        for galpao in sorted(df_filtrado_q['galpao'].unique()):
+                            st.markdown(f"**{galpao}**")
+                            df_g = df_filtrado_q[df_filtrado_q['galpao'] == galpao]
+                            df_agg = df_g.groupby(
+                                'data')['quantidade'].sum().reset_index()
+
+                            if not df_agg.empty:
+                                fig = px.bar(df_agg, x='data', y='quantidade',
+                                             title=f"Ovos Quebrados - {galpao}",
+                                             text_auto=True, color_discrete_sequence=['#E74C3C'])
+                                fig.update_layout(
+                                    plot_bgcolor='rgba(0,0,0,0)',
+                                    paper_bgcolor='rgba(0,0,0,0)',
+                                    font=dict(color="black", size=12),
+                                    xaxis=dict(tickformat='%d/%m')
+                                )
+                                st.plotly_chart(fig, use_container_width=True)
+                            st.divider()
+
+            # ===================== AVES MORTAS =====================
+            with tab_mortas:
+                st.markdown("#### 🐔 Aves Mortas por Período")
+                if df_mortas.empty:
+                    st.info("Nenhum registro de aves mortas.")
+                else:
+                    col_d1, col_d2 = st.columns(2)
+                    with col_d1:
+                        data_inicio_m = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=6),
+                                                      format="DD/MM/YYYY", key="data_inicio_mortas")
+                    with col_d2:
+                        data_fim_m = st.date_input("Data Final", value=datetime.now().date(),
+                                                   format="DD/MM/YYYY", key="data_fim_mortas")
+
+                    df_filtrado_m = df_mortas[
+                        (df_mortas['data'].dt.date >= data_inicio_m) &
+                        (df_mortas['data'].dt.date <= data_fim_m)
+                    ].copy()
+
+                    if df_filtrado_m.empty:
+                        st.warning(
+                            "Nenhum registro encontrado no período selecionado.")
+                    else:
+                        for galpao in sorted(df_filtrado_m['galpao'].unique()):
+                            st.markdown(f"**{galpao}**")
+                            df_g = df_filtrado_m[df_filtrado_m['galpao'] == galpao]
+                            df_agg = df_g.groupby(
+                                'data')['quantidade'].sum().reset_index()
+
+                            if not df_agg.empty:
+                                fig = px.bar(df_agg, x='data', y='quantidade',
+                                             title=f"Aves Mortas - {galpao}",
+                                             text_auto=True, color_discrete_sequence=['#8E44AD'])
+                                fig.update_layout(
+                                    plot_bgcolor='rgba(0,0,0,0)',
+                                    paper_bgcolor='rgba(0,0,0,0)',
+                                    font=dict(color="black", size=12),
+                                    xaxis=dict(tickformat='%d/%m')
+                                )
+                                st.plotly_chart(fig, use_container_width=True)
+                            st.divider()
+
+    except Exception as e:
+        st.error(f"Erro ao carregar gráficos: {e}")
 
 # ======================== ABA 6: OVOS QUEBRADOS (ainda com SQLite) ========================
 with tabs[5]:
