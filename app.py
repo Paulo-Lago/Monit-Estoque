@@ -150,77 +150,131 @@ tabs = st.tabs([
 with tabs[0]:
     st.markdown("### 📊 Dashboard Geral")
 
+    # ==================== FILTRO DE PERÍODO ====================
+    st.markdown("#### 📅 Selecione o Período")
+
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        data_inicio = st.date_input(
+            "Data Inicial",
+            value=datetime.now().date() - pd.Timedelta(days=29),
+            format="DD/MM/YYYY",
+            key="dash_data_inicio"
+        )
+    with col_f2:
+        data_fim = st.date_input(
+            "Data Final",
+            value=datetime.now().date(),
+            format="DD/MM/YYYY",
+            key="dash_data_fim"
+        )
+
     try:
         # ==================== CARDS DE RESUMO ====================
-        st.markdown("#### 📈 Visão Geral")
+        st.markdown("#### 📈 Resumo do Período")
 
         col1, col2, col3, col4 = st.columns(4)
 
         with engine.connect() as conn:
-            # Total de ovos produzidos (todo o período)
+            # Total de ovos produzidos no período
             total_ovos = conn.execute(text("""
                 SELECT COALESCE(SUM(quantidade), 0) FROM producao 
-                WHERE username = :u
-            """), {"u": st.session_state.username}).scalar()
+                WHERE username = :u 
+                AND data BETWEEN :inicio AND :fim
+            """), {
+                "u": st.session_state.username,
+                "inicio": data_inicio,
+                "fim": data_fim
+            }).scalar()
 
-            # Total de aves vivas
-            total_reg = conn.execute(text("""
+            # Aves registradas no período
+            aves_reg_periodo = conn.execute(text("""
                 SELECT COALESCE(SUM(quantidade_total), 0) FROM aves 
-                WHERE username = :u
-            """), {"u": st.session_state.username}).scalar()
+                WHERE username = :u 
+                AND data_registro BETWEEN :inicio AND :fim
+            """), {
+                "u": st.session_state.username,
+                "inicio": data_inicio,
+                "fim": data_fim
+            }).scalar()
 
-            total_mortas = conn.execute(text("""
+            # Aves mortas no período
+            aves_mortas_periodo = conn.execute(text("""
                 SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas 
-                WHERE username = :u
-            """), {"u": st.session_state.username}).scalar()
+                WHERE username = :u 
+                AND data BETWEEN :inicio AND :fim
+            """), {
+                "u": st.session_state.username,
+                "inicio": data_inicio,
+                "fim": data_fim
+            }).scalar()
 
-            total_vivas = max(0, total_reg - total_mortas)
-
-            # Total de ovos quebrados
-            total_quebrados = conn.execute(text("""
+            # Ovos quebrados no período
+            ovos_quebrados_periodo = conn.execute(text("""
                 SELECT COALESCE(SUM(quantidade), 0) FROM ovos_quebrados 
-                WHERE username = :u
-            """), {"u": st.session_state.username}).scalar()
+                WHERE username = :u 
+                AND data BETWEEN :inicio AND :fim
+            """), {
+                "u": st.session_state.username,
+                "inicio": data_inicio,
+                "fim": data_fim
+            }).scalar()
 
         with col1:
-            st.metric("🥚 Total de Ovos", f"{total_ovos:,}")
+            st.metric("🥚 Ovos Produzidos", f"{total_ovos:,}")
         with col2:
-            st.metric("🐔 Aves Vivas", f"{total_vivas:,}")
+            st.metric("🐔 Aves Registradas", f"{aves_reg_periodo:,}")
         with col3:
-            st.metric("🔨 Ovos Quebrados", f"{total_quebrados:,}")
+            st.metric("🔨 Ovos Quebrados", f"{ovos_quebrados_periodo:,}")
         with col4:
-            st.metric("🪦 Aves Mortas", f"{total_mortas:,}")
+            st.metric("🪦 Aves Mortas", f"{aves_mortas_periodo:,}")
 
         st.divider()
 
         # ==================== RESUMO POR GALPÃO ====================
-        st.markdown("#### 🏠 Resumo por Galpão")
+        st.markdown("#### 🏠 Resumo por Galpão (no período)")
 
         for galpao in GALPOES:
             with engine.connect() as conn:
                 ovos_galpao = conn.execute(text("""
                     SELECT COALESCE(SUM(quantidade), 0) FROM producao 
-                    WHERE username = :u AND galpao = :g
-                """), {"u": st.session_state.username, "g": galpao}).scalar()
+                    WHERE username = :u AND galpao = :g 
+                    AND data BETWEEN :inicio AND :fim
+                """), {
+                    "u": st.session_state.username,
+                    "g": galpao,
+                    "inicio": data_inicio,
+                    "fim": data_fim
+                }).scalar()
 
                 reg = conn.execute(text("""
                     SELECT COALESCE(SUM(quantidade_total), 0) FROM aves 
-                    WHERE username = :u AND galpao = :g
-                """), {"u": st.session_state.username, "g": galpao}).scalar()
+                    WHERE username = :u AND galpao = :g 
+                    AND data_registro BETWEEN :inicio AND :fim
+                """), {
+                    "u": st.session_state.username,
+                    "g": galpao,
+                    "inicio": data_inicio,
+                    "fim": data_fim
+                }).scalar()
 
                 mortas = conn.execute(text("""
                     SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas 
-                    WHERE username = :u AND galpao = :g
-                """), {"u": st.session_state.username, "g": galpao}).scalar()
-
-            vivas = max(0, reg - mortas)
+                    WHERE username = :u AND galpao = :g 
+                    AND data BETWEEN :inicio AND :fim
+                """), {
+                    "u": st.session_state.username,
+                    "g": galpao,
+                    "inicio": data_inicio,
+                    "fim": data_fim
+                }).scalar()
 
             st.markdown(f"**{galpao}**")
             c1, c2, c3 = st.columns(3)
             with c1:
                 st.metric("Ovos Produzidos", f"{ovos_galpao:,}")
             with c2:
-                st.metric("Aves Vivas", f"{vivas:,}")
+                st.metric("Aves Registradas", f"{reg:,}")
             with c3:
                 st.metric("Aves Mortas", f"{mortas:,}")
             st.divider()
