@@ -164,18 +164,18 @@ else:
         st.rerun()
 
     # --- ABAS PRINCIPAIS ---
-    tabs = st.tabs([
-        "📝 Nova Colheita",
-        "🔍 Histórico & Edição",
-        "📊 Monitoramento",
-        "🐔 Registrar Aves",
-        "📈 Gráficos",
-        "🔨 Ovos Quebrados"
-    ])
+tabs = st.tabs([
+    "📝 Nova Colheita",
+    "🔍 Histórico & Edição",
+    "📊 Monitoramento",
+    "🐔 Registrar Aves",
+    "📈 Gráficos",
+    "🔨 Ovos Quebrados"
+])
 
- # ======================== ABA 1: NOVA COLHEITA (SUPABASE) ========================
-    with tabs[0]:
-        st.markdown("### 📝 Registrar Nova Colheita")
+# ======================== ABA 1: NOVA COLHEITA ========================
+with tabs[0]:
+    st.markdown("### 📝 Registrar Nova Colheita")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -183,7 +183,6 @@ else:
                                  format="DD/MM/YYYY", key="data_colheita")
         qtd_val = st.number_input("🥚 Quantidade de Ovos", min_value=0, step=1,
                                   format="%d", key="qtd_colheita")
-
     with col2:
         tipo_ovo = st.selectbox("🏷️ Tipo de Ovo", TIPOS_OVO, key="tipo_ovo")
         galpao = st.selectbox("🏠 Galpão", GALPOES, key="galpao_colheita")
@@ -206,7 +205,6 @@ else:
                         "cor": cor
                     })
                     conn.commit()
-
                 st.balloons()
                 st.success(
                     f"✅ {qtd_val} ovos ({tipo_ovo}, {cor}) do {galpao} registrados com sucesso!")
@@ -215,7 +213,7 @@ else:
         else:
             st.error("Quantidade deve ser maior que zero.")
 
-    # ======================== ABA 2: HISTÓRICO & EDIÇÃO (SUPABASE) ========================
+# ======================== ABA 2: HISTÓRICO & EDIÇÃO ========================
 with tabs[1]:
     st.markdown("### 🔍 Gerenciar Histórico")
 
@@ -252,7 +250,6 @@ with tabs[1]:
                                            value=int(registro['quantidade']))
                 novo_tipo = st.selectbox("Corrigir tipo:", TIPOS_OVO,
                                          index=TIPOS_OVO.index(registro['tipo']))
-
             with col2:
                 novo_galpao = st.selectbox("Corrigir galpão:", GALPOES,
                                            index=GALPOES.index(registro['galpao']))
@@ -267,12 +264,9 @@ with tabs[1]:
                             SET quantidade = :qtd, tipo = :tipo, galpao = :galpao, cor = :cor 
                             WHERE id = :id AND username = :username
                         """), {
-                            "qtd": novo_val,
-                            "tipo": novo_tipo,
-                            "galpao": novo_galpao,
-                            "cor": nova_cor,
-                            "id": selected_id,
-                            "username": st.session_state.username
+                            "qtd": novo_val, "tipo": novo_tipo,
+                            "galpao": novo_galpao, "cor": nova_cor,
+                            "id": selected_id, "username": st.session_state.username
                         })
                         conn.commit()
                     st.success("✅ Registro atualizado!")
@@ -281,11 +275,10 @@ with tabs[1]:
                     st.error(f"Erro ao atualizar: {e}")
         else:
             st.info("📭 Nenhum registro de colheita encontrado.")
-
     except Exception as e:
         st.error(f"Erro ao carregar histórico: {e}")
 
-        # ======================== ABA 3: MONITORAMENTO (SUPABASE) ========================
+# ======================== ABA 3: MONITORAMENTO ========================
 with tabs[2]:
     st.markdown("### 📊 Monitoramento de Produção")
 
@@ -306,18 +299,15 @@ with tabs[2]:
         else:
             df_producao['data'] = pd.to_datetime(df_producao['data'])
 
-            # === FILTRO POR DATA ===
             st.markdown("#### 📅 Selecione o Dia para Análise")
             col_f1, col_f2 = st.columns([3, 1])
             with col_f1:
-                data_selecionada = st.date_input(
-                    "Data", value=datetime.now().date(), format="DD/MM/YYYY", key="data_monitor"
-                )
+                data_selecionada = st.date_input("Data", value=datetime.now().date(),
+                                                 format="DD/MM/YYYY", key="data_monitor")
             with col_f2:
                 mostrar_todos = st.checkbox(
                     "Mostrar todos os dias", value=False, key="checkbox_todos_dias")
 
-            # Aplicando filtro
             if mostrar_todos:
                 df_filtrado = df_producao.copy()
                 titulo_periodo = "Todo o Período"
@@ -333,23 +323,18 @@ with tabs[2]:
                 st.warning(
                     "Nenhum registro encontrado para a data selecionada.")
             else:
-                # ===================== DETALHES POR GALPÃO E TIPO =====================
                 st.markdown("#### 📋 Detalhes por Galpão e Tipo")
-
                 df_filtrado = df_filtrado.copy()
                 df_filtrado['galpao_norm'] = df_filtrado['galpao'].astype(
                     str).str.strip()
 
                 for galpao in sorted(df_filtrado['galpao_norm'].unique()):
                     st.markdown(f"**{galpao}**")
-
                     df_galpao = df_filtrado[df_filtrado['galpao_norm'] == galpao]
 
-                    # Total de Ovos do Dia
                     total_galpao = df_galpao['quantidade'].sum()
                     st.info(f"**Total de Ovos do Dia:** {total_galpao} ovos")
 
-                    # Por tipo
                     tipos_para_mostrar = [t for t in TIPOS_OVO]
                     if galpao == "Galpão 2":
                         tipos_para_mostrar = [t for t in TIPOS_OVO if t != "B"]
@@ -358,27 +343,23 @@ with tabs[2]:
                             t for t in TIPOS_OVO if t != "Jumbo"]
 
                     tipo_cols = st.columns(len(tipos_para_mostrar))
-
                     for idx, tipo in enumerate(tipos_para_mostrar):
                         with tipo_cols[idx]:
                             total_tipo = df_galpao[df_galpao['tipo']
                                                    == tipo]['quantidade'].sum()
                             st.info(f"**{tipo}**: {total_tipo} ovos")
 
-                    # Por cor
                     cor_cols = st.columns(len(CORES))
                     for idx, cor in enumerate(CORES):
                         with cor_cols[idx]:
                             total_cor = df_galpao[df_galpao['cor']
                                                   == cor]['quantidade'].sum()
                             st.warning(f"**{cor}**: {total_cor} ovos")
-
                     st.divider()
-
     except Exception as e:
         st.error(f"Erro ao carregar monitoramento: {e}")
 
-        # ======================== ABA 4: REGISTRAR AVES (SUPABASE) ========================
+# ======================== ABA 4: REGISTRAR AVES ========================
 with tabs[3]:
     st.markdown("### 🐔 Gerenciamento de Aves")
 
@@ -386,10 +367,8 @@ with tabs[3]:
         "➕ Registrar Aves", "⚠️ Aves Mortas", "📋 Histórico"
     ])
 
-    # ===================== SUBABA 1: REGISTRAR AVES =====================
     with tab_reg_aves:
         st.markdown("#### ➕ Adicionar Novas Aves")
-
         col1, col2 = st.columns(2)
         with col1:
             data_aves = st.date_input("📅 Data", value=datetime.now().date(),
@@ -420,10 +399,8 @@ with tabs[3]:
                 except Exception as e:
                     st.error(f"Erro ao registrar aves: {e}")
 
-    # ===================== SUBABA 2: AVES MORTAS =====================
     with tab_mortas:
         st.markdown("#### ⚠️ Registrar Aves Mortas")
-
         col1, col2 = st.columns(2)
         with col1:
             data_morta = st.date_input("📅 Data", value=datetime.now().date(),
@@ -452,24 +429,17 @@ with tabs[3]:
             except Exception as e:
                 st.error(f"Erro ao registrar morte: {e}")
 
-    # ===================== SUBABA 3: HISTÓRICO =====================
     with tab_historico:
         st.markdown("#### 📋 Histórico de Aves")
-
         col_h1, col_h2 = st.columns(2)
 
         with col_h1:
             st.markdown("**Aves Registradas**")
             try:
-                df_aves = pd.read_sql(
-                    text("""
-                        SELECT data_registro as Data, galpao as Galpão, quantidade_total as 'Registradas'
-                        FROM aves 
-                        WHERE username = :username 
-                        ORDER BY data_registro DESC
-                    """),
-                    engine, params={"username": st.session_state.username}
-                )
+                df_aves = pd.read_sql(text("""
+                    SELECT data_registro as Data, galpao as Galpão, quantidade_total as 'Registradas'
+                    FROM aves WHERE username = :username ORDER BY data_registro DESC
+                """), engine, params={"username": st.session_state.username})
                 if not df_aves.empty:
                     df_aves['Data'] = pd.to_datetime(
                         df_aves['Data']).dt.strftime('%d/%m/%Y')
@@ -483,15 +453,10 @@ with tabs[3]:
         with col_h2:
             st.markdown("**Aves Mortas**")
             try:
-                df_mortas = pd.read_sql(
-                    text("""
-                        SELECT data as Data, galpao as Galpão, quantidade as 'Mortas'
-                        FROM aves_mortas 
-                        WHERE username = :username 
-                        ORDER BY data DESC
-                    """),
-                    engine, params={"username": st.session_state.username}
-                )
+                df_mortas = pd.read_sql(text("""
+                    SELECT data as Data, galpao as Galpão, quantidade as 'Mortas'
+                    FROM aves_mortas WHERE username = :username ORDER BY data DESC
+                """), engine, params={"username": st.session_state.username})
                 if not df_mortas.empty:
                     df_mortas['Data'] = pd.to_datetime(
                         df_mortas['Data']).dt.strftime('%d/%m/%Y')
@@ -503,8 +468,6 @@ with tabs[3]:
                 st.error(f"Erro: {e}")
 
     st.divider()
-
-    # ===================== RESUMO ATUAL =====================
     st.markdown("#### 📊 Resumo Atual de Aves por Galpão")
     for galpao in GALPOES:
         try:
@@ -513,12 +476,10 @@ with tabs[3]:
                     SELECT COALESCE(SUM(quantidade_total), 0) FROM aves 
                     WHERE username = :u AND galpao = :g
                 """), {"u": st.session_state.username, "g": galpao}).scalar()
-
                 total_morto = conn.execute(text("""
                     SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas 
                     WHERE username = :u AND galpao = :g
                 """), {"u": st.session_state.username, "g": galpao}).scalar()
-
             total_vivo = max(0, total_reg - total_morto)
 
             col1, col2, col3 = st.columns(3)
@@ -531,344 +492,12 @@ with tabs[3]:
         except Exception as e:
             st.error(f"Erro ao calcular resumo: {e}")
 
-            # ======================== ABA 5: GRÁFICOS ========================
-    with tabs[4]:
-        st.markdown("### 📈 Gráficos e Análises")
+# ======================== ABA 5: GRÁFICOS (ainda com SQLite) ========================
+with tabs[4]:
+    st.markdown("### 📈 Gráficos e Análises")
+    st.info("Gráficos ainda estão em SQLite. Vamos migrar na próxima etapa.")
 
-        # Carregando dados
-        conn = sqlite3.connect('estoque_ovos.db')
-
-        df_producao = pd.read_sql(
-            "SELECT data, quantidade, tipo, galpao FROM producao WHERE username=? ORDER BY data",
-            conn, params=(st.session_state.username,)
-        )
-
-        df_quebrados = pd.read_sql(
-            "SELECT data, quantidade, galpao FROM ovos_quebrados WHERE username=? ORDER BY data",
-            conn, params=(st.session_state.username,)
-        )
-
-        df_mortas = pd.read_sql(
-            "SELECT data, quantidade, galpao FROM aves_mortas WHERE username=? ORDER BY data",
-            conn, params=(st.session_state.username,)
-        )
-
-        conn.close()
-
-        if df_producao.empty and df_quebrados.empty and df_mortas.empty:
-            st.info("📭 Nenhum dado disponível para gerar gráficos.")
-        else:
-            if not df_producao.empty:
-                df_producao['data'] = pd.to_datetime(df_producao['data'])
-            if not df_quebrados.empty:
-                df_quebrados['data'] = pd.to_datetime(df_quebrados['data'])
-            if not df_mortas.empty:
-                df_mortas['data'] = pd.to_datetime(df_mortas['data'])
-
-            tab_prod, tab_quebrados, tab_mortas = st.tabs([
-                "🥚 Produção de Ovos",
-                "🔨 Ovos Quebrados",
-                "🐔 Aves Mortas"
-            ])
-
-            # ===================== PRODUÇÃO DE OVOS =====================
-            with tab_prod:
-                st.markdown("#### Produção de Ovos por Período")
-
-                if df_producao.empty:
-                    st.info("Nenhum registro de produção.")
-                else:
-                    # Filtros de data
-                    col_d1, col_d2 = st.columns(2)
-                    with col_d1:
-                        data_inicio = st.date_input(
-                            "Data Inicial",
-                            value=datetime.now().date() - pd.Timedelta(days=6),
-                            format="DD/MM/YYYY",
-                            key="data_inicio_prod"
-                        )
-                    with col_d2:
-                        data_fim = st.date_input(
-                            "Data Final",
-                            value=datetime.now().date(),
-                            format="DD/MM/YYYY",
-                            key="data_fim_prod"
-                        )
-
-                    # Filtrando dados
-                    df_filtrado = df_producao[
-                        (df_producao['data'].dt.date >= data_inicio) &
-                        (df_producao['data'].dt.date <= data_fim)
-                    ].copy()
-
-                    if df_filtrado.empty:
-                        st.warning(
-                            "Nenhum registro encontrado no período selecionado.")
-                    else:
-                        for galpao in sorted(df_filtrado['galpao'].unique()):
-                            st.markdown(f"**{galpao}**")
-
-                            df_g = df_filtrado[df_filtrado['galpao'] == galpao]
-                            df_agg = df_g.groupby(['data', 'tipo'])[
-                                'quantidade'].sum().reset_index()
-
-                            df_pivot = df_agg.pivot(
-                                index='data', columns='tipo', values='quantidade').fillna(0)
-                            df_pivot = df_pivot.loc[:,
-                                                    (df_pivot != 0).any(axis=0)]
-
-                            if df_pivot.empty:
-                                st.info(
-                                    f"Nenhum registro para {galpao} no período selecionado.")
-                            else:
-                                fig = px.bar(
-                                    df_pivot,
-                                    x=df_pivot.index,
-                                    y=df_pivot.columns,
-                                    title=f"Produção - {galpao} ({data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')})",
-                                    labels={
-                                        'x': 'Data', 'value': 'Quantidade de Ovos', 'variable': 'Tipo'},
-                                    text_auto=True,
-                                    barmode='group'
-                                )
-
-                                fig.update_layout(
-                                    plot_bgcolor='rgba(0,0,0,0)',
-                                    paper_bgcolor='rgba(0,0,0,0)',
-                                    font=dict(color="white", size=13),
-                                    title_font=dict(color="white", size=16),
-                                    legend_title_font=dict(color="white"),
-                                    legend_font=dict(color="white"),
-                                    xaxis=dict(
-                                        title_font=dict(color="white"),
-                                        tickfont=dict(color="white")
-                                    ),
-                                    yaxis=dict(
-                                        title_font=dict(color="white"),
-                                        tickfont=dict(color="white")
-                                    )
-                                )
-                                fig.update_xaxes(tickformat='%d/%m')
-                                st.plotly_chart(fig, use_container_width=True)
-
-                            st.divider()
-            # ===================== OVOS QUEBRADOS =====================
-            with tab_quebrados:
-                st.markdown("#### 🔨 Ovos Quebrados por Período")
-
-                if df_quebrados.empty:
-                    st.info("Nenhum registro de ovos quebrados.")
-                else:
-                    col_d1, col_d2 = st.columns(2)
-                    with col_d1:
-                        data_inicio_q = st.date_input(
-                            "Data Inicial",
-                            value=datetime.now().date() - pd.Timedelta(days=6),
-                            format="DD/MM/YYYY",
-                            key="data_inicio_quebrados"
-                        )
-                    with col_d2:
-                        data_fim_q = st.date_input(
-                            "Data Final",
-                            value=datetime.now().date(),
-                            format="DD/MM/YYYY",
-                            key="data_fim_quebrados"
-                        )
-
-                    df_filtrado_q = df_quebrados[
-                        (df_quebrados['data'].dt.date >= data_inicio_q) &
-                        (df_quebrados['data'].dt.date <= data_fim_q)
-                    ].copy()
-
-                    if df_filtrado_q.empty:
-                        st.warning(
-                            "Nenhum registro encontrado no período selecionado.")
-                    else:
-                        for galpao in sorted(df_filtrado_q['galpao'].unique()):
-                            st.markdown(f"**{galpao}**")
-
-                            df_g = df_filtrado_q[df_filtrado_q['galpao'] == galpao]
-
-                            # Agrupar por dia (total de ovos quebrados por dia)
-                            df_agg = df_g.groupby(
-                                'data')['quantidade'].sum().reset_index()
-                            df_agg = df_agg.sort_values('data')
-
-                            if df_agg.empty:
-                                st.info(
-                                    f"Nenhum registro para {galpao} no período selecionado.")
-                            else:
-                                fig = px.bar(
-                                    df_agg,
-                                    x='data',
-                                    y='quantidade',
-                                    title=f"Ovos Quebrados - {galpao} ({data_inicio_q.strftime('%d/%m/%Y')} a {data_fim_q.strftime('%d/%m/%Y')})",
-                                    labels={
-                                        'data': 'Data', 'quantidade': 'Quantidade de Ovos Quebrados'},
-                                    text_auto=True,
-                                    color_discrete_sequence=['#E74C3C']
-                                )
-
-                                fig.update_layout(
-                                    plot_bgcolor='rgba(0,0,0,0)',
-                                    paper_bgcolor='rgba(0,0,0,0)',
-                                    font=dict(color="white", size=13),
-                                    title_font=dict(color="white", size=16),
-                                    xaxis=dict(title_font=dict(
-                                        color="white"), tickfont=dict(color="white")),
-                                    yaxis=dict(title_font=dict(
-                                        color="white"), tickfont=dict(color="white"))
-                                )
-                                fig.update_xaxes(tickformat='%d/%m')
-                                fig.update_traces(textposition='outside')
-                                st.plotly_chart(fig, use_container_width=True)
-
-                            st.divider()
-            # ===================== AVES MORTAS =====================
-            with tab_mortas:
-                st.markdown("#### 🐔 Aves Mortas por Período")
-
-                if df_mortas.empty:
-                    st.info("Nenhum registro de aves mortas.")
-                else:
-                    col_d1, col_d2 = st.columns(2)
-                    with col_d1:
-                        data_inicio_m = st.date_input(
-                            "Data Inicial",
-                            value=datetime.now().date() - pd.Timedelta(days=6),
-                            format="DD/MM/YYYY",
-                            key="data_inicio_mortas"
-                        )
-                    with col_d2:
-                        data_fim_m = st.date_input(
-                            "Data Final",
-                            value=datetime.now().date(),
-                            format="DD/MM/YYYY",
-                            key="data_fim_mortas"
-                        )
-
-                    df_filtrado_m = df_mortas[
-                        (df_mortas['data'].dt.date >= data_inicio_m) &
-                        (df_mortas['data'].dt.date <= data_fim_m)
-                    ].copy()
-
-                    if df_filtrado_m.empty:
-                        st.warning(
-                            "Nenhum registro encontrado no período selecionado.")
-                    else:
-                        for galpao in sorted(df_filtrado_m['galpao'].unique()):
-                            st.markdown(f"**{galpao}**")
-
-                            df_g = df_filtrado_m[df_filtrado_m['galpao'] == galpao]
-
-                            # Agrupar por dia (total de aves mortas por dia)
-                            df_agg = df_g.groupby(
-                                'data')['quantidade'].sum().reset_index()
-                            df_agg = df_agg.sort_values('data')
-
-                            if df_agg.empty:
-                                st.info(
-                                    f"Nenhum registro para {galpao} no período selecionado.")
-                            else:
-                                fig = px.bar(
-                                    df_agg,
-                                    x='data',
-                                    y='quantidade',
-                                    title=f"Aves Mortas - {galpao} ({data_inicio_m.strftime('%d/%m/%Y')} a {data_fim_m.strftime('%d/%m/%Y')})",
-                                    labels={
-                                        'data': 'Data', 'quantidade': 'Quantidade de Aves Mortas'},
-                                    text_auto=True,
-                                    # Roxo para diferenciar
-                                    color_discrete_sequence=['#8E44AD']
-                                )
-
-                                fig.update_layout(
-                                    plot_bgcolor='rgba(0,0,0,0)',
-                                    paper_bgcolor='rgba(0,0,0,0)',
-                                    font=dict(color="white", size=13),
-                                    title_font=dict(color="white", size=16),
-                                    xaxis=dict(title_font=dict(
-                                        color="white"), tickfont=dict(color="white")),
-                                    yaxis=dict(title_font=dict(
-                                        color="white"), tickfont=dict(color="white"))
-                                )
-                                fig.update_xaxes(tickformat='%d/%m')
-                                fig.update_traces(textposition='outside')
-                                st.plotly_chart(fig, use_container_width=True)
-
-                            st.divider()
-
-    # ======================== ABA 6: OVOS QUEBRADOS ========================
-    with tabs[5]:
-        st.markdown("### 🔨 Gerenciamento de Ovos Quebrados")
-
-        # Formulário de registro
-        st.markdown("#### 🔨 Registrar Ovos Quebrados")
-
-        col1, col2 = st.columns(2)
-        with col1:
-            data_quebrados = st.date_input("📅 Data", value=datetime.now(
-            ).date(), format="DD/MM/YYYY", key="data_quebrados")
-            galpao_quebrados = st.selectbox(
-                "🏠 Galpão", GALPOES, key="galpao_quebrados")
-
-        with col2:
-            qtd_quebrados = st.number_input(
-                "🔨 Quantidade de Ovos Quebrados", min_value=1, step=1, format="%d", key="qtd_quebrados")
-
-        if st.button("✅ Registrar Quebrados", use_container_width=True):
-            conn = sqlite3.connect('estoque_ovos.db')
-            c = conn.cursor()
-            c.execute(
-                "INSERT INTO ovos_quebrados (username, galpao, quantidade, data) VALUES (?, ?, ?, ?)",
-                (st.session_state.username, galpao_quebrados,
-                 qtd_quebrados, data_quebrados)
-            )
-            conn.commit()
-            conn.close()
-            st.success(
-                f"✅ {qtd_quebrados} ovos quebrados registrados no {galpao_quebrados}!")
-            st.rerun()
-
-        st.divider()
-
-        # Resumo por galpão
-        st.markdown("#### 📊 Resumo de Ovos Quebrados por Galpão")
-
-        conn = sqlite3.connect('estoque_ovos.db')
-
-        total_quebrados_geral = 0
-        cols_quebrados = st.columns(len(GALPOES))
-
-        for idx, galpao in enumerate(GALPOES):
-            c = conn.cursor()
-            c.execute("SELECT COALESCE(SUM(quantidade), 0) FROM ovos_quebrados WHERE username=? AND galpao=?",
-                      (st.session_state.username, galpao))
-            total = c.fetchone()[0]
-            total_quebrados_geral += total
-
-            with cols_quebrados[idx]:
-                st.metric(galpao, f"{total} ovos quebrados")
-
-        conn.close()
-
-        st.divider()
-
-        # Histórico
-        st.markdown("#### 📋 Histórico de Ovos Quebrados")
-
-        conn = sqlite3.connect('estoque_ovos.db')
-        df_quebrados = pd.read_sql(
-            "SELECT data, galpao, quantidade FROM ovos_quebrados WHERE username=? ORDER BY data DESC",
-            conn,
-            params=(st.session_state.username,)
-        )
-        conn.close()
-
-        if not df_quebrados.empty:
-            df_quebrados['data'] = pd.to_datetime(
-                df_quebrados['data']).dt.strftime('%d/%m/%Y')
-            st.dataframe(df_quebrados.rename(columns={
-                         'data': 'Data', 'galpao': 'Galpão', 'quantidade': 'Quantidade'}), use_container_width=True, hide_index=True)
-        else:
-            st.info("📭 Nenhum registro de ovos quebrados.")
+# ======================== ABA 6: OVOS QUEBRADOS (ainda com SQLite) ========================
+with tabs[5]:
+    st.markdown("### 🔨 Gerenciamento de Ovos Quebrados")
+    st.info("Ovos Quebrados ainda estão em SQLite. Vamos migrar na próxima etapa.")
