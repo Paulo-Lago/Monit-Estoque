@@ -143,7 +143,7 @@ tabs = st.tabs([
     "📊 Monitoramento",
     "🐔 Registrar Aves",
     "📈 Gráficos",
-    "🔨 Ovos Quebrados"
+    "🔨 Ovos Quebrados",
     "⚙️ Configurações"
 ])
 
@@ -873,6 +873,7 @@ with tabs[6]:
             st.info("📭 Nenhum registro de ovos quebrados.")
     except Exception as e:
         st.error(f"Erro ao carregar histórico: {e}")
+
 
 # ======================== ABA 7: CONFIGURAÇÕES ========================
 with tabs[7]:
