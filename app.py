@@ -112,7 +112,7 @@ if 'username' not in st.session_state:
     st.session_state.username = ""
 
 # --- CONSTANTES ---
-TIPOS_OVO = ["A", "B", "Jumbo", "Extra", "Trincado"]
+TIPOS_OVO = ["A", "B", "Jumbo", "Extra",]
 GALPOES = ["Galpão 2", "Galpão 3"]
 CORES = ["Branco", "Vermelho"]
 
