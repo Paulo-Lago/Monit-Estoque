@@ -71,35 +71,6 @@ TIPOS_OVO = ["A", "B", "Jumbo", "Extra",]
 GALPOES = ["Galpão 2", "Galpão 3"]
 CORES = ["Branco", "Vermelho"]
 
-# --- FUNÇÕES AUXILIARES ---
-
-
-def get_total_aves_vivas(username, galpao):
-    """Calcula total de aves vivas (registradas - mortas)"""
-    conn = sqlite3.connect('estoque_ovos.db')
-    c = conn.cursor()
-
-    # Total registrado
-    c.execute("SELECT COALESCE(SUM(quantidade_total), 0) FROM aves WHERE username=? AND galpao=?", (username, galpao))
-    total_reg = c.fetchone()[0]
-
-    # Total morto
-    c.execute("SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas WHERE username=? AND galpao=?", (username, galpao))
-    total_morto = c.fetchone()[0]
-
-    conn.close()
-    return max(0, total_reg - total_morto)
-
-
-def get_aves_mortas_galpao(username, galpao):
-    """Retorna total de aves mortas por galpão"""
-    conn = sqlite3.connect('estoque_ovos.db')
-    c = conn.cursor()
-    c.execute("SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas WHERE username=? AND galpao=?", (username, galpao))
-    result = c.fetchone()[0]
-    conn.close()
-    return result
-
 
 # ==================== LOGIN E CRIAÇÃO DE CONTA (SUPABASE) ====================
 if not st.session_state.logged_in:
