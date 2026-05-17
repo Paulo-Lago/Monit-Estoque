@@ -190,26 +190,6 @@ if not st.session_state.logged_in:
 
 else:
 
-    import streamlit as st
-
-st.write("DEBUG - Verificando conexão")
-
-# Verifica se tem segredos do Supabase
-if "supabase" in st.secrets:
-    st.success("✅ Conexão com Supabase encontrada nos secrets")
-else:
-    st.error("❌ Não encontrou 'supabase' nos secrets")
-
-# Tenta conectar
-try:
-    from supabase import create_client
-    url = st.secrets["supabase"]["SUPABASE_URL"]
-    key = st.secrets["supabase"]["SUPABASE_KEY"]
-    supabase = create_client(url, key)
-    st.success("✅ Conexão com Supabase estabelecida com sucesso!")
-except Exception as e:
-    st.error(f"❌ Erro ao conectar no Supabase: {e}")
-
     # --- PAINEL PRINCIPAL ---
     st.markdown(f"<h1>🐔 Painel de Gerenciamento</h1>", unsafe_allow_html=True)
     st.markdown(
