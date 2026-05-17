@@ -829,26 +829,18 @@ with tabs[5]:
         st.error(f"Erro ao carregar gráficos: {e}")
 # ===================== SUB-ABA: CAIXAS DE OVOS =====================
 with tab_caixas:
-    st.markdown("#### 📦 Caixas de Ovos Fechadas por Galpão")
+    st.markdown("#### 📦 Caixas de Ovos Fechadas")
 
     if df_producao.empty:
         st.info("Nenhum registro de produção.")
     else:
         col_d1, col_d2 = st.columns(2)
         with col_d1:
-            data_inicio_c = st.date_input(
-                "Data Inicial",
-                value=datetime.now().date() - pd.Timedelta(days=29),
-                format="DD/MM/YYYY",
-                key="data_inicio_caixas"
-            )
+            data_inicio_c = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=29),
+                                          format="DD/MM/YYYY", key="data_inicio_caixas")
         with col_d2:
-            data_fim_c = st.date_input(
-                "Data Final",
-                value=datetime.now().date(),
-                format="DD/MM/YYYY",
-                key="data_fim_caixas"
-            )
+            data_fim_c = st.date_input("Data Final", value=datetime.now().date(),
+                                       format="DD/MM/YYYY", key="data_fim_caixas")
 
         df_filtrado_c = df_producao[
             (df_producao['data'].dt.date >= data_inicio_c) &
@@ -858,38 +850,49 @@ with tab_caixas:
         if df_filtrado_c.empty:
             st.warning("Nenhum registro encontrado no período selecionado.")
         else:
-            # Calcular caixas por dia e galpão
-            df_caixas = df_filtrado_c.groupby(['data', 'galpao'])[
-                'quantidade'].sum().reset_index()
-            df_caixas['caixas'] = df_caixas['quantidade'] // 360
+            # Calcular caixas
+            df_filtrado_c['caixas'] = df_filtrado_c['quantidade'] // 360
 
-            for galpao in sorted(df_caixas['galpao'].unique()):
-                st.markdown(f"**{galpao}**")
+            for galpao in sorted(df_filtrado_c['galpao'].unique()):
+                st.markdown(f"### {galpao}")
 
-                df_g = df_caixas[df_caixas['galpao'] == galpao]
-                df_agg = df_g.groupby('data')['caixas'].sum().reset_index()
-                df_agg = df_agg.sort_values('data')
+                for cor in CORES:
+                    st.markdown(f"**Cor: {cor}**")
 
-                if not df_agg.empty:
-                    fig = px.bar(
-                        df_agg,
-                        x='data',
-                        y='caixas',
-                        title=f"Caixas Fechadas - {galpao}",
-                        labels={'data': 'Data',
-                                'caixas': 'Quantidade de Caixas'},
-                        text_auto=True,
-                        color_discrete_sequence=['#27AE60']
-                    )
-                    fig.update_layout(
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        font=dict(color="black", size=12),
-                        xaxis=dict(tickformat='%d/%m')
-                    )
-                    fig.update_traces(textposition='outside')
-                    st.plotly_chart(fig, use_container_width=True)
-                st.divider()
+                    df_g = df_filtrado_c[
+                        (df_filtrado_c['galpao'] == galpao) &
+                        (df_filtrado_c['cor'] == cor)
+                    ]
+
+                    if df_g.empty:
+                        st.info(f"Nenhum registro para {cor} neste galpão.")
+                        continue
+
+                    # Agrupar por data e tipo
+                    df_agg = df_g.groupby(['data', 'tipo'])[
+                        'caixas'].sum().reset_index()
+                    df_pivot = df_agg.pivot(
+                        index='data', columns='tipo', values='caixas').fillna(0)
+
+                    if not df_pivot.empty:
+                        fig = px.bar(
+                            df_pivot,
+                            x=df_pivot.index,
+                            y=df_pivot.columns,
+                            title=f"Caixas - {galpao} | Cor {cor}",
+                            labels={'x': 'Data', 'value': 'Caixas',
+                                    'variable': 'Tipo'},
+                            text_auto=True,
+                            barmode='group'
+                        )
+                        fig.update_layout(
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            font=dict(color="black", size=12),
+                            xaxis=dict(tickformat='%d/%m')
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    st.divider()
 
 
 # ======================== ABA 6: OVOS QUEBRADOS (SUPABASE) ========================
