@@ -215,61 +215,77 @@ else:
         else:
             st.error("Quantidade deve ser maior que zero.")
 
-    # ======================== ABA 2: HISTÓRICO & EDIÇÃO ========================
-    with tabs[1]:
-        st.markdown("### 🔍 Gerenciar Histórico")
+    # ======================== ABA 2: HISTÓRICO & EDIÇÃO (SUPABASE) ========================
+with tabs[1]:
+    st.markdown("### 🔍 Gerenciar Histórico")
 
-        conn = sqlite3.connect('estoque_ovos.db')
+    try:
         df_edit = pd.read_sql(
-            "SELECT rowid, data, quantidade, tipo, galpao, cor FROM producao WHERE username=? ORDER BY rowid DESC",
-            conn,
-            params=(st.session_state.username,)
+            text("""
+                SELECT id, data, quantidade, tipo, galpao, cor 
+                FROM producao 
+                WHERE username = :username 
+                ORDER BY id DESC
+            """),
+            engine,
+            params={"username": st.session_state.username}
         )
-        conn.close()
 
         if not df_edit.empty:
             df_edit['data_fmt'] = pd.to_datetime(
                 df_edit['data']).dt.strftime('%d/%m/%Y')
 
             opcoes = {
-                row['rowid']: f"📅 {row['data_fmt']} | {row['quantidade']} ovos | {row['tipo']} | {row['cor']} | {row['galpao']}"
+                row['id']: f"📅 {row['data_fmt']} | {row['quantidade']} ovos | {row['tipo']} | {row['cor']} | {row['galpao']}"
                 for _, row in df_edit.iterrows()
             }
 
             selecao = st.selectbox(
                 "Escolha um registro para corrigir:", list(opcoes.values()))
-            rid = [k for k, v in opcoes.items() if v == selecao][0]
+            selected_id = [k for k, v in opcoes.items() if v == selecao][0]
 
-            registro = df_edit[df_edit['rowid'] == rid].iloc[0]
+            registro = df_edit[df_edit['id'] == selected_id].iloc[0]
 
             col1, col2 = st.columns(2)
             with col1:
-                novo_val = st.number_input(
-                    "Corrigir quantidade:", min_value=0, step=1, value=int(registro['quantidade']))
-                novo_tipo = st.selectbox(
-                    "Corrigir tipo:", TIPOS_OVO, index=TIPOS_OVO.index(registro['tipo']))
+                novo_val = st.number_input("Corrigir quantidade:", min_value=0, step=1,
+                                           value=int(registro['quantidade']))
+                novo_tipo = st.selectbox("Corrigir tipo:", TIPOS_OVO,
+                                         index=TIPOS_OVO.index(registro['tipo']))
 
             with col2:
-                novo_galpao = st.selectbox(
-                    "Corrigir galpão:", GALPOES, index=GALPOES.index(registro['galpao']))
-                nova_cor = st.selectbox(
-                    "Corrigir cor:", CORES, index=CORES.index(registro['cor']))
+                novo_galpao = st.selectbox("Corrigir galpão:", GALPOES,
+                                           index=GALPOES.index(registro['galpao']))
+                nova_cor = st.selectbox("Corrigir cor:", CORES,
+                                        index=CORES.index(registro['cor']))
 
             if st.button("✅ Confirmar Alteração", use_container_width=True):
-                conn = sqlite3.connect('estoque_ovos.db')
-                c = conn.cursor()
-                c.execute(
-                    "UPDATE producao SET quantidade=?, tipo=?, galpao=?, cor=? WHERE rowid=?",
-                    (novo_val, novo_tipo, novo_galpao, nova_cor, rid)
-                )
-                conn.commit()
-                conn.close()
-                st.success("✅ Registro atualizado!")
-                st.rerun()
+                try:
+                    with engine.connect() as conn:
+                        conn.execute(text("""
+                            UPDATE producao 
+                            SET quantidade = :qtd, tipo = :tipo, galpao = :galpao, cor = :cor 
+                            WHERE id = :id AND username = :username
+                        """), {
+                            "qtd": novo_val,
+                            "tipo": novo_tipo,
+                            "galpao": novo_galpao,
+                            "cor": nova_cor,
+                            "id": selected_id,
+                            "username": st.session_state.username
+                        })
+                        conn.commit()
+                    st.success("✅ Registro atualizado!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao atualizar: {e}")
         else:
             st.info("📭 Nenhum registro de colheita encontrado.")
 
-            # ======================== ABA 3: MONITORAMENTO ========================
+    except Exception as e:
+        st.error(f"Erro ao carregar histórico: {e}")
+
+        # ======================== ABA 3: MONITORAMENTO ========================
     with tabs[2]:
         st.markdown("### 📊 Monitoramento de Produção")
 
