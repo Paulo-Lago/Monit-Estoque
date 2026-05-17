@@ -124,8 +124,6 @@ def init_db():
     conn.close()
 
 
-init_db()
-
 # --- INICIALIZAÇÃO DE SESSION STATE ---
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
