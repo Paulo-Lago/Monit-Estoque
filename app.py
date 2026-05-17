@@ -1,13 +1,33 @@
 import streamlit as st
-import sqlite3
+from sqlalchemy import create_engine, text
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 from datetime import datetime
-
-# --- CONFIGURAÇÃO DE ÍCONE PERSONALIZADO ---
 import base64
 from pathlib import Path
+
+# ==================== CONEXÃO COM SUPABASE (POSTGRES) ====================
+
+
+@st.cache_resource
+def get_engine():
+    """Cria conexão com o banco do Supabase"""
+    try:
+        database_url = st.secrets["supabase"]["DATABASE_URL"]
+        engine = create_engine(
+            database_url,
+            pool_pre_ping=True,      # importante para Streamlit Cloud
+            pool_recycle=3600
+        )
+        return engine
+    except Exception as e:
+        st.error(f"Erro ao conectar no banco de dados: {e}")
+        st.stop()
+
+
+engine = get_engine()
+# =====================================================================
+
+# --- CONFIGURAÇÃO DE ÍCONE PERSONALIZADO ---
 
 # === CAMINHO SEGURO DA IMAGEM ===
 BASE_DIR = Path(__file__).parent          # pasta onde está o app.py
@@ -147,7 +167,7 @@ def get_aves_mortas_galpao(username, galpao):
     return result
 
 
-# --- INTERFACE DE LOGIN ---
+# ==================== LOGIN E CRIAÇÃO DE CONTA (SUPABASE) ====================
 if not st.session_state.logged_in:
     st.markdown("<h1>🐔 Estoque de Ovos Pro</h1>", unsafe_allow_html=True)
     st.markdown("<p class='sub-texto'>Sua produção organizada de forma profissional</p>",
@@ -158,39 +178,49 @@ if not st.session_state.logged_in:
                        placeholder="Digite sua senha")
 
     col1, col2 = st.columns(2)
+
     with col1:
         if st.button("Entrar", use_container_width=True):
             if user and pw:
-                conn = sqlite3.connect('estoque_ovos.db')
-                c = conn.cursor()
-                c.execute(
-                    "SELECT password FROM usuarios WHERE username = ?", (user,))
-                result = c.fetchone()
-                conn.close()
-                if result and result[0] == pw:
-                    st.session_state.logged_in = True
-                    st.session_state.username = user
-                    st.rerun()
-                else:
-                    st.error("Login ou senha inválidos.")
+                try:
+                    with engine.connect() as conn:
+                        result = conn.execute(
+                            text(
+                                "SELECT password FROM usuarios WHERE username = :user"),
+                            {"user": user}
+                        ).fetchone()
+
+                    if result and result[0] == pw:
+                        st.session_state.logged_in = True
+                        st.session_state.username = user
+                        st.rerun()
+                    else:
+                        st.error("Login ou senha inválidos.")
+                except Exception as e:
+                    st.error(f"Erro ao fazer login: {e}")
+
     with col2:
         if st.button("Criar Conta", use_container_width=True):
             if user and pw:
                 try:
-                    conn = sqlite3.connect('estoque_ovos.db')
-                    c = conn.cursor()
-                    c.execute("INSERT INTO usuarios VALUES (?, ?)", (user, pw))
-                    conn.commit()
-                    conn.close()
-                    st.success("Conta criada com sucesso!")
-                except:
-                    st.error("Este usuário já existe.")
+                    with engine.connect() as conn:
+                        conn.execute(
+                            text(
+                                "INSERT INTO usuarios (username, password) VALUES (:user, :pw)"),
+                            {"user": user, "pw": pw}
+                        )
+                        conn.commit()
+                    st.success("Conta criada com sucesso! Faça login.")
+                except Exception as e:
+                    if "duplicate key" in str(e).lower() or "unique" in str(e).lower():
+                        st.error("Este usuário já existe.")
+                    else:
+                        st.error(f"Erro ao criar conta: {e}")
             else:
                 st.error("Preencha usuário e senha.")
 
 else:
-
-    # --- PAINEL PRINCIPAL ---
+    # ==================== PAINEL PRINCIPAL ====================
     st.markdown(f"<h1>🐔 Painel de Gerenciamento</h1>", unsafe_allow_html=True)
     st.markdown(
         f"<p class='sub-texto'>Bem-vindo, <b>{st.session_state.username}</b></p>", unsafe_allow_html=True)
