@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime
 import base64
 from pathlib import Path
+import plotly.express as px
 
 # ==================== CONEXÃO COM SUPABASE (POSTGRES) ====================
 
