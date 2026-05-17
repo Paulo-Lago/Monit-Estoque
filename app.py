@@ -34,7 +34,8 @@ def aplicar_estilo_customizado():
     }}
     </style>
     """, unsafe_allow_html=True)
-    
+
+
 st.set_page_config(page_title="Estoque Ovos Pro", layout="wide")
 aplicar_estilo_customizado()
 
@@ -623,17 +624,17 @@ else:
                                 fig.update_layout(
                                     plot_bgcolor='rgba(0,0,0,0)',
                                     paper_bgcolor='rgba(0,0,0,0)',
-                                    font=dict(color="white", size=13),
-                                    title_font=dict(color="white", size=16),
-                                    legend_title_font=dict(color="white"),
-                                    legend_font=dict(color="white"),
+                                    font=dict(color="black", size=13),
+                                    title_font=dict(color="black", size=16),
+                                    legend_title_font=dict(color="black"),
+                                    legend_font=dict(color="black"),
                                     xaxis=dict(
-                                        title_font=dict(color="white"),
-                                        tickfont=dict(color="white")
+                                        title_font=dict(color="black"),
+                                        tickfont=dict(color="black")
                                     ),
                                     yaxis=dict(
-                                        title_font=dict(color="white"),
-                                        tickfont=dict(color="white")
+                                        title_font=dict(color="black"),
+                                        tickfont=dict(color="black")
                                     )
                                 )
                                 fig.update_xaxes(tickformat='%d/%m')
@@ -700,12 +701,12 @@ else:
                                 fig.update_layout(
                                     plot_bgcolor='rgba(0,0,0,0)',
                                     paper_bgcolor='rgba(0,0,0,0)',
-                                    font=dict(color="white", size=13),
-                                    title_font=dict(color="white", size=16),
+                                    font=dict(color="black", size=13),
+                                    title_font=dict(color="black", size=16),
                                     xaxis=dict(title_font=dict(
-                                        color="white"), tickfont=dict(color="white")),
+                                        color="black"), tickfont=dict(color="black")),
                                     yaxis=dict(title_font=dict(
-                                        color="white"), tickfont=dict(color="white"))
+                                        color="black"), tickfont=dict(color="black"))
                                 )
                                 fig.update_xaxes(tickformat='%d/%m')
                                 fig.update_traces(textposition='outside')
@@ -773,12 +774,12 @@ else:
                                 fig.update_layout(
                                     plot_bgcolor='rgba(0,0,0,0)',
                                     paper_bgcolor='rgba(0,0,0,0)',
-                                    font=dict(color="white", size=13),
-                                    title_font=dict(color="white", size=16),
+                                    font=dict(color="black", size=13),
+                                    title_font=dict(color="black", size=16),
                                     xaxis=dict(title_font=dict(
-                                        color="white"), tickfont=dict(color="white")),
+                                        color="black"), tickfont=dict(color="black")),
                                     yaxis=dict(title_font=dict(
-                                        color="white"), tickfont=dict(color="white"))
+                                        color="black"), tickfont=dict(color="black"))
                                 )
                                 fig.update_xaxes(tickformat='%d/%m')
                                 fig.update_traces(textposition='outside')
