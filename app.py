@@ -624,17 +624,17 @@ else:
                                 fig.update_layout(
                                     plot_bgcolor='rgba(0,0,0,0)',
                                     paper_bgcolor='rgba(0,0,0,0)',
-                                    font=dict(color="black", size=13),
-                                    title_font=dict(color="black", size=16),
-                                    legend_title_font=dict(color="black"),
-                                    legend_font=dict(color="black"),
+                                    font=dict(color="white", size=13),
+                                    title_font=dict(color="white", size=16),
+                                    legend_title_font=dict(color="white"),
+                                    legend_font=dict(color="white"),
                                     xaxis=dict(
-                                        title_font=dict(color="black"),
-                                        tickfont=dict(color="black")
+                                        title_font=dict(color="white"),
+                                        tickfont=dict(color="white")
                                     ),
                                     yaxis=dict(
-                                        title_font=dict(color="black"),
-                                        tickfont=dict(color="black")
+                                        title_font=dict(color="white"),
+                                        tickfont=dict(color="white")
                                     )
                                 )
                                 fig.update_xaxes(tickformat='%d/%m')
@@ -701,12 +701,12 @@ else:
                                 fig.update_layout(
                                     plot_bgcolor='rgba(0,0,0,0)',
                                     paper_bgcolor='rgba(0,0,0,0)',
-                                    font=dict(color="black", size=13),
-                                    title_font=dict(color="black", size=16),
+                                    font=dict(color="white", size=13),
+                                    title_font=dict(color="white", size=16),
                                     xaxis=dict(title_font=dict(
-                                        color="black"), tickfont=dict(color="black")),
+                                        color="white"), tickfont=dict(color="white")),
                                     yaxis=dict(title_font=dict(
-                                        color="black"), tickfont=dict(color="black"))
+                                        color="white"), tickfont=dict(color="white"))
                                 )
                                 fig.update_xaxes(tickformat='%d/%m')
                                 fig.update_traces(textposition='outside')
@@ -774,12 +774,12 @@ else:
                                 fig.update_layout(
                                     plot_bgcolor='rgba(0,0,0,0)',
                                     paper_bgcolor='rgba(0,0,0,0)',
-                                    font=dict(color="black", size=13),
-                                    title_font=dict(color="black", size=16),
+                                    font=dict(color="white", size=13),
+                                    title_font=dict(color="white", size=16),
                                     xaxis=dict(title_font=dict(
-                                        color="black"), tickfont=dict(color="black")),
+                                        color="white"), tickfont=dict(color="white")),
                                     yaxis=dict(title_font=dict(
-                                        color="black"), tickfont=dict(color="black"))
+                                        color="white"), tickfont=dict(color="white"))
                                 )
                                 fig.update_xaxes(tickformat='%d/%m')
                                 fig.update_traces(textposition='outside')
