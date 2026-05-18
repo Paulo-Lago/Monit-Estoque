@@ -1032,7 +1032,7 @@ else:
         except Exception as e:
             st.error(f"Erro ao carregar formas de pagamento: {e}")
 
-    # ==================== 4. NOVA VENDA ====================
+        # ==================== 4. NOVA VENDA ====================
     with inner_tabs[3]:
         st.markdown("#### 🛒 Registrar Nova Venda")
 
@@ -1053,7 +1053,7 @@ else:
 
             if df_clientes.empty or df_produtos.empty or df_formas.empty:
                 st.warning(
-                    "Cadastre pelo menos 1 Cliente, 1 Produto e 1 Forma de Pagamento ativa antes de registrar vendas.")
+                    "Cadastre pelo menos 1 Cliente, 1 Produto e 1 Forma de Pagamento ativa.")
             else:
                 with st.form("form_nova_venda", clear_on_submit=True):
                     col1, col2 = st.columns(2)
@@ -1071,8 +1071,7 @@ else:
                         produto_id = int(produto_row['id'])
                         preco_unit = float(produto_row['preco_atual'])
 
-                        st.info(
-                            f"Preço unitário atual: **R$ {preco_unit:.2f}**")
+                        st.info(f"**Preço unitário:** R$ {preco_unit:.2f}")
 
                     with col2:
                         quantidade = st.number_input(
@@ -1081,18 +1080,46 @@ else:
                             "Forma de Pagamento *", df_formas['nome'].tolist(), key="venda_forma")
                         forma_id = int(
                             df_formas[df_formas['nome'] == forma_nome].iloc[0]['id'])
-                        desconto = st.number_input(
-                            "Desconto (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_desconto")
 
+                        # NOVO: Campo de valor pago
+                        valor_pago = st.number_input(
+                            "Valor Pago agora (R$)",
+                            min_value=0.0,
+                            step=0.01,
+                            value=0.0,
+                            format="%.2f",
+                            key="venda_valor_pago"
+                        )
+
+                        desconto = st.number_input(
+                            "Desconto (R$)",
+                            min_value=0.0,
+                            step=0.01,
+                            value=0.0,
+                            format="%.2f",
+                            key="venda_desconto"
+                        )
+
+                    # Cálculos automáticos
                     valor_bruto = quantidade * preco_unit
                     valor_total = max(0, valor_bruto - desconto)
+                    valor_devendo = max(0, valor_total - valor_pago)
 
-                    st.markdown(f"""
-                    **Resumo da Venda:**
-                    - Valor Bruto: **R$ {valor_bruto:.2f}**  
-                    - Desconto: **R$ {desconto:.2f}**  
-                    - **Valor Total: R$ {valor_total:.2f}**
-                    """)
+                    # Mostrar resumo bonito
+                    st.markdown("---")
+                    col_res1, col_res2, col_res3 = st.columns(3)
+                    with col_res1:
+                        st.metric("Valor Total", f"R$ {valor_total:.2f}")
+                    with col_res2:
+                        st.metric("Valor Pago",
+                                  f"R$ {valor_pago:.2f}", delta_color="normal")
+                    with col_res3:
+                        if valor_devendo > 0:
+                            st.metric(
+                                "**Ainda Devendo**", f"R$ {valor_devendo:.2f}", delta_color="inverse")
+                        else:
+                            st.metric("**Quitado**", "R$ 0,00",
+                                      delta_color="normal")
 
                     observacoes = st.text_area(
                         "Observações (opcional)", key="venda_obs")
@@ -1103,9 +1130,10 @@ else:
                                 conn.execute(text("""
                                     INSERT INTO vendas 
                                     (username, cliente_id, data_venda, produto_id, quantidade, 
-                                     preco_unitario, forma_pagamento_id, desconto, valor_total, observacoes)
+                                     preco_unitario, forma_pagamento_id, desconto, valor_total, 
+                                     valor_pago, observacoes)
                                     VALUES (:u, :cliente_id, CURRENT_DATE, :produto_id, :qtd,
-                                            :preco, :forma_id, :desconto, :total, :obs)
+                                            :preco, :forma_id, :desconto, :total, :valor_pago, :obs)
                                 """), {
                                     "u": st.session_state.username,
                                     "cliente_id": cliente_id,
@@ -1115,15 +1143,16 @@ else:
                                     "forma_id": forma_id,
                                     "desconto": desconto,
                                     "total": valor_total,
+                                    "valor_pago": valor_pago,
                                     "obs": observacoes or None
                                 })
                                 conn.commit()
                             st.balloons()
                             st.success(
-                                f"✅ Venda registrada com sucesso! Valor total: R$ {valor_total:.2f}")
+                                f"✅ Venda registrada! Total: R$ {valor_total:.2f} | Pago: R$ {valor_pago:.2f} | Devendo: R$ {valor_devendo:.2f}")
                             st.rerun()
                         except Exception as e:
                             st.error(f"Erro ao registrar venda: {e}")
 
         except Exception as e:
-            st.error(f"Erro ao carregar dados para venda: {e}")
+            st.error(f"Erro ao carregar dados: {e}")
