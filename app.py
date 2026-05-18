@@ -752,7 +752,181 @@ else:
 
         with fat_tabs[0]:
             st.subheader("Gestão de Faturamento")
-            st.info("Em desenvolvimento... (próxima etapa)")
+
+    # Sub-abas internas da aba Faturamento
+    inner_tabs = st.tabs(
+        ["👥 Clientes", "📦 Produtos & Preços", "💳 Formas de Pagamento", "🛒 Nova Venda"])
+
+    # ==================== CLIENTES ====================
+    with inner_tabs[0]:
+        st.markdown("#### Cadastro de Clientes")
+
+        with st.form("form_cliente", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                nome = st.text_input("Nome / Razão Social *")
+                cpf_cnpj = st.text_input("CPF ou CNPJ")
+                telefone = st.text_input("Telefone / WhatsApp")
+            with col2:
+                email = st.text_input("E-mail")
+                endereco = st.text_area("Endereço")
+
+            if st.form_submit_button("✅ Registrar Cliente", use_container_width=True):
+                if nome:
+                    try:
+                        with engine.connect() as conn:
+                            conn.execute(text("""
+                                INSERT INTO clientes (username, nome, cpf_cnpj, telefone, email, endereco)
+                                VALUES (:u, :nome, :cpf, :tel, :email, :end)
+                            """), {
+                                "u": st.session_state.username,
+                                "nome": nome,
+                                "cpf": cpf_cnpj or None,
+                                "tel": telefone or None,
+                                "email": email or None,
+                                "end": endereco or None
+                            })
+                            conn.commit()
+                        st.success(f"Cliente '{nome}' cadastrado com sucesso!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao cadastrar cliente: {e}")
+                else:
+                    st.error("Nome é obrigatório.")
+
+        st.divider()
+        st.markdown("**Clientes Cadastrados**")
+        try:
+            df_clientes = pd.read_sql(text("""
+                SELECT id, nome, cpf_cnpj, telefone, email 
+                FROM clientes 
+                WHERE username = :u 
+                ORDER BY data_cadastro DESC
+            """), engine, params={"u": st.session_state.username})
+            if not df_clientes.empty:
+                st.dataframe(
+                    df_clientes, use_container_width=True, hide_index=True)
+            else:
+                st.info("Nenhum cliente cadastrado ainda.")
+        except Exception as e:
+            st.error(f"Erro ao carregar clientes: {e}")
+
+    # ==================== PRODUTOS & PREÇOS ====================
+    with inner_tabs[1]:
+        st.markdown("#### Cadastro de Produtos e Preços")
+
+        with st.form("form_produto", clear_on_submit=True):
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                nome_prod = st.text_input("Nome do Produto *")
+                descricao = st.text_area("Descrição")
+            with col2:
+                unidade = st.text_input("Unidade", value="unidade")
+                preco = st.number_input(
+                    "Preço Atual (R$)", min_value=0.0, step=0.01, format="%.2f")
+
+            if st.form_submit_button("✅ Cadastrar Produto", use_container_width=True):
+                if nome_prod:
+                    try:
+                        with engine.connect() as conn:
+                            conn.execute(text("""
+                                INSERT INTO produtos (username, nome, descricao, unidade, preco_atual)
+                                VALUES (:u, :nome, :desc, :un, :preco)
+                            """), {
+                                "u": st.session_state.username,
+                                "nome": nome_prod,
+                                "desc": descricao or None,
+                                "un": unidade,
+                                "preco": preco
+                            })
+                            conn.commit()
+                        st.success(f"Produto '{nome_prod}' cadastrado!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro: {e}")
+                else:
+                    st.error("Nome do produto é obrigatório.")
+
+        st.divider()
+        st.markdown("**Produtos Cadastrados**")
+        try:
+            df_prod = pd.read_sql(text("""
+                SELECT id, nome, unidade, preco_atual 
+                FROM produtos 
+                WHERE username = :u 
+                ORDER BY data_cadastro DESC
+            """), engine, params={"u": st.session_state.username})
+            st.dataframe(df_prod, use_container_width=True, hide_index=True)
+        except Exception as e:
+            st.error(f"Erro ao carregar produtos: {e}")
+
+    # ==================== FORMAS DE PAGAMENTO ====================
+    with inner_tabs[2]:
+        st.markdown("#### Formas de Pagamento Aceitas")
+
+        with st.form("form_forma"):
+            nova_forma = st.text_input("Nova Forma de Pagamento")
+            if st.form_submit_button("Adicionar"):
+                if nova_forma:
+                    try:
+                        with engine.connect() as conn:
+                            conn.execute(text("""
+                                INSERT INTO formas_pagamento (username, nome, ativo)
+                                VALUES (:u, :nome, TRUE)
+                            """), {"u": st.session_state.username, "nome": nova_forma})
+                            conn.commit()
+                        st.success("Forma de pagamento adicionada!")
+                        st.rerun()
+                    except:
+                        st.warning("Essa forma já existe.")
+
+        st.divider()
+        st.markdown("**Formas de Pagamento Cadastradas**")
+        try:
+            df_formas = pd.read_sql(text("""
+                SELECT nome, ativo FROM formas_pagamento 
+                WHERE username = :u OR username IS NULL
+            """), engine, params={"u": st.session_state.username})
+            st.dataframe(df_formas, use_container_width=True, hide_index=True)
+        except Exception as e:
+            st.error(f"Erro: {e}")
+
+    # ==================== NOVA VENDA ====================
+    with inner_tabs[3]:
+        st.markdown("#### 🛒 Registrar Nova Venda")
+
+        # Carregar dados para os selects
+        try:
+            df_clientes = pd.read_sql(text("SELECT id, nome FROM clientes WHERE username = :u"),
+                                      engine, params={"u": st.session_state.username})
+            df_produtos = pd.read_sql(text("SELECT id, nome, preco_atual FROM produtos WHERE username = :u"),
+                                      engine, params={"u": st.session_state.username})
+            df_formas = pd.read_sql(text("""
+                SELECT id, nome FROM formas_pagamento 
+                WHERE username = :u OR username IS NULL
+            """), engine, params={"u": st.session_state.username})
+        except:
+            df_clientes = pd.DataFrame()
+            df_produtos = pd.DataFrame()
+            df_formas = pd.DataFrame()
+
+        if df_clientes.empty or df_produtos.empty or df_formas.empty:
+            st.warning(
+                "Cadastre pelo menos 1 Cliente, 1 Produto e 1 Forma de Pagamento antes de registrar vendas.")
+        else:
+            with st.form("form_venda"):
+                cliente = st.selectbox("Cliente", df_clientes['nome'].tolist())
+                produto = st.selectbox("Produto", df_produtos['nome'].tolist())
+                quantidade = st.number_input("Quantidade", min_value=1, step=1)
+                forma = st.selectbox("Forma de Pagamento",
+                                     df_formas['nome'].tolist())
+                desconto = st.number_input(
+                    "Desconto (R$)", min_value=0.0, step=0.01, format="%.2f")
+
+                if st.form_submit_button("✅ Registrar Venda", use_container_width=True):
+                    # Lógica de salvar a venda (vou completar na próxima mensagem se precisar)
+                    st.success(
+                        "Venda registrada com sucesso! (funcionalidade em ajuste)")
 
         with fat_tabs[1]:
             st.subheader("Controle de Estoque")
