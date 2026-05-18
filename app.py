@@ -761,19 +761,25 @@ else:
     with inner_tabs[0]:
         st.markdown("#### 👥 Gestão de Clientes")
 
+    with inner_tabs[0]:
+        st.markdown("#### 👥 Gestão de Clientes")
+
     # ========== CADASTRAR NOVO CLIENTE ==========
     with st.expander("➕ Cadastrar Novo Cliente", expanded=False):
-        with st.form("form_novo_cliente", clear_on_submit=True):
+        with st.form("form_novo_cliente_faturamento", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
-                nome = st.text_input("Nome / Razão Social *")
-                cpf_cnpj = st.text_input("CPF ou CNPJ")
-                telefone = st.text_input("Telefone / WhatsApp")
+                nome = st.text_input(
+                    "Nome / Razão Social *", key="cliente_nome_novo")
+                cpf_cnpj = st.text_input("CPF ou CNPJ", key="cliente_cpf_novo")
+                telefone = st.text_input(
+                    "Telefone / WhatsApp", key="cliente_telefone_novo")
             with col2:
-                email = st.text_input("E-mail")
-                endereco = st.text_area("Endereço")
+                email = st.text_input("E-mail", key="cliente_email_novo")
+                endereco = st.text_area(
+                    "Endereço", key="cliente_endereco_novo")
 
-            if st.form_submit_button("Cadastrar Cliente"):
+            if st.form_submit_button("Cadastrar Cliente", key="btn_cadastrar_cliente"):
                 if nome:
                     try:
                         with engine.connect() as conn:
@@ -798,7 +804,7 @@ else:
 
     st.divider()
 
-    # ========== LISTAR, EDITAR E EXCLUIR ==========
+    # ========== EDITAR E EXCLUIR CLIENTE ==========
     st.markdown("#### Clientes Cadastrados")
 
     try:
@@ -812,34 +818,34 @@ else:
         if df_clientes.empty:
             st.info("Nenhum cliente cadastrado ainda.")
         else:
-            # Selecionar cliente para editar ou excluir
+            # Selectbox com chave única
             cliente_selecionado = st.selectbox(
-                "Selecione um cliente para editar ou excluir:",
+                "Selecione um cliente:",
                 options=df_clientes['nome'].tolist(),
-                key="select_cliente"
+                key="faturamento_select_cliente"   # ← Chave única
             )
 
             cliente_info = df_clientes[df_clientes['nome']
                                        == cliente_selecionado].iloc[0]
 
-            col1, col2 = st.columns(2)
+            col_edit, col_delete = st.columns(2)
 
-            # ========== EDITAR CLIENTE ==========
-            with col1:
-                with st.expander("✏️ Editar Cliente", expanded=True):
-                    with st.form("form_editar_cliente"):
+            # EDITAR
+            with col_edit:
+                with st.expander("✏️ Editar Cliente", expanded=False):
+                    with st.form("form_editar_cliente_faturamento"):
                         novo_nome = st.text_input(
-                            "Nome", value=cliente_info['nome'])
+                            "Nome", value=cliente_info['nome'], key="edit_nome")
                         novo_cpf = st.text_input(
-                            "CPF/CNPJ", value=cliente_info['cpf_cnpj'] or "")
+                            "CPF/CNPJ", value=cliente_info['cpf_cnpj'] or "", key="edit_cpf")
                         novo_telefone = st.text_input(
-                            "Telefone", value=cliente_info['telefone'] or "")
+                            "Telefone", value=cliente_info['telefone'] or "", key="edit_tel")
                         novo_email = st.text_input(
-                            "Email", value=cliente_info['email'] or "")
+                            "Email", value=cliente_info['email'] or "", key="edit_email")
                         novo_endereco = st.text_area(
-                            "Endereço", value=cliente_info['endereco'] or "")
+                            "Endereço", value=cliente_info['endereco'] or "", key="edit_end")
 
-                        if st.form_submit_button("Salvar Alterações"):
+                        if st.form_submit_button("Salvar Alterações", key="btn_salvar_edicao"):
                             try:
                                 with engine.connect() as conn:
                                     conn.execute(text("""
@@ -862,11 +868,11 @@ else:
                             except Exception as e:
                                 st.error(f"Erro ao atualizar: {e}")
 
-            # ========== EXCLUIR CLIENTE ==========
-            with col2:
-                with st.expander("🗑️ Excluir Cliente", expanded=True):
+            # EXCLUIR
+            with col_delete:
+                with st.expander("🗑️ Excluir Cliente", expanded=False):
                     st.warning("⚠️ Esta ação não pode ser desfeita!")
-                    if st.button("Excluir Cliente Permanentemente", type="primary"):
+                    if st.button("Excluir Cliente", type="primary", key="btn_excluir_cliente"):
                         try:
                             with engine.connect() as conn:
                                 conn.execute(text("""
@@ -880,10 +886,9 @@ else:
                             st.success("Cliente excluído com sucesso!")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Erro ao excluir cliente: {e}")
+                            st.error(f"Erro ao excluir: {e}")
 
             st.divider()
-            st.markdown("**Lista de Clientes**")
             st.dataframe(df_clientes, use_container_width=True,
                          hide_index=True)
 
