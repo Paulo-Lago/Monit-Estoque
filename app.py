@@ -758,264 +758,138 @@ else:
         ["👥 Clientes", "📦 Produtos & Preços", "💳 Formas de Pagamento", "🛒 Nova Venda"])
 
     # ==================== CLIENTES ====================
+    with fat_tabs[0]:
+        st.subheader("Gestão de Faturamento")
+
+        # Sub-abas internas
+    inner_tabs = st.tabs([
+        "👥 Clientes",
+        "📦 Produtos & Preços",
+        "💳 Formas de Pagamento",
+        "🛒 Nova Venda"
+    ])
+
+    # ==================== CLIENTES ====================
     with inner_tabs[0]:
         st.markdown("#### 👥 Gestão de Clientes")
 
-    with inner_tabs[0]:
-        st.markdown("#### 👥 Gestão de Clientes")
+        # Cadastrar Novo Cliente
+        with st.expander("➕ Cadastrar Novo Cliente", expanded=False):
+            with st.form("form_novo_cliente", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    nome = st.text_input(
+                        "Nome / Razão Social *", key="cli_nome_novo")
+                    cpf_cnpj = st.text_input("CPF ou CNPJ", key="cli_cpf_novo")
+                    telefone = st.text_input("Telefone", key="cli_tel_novo")
+                with col2:
+                    email = st.text_input("E-mail", key="cli_email_novo")
+                    endereco = st.text_area("Endereço", key="cli_end_novo")
 
-    # ========== CADASTRAR NOVO CLIENTE ==========
-    with st.expander("➕ Cadastrar Novo Cliente", expanded=False):
-        with st.form("form_novo_cliente_faturamento", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                nome = st.text_input(
-                    "Nome / Razão Social *", key="cliente_nome_novo")
-                cpf_cnpj = st.text_input("CPF ou CNPJ", key="cliente_cpf_novo")
-                telefone = st.text_input(
-                    "Telefone / WhatsApp", key="cliente_telefone_novo")
-            with col2:
-                email = st.text_input("E-mail", key="cliente_email_novo")
-                endereco = st.text_area(
-                    "Endereço", key="cliente_endereco_novo")
-
-            if st.form_submit_button("Cadastrar Cliente", key="btn_cadastrar_cliente"):
-                if nome:
-                    try:
-                        with engine.connect() as conn:
-                            conn.execute(text("""
-                                INSERT INTO clientes (username, nome, cpf_cnpj, telefone, email, endereco)
-                                VALUES (:u, :nome, :cpf, :tel, :email, :end)
-                            """), {
-                                "u": st.session_state.username,
-                                "nome": nome,
-                                "cpf": cpf_cnpj or None,
-                                "tel": telefone or None,
-                                "email": email or None,
-                                "end": endereco or None
-                            })
-                            conn.commit()
-                        st.success("Cliente cadastrado com sucesso!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro ao cadastrar: {e}")
-                else:
-                    st.error("O nome é obrigatório.")
-
-    st.divider()
-
-    # ========== EDITAR E EXCLUIR CLIENTE ==========
-    st.markdown("#### Clientes Cadastrados")
-
-    try:
-        df_clientes = pd.read_sql(text("""
-            SELECT id, nome, cpf_cnpj, telefone, email, endereco 
-            FROM clientes 
-            WHERE username = :u 
-            ORDER BY data_cadastro DESC
-        """), engine, params={"u": st.session_state.username})
-
-        if df_clientes.empty:
-            st.info("Nenhum cliente cadastrado ainda.")
-        else:
-            # Selectbox com chave única
-            cliente_selecionado = st.selectbox(
-                "Selecione um cliente:",
-                options=df_clientes['nome'].tolist(),
-                key="faturamento_select_cliente"   # ← Chave única
-            )
-
-            cliente_info = df_clientes[df_clientes['nome']
-                                       == cliente_selecionado].iloc[0]
-
-            col_edit, col_delete = st.columns(2)
-
-            # EDITAR
-            with col_edit:
-                with st.expander("✏️ Editar Cliente", expanded=False):
-                    with st.form("form_editar_cliente_faturamento"):
-                        novo_nome = st.text_input(
-                            "Nome", value=cliente_info['nome'], key="edit_nome")
-                        novo_cpf = st.text_input(
-                            "CPF/CNPJ", value=cliente_info['cpf_cnpj'] or "", key="edit_cpf")
-                        novo_telefone = st.text_input(
-                            "Telefone", value=cliente_info['telefone'] or "", key="edit_tel")
-                        novo_email = st.text_input(
-                            "Email", value=cliente_info['email'] or "", key="edit_email")
-                        novo_endereco = st.text_area(
-                            "Endereço", value=cliente_info['endereco'] or "", key="edit_end")
-
-                        if st.form_submit_button("Salvar Alterações", key="btn_salvar_edicao"):
-                            try:
-                                with engine.connect() as conn:
-                                    conn.execute(text("""
-                                        UPDATE clientes 
-                                        SET nome = :nome, cpf_cnpj = :cpf, telefone = :tel, 
-                                            email = :email, endereco = :end
-                                        WHERE id = :id AND username = :u
-                                    """), {
-                                        "nome": novo_nome,
-                                        "cpf": novo_cpf or None,
-                                        "tel": novo_telefone or None,
-                                        "email": novo_email or None,
-                                        "end": novo_endereco or None,
-                                        "id": int(cliente_info['id']),
-                                        "u": st.session_state.username
-                                    })
-                                    conn.commit()
-                                st.success("Cliente atualizado com sucesso!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Erro ao atualizar: {e}")
-
-            # EXCLUIR
-            with col_delete:
-                with st.expander("🗑️ Excluir Cliente", expanded=False):
-                    st.warning("⚠️ Esta ação não pode ser desfeita!")
-                    if st.button("Excluir Cliente", type="primary", key="btn_excluir_cliente"):
+                if st.form_submit_button("Cadastrar Cliente"):
+                    if nome:
                         try:
                             with engine.connect() as conn:
                                 conn.execute(text("""
-                                    DELETE FROM clientes 
-                                    WHERE id = :id AND username = :u
-                                """), {
-                                    "id": int(cliente_info['id']),
-                                    "u": st.session_state.username
+                                            INSERT INTO clientes (username, nome, cpf_cnpj, telefone, email, endereco)
+                                            VALUES (:u, :nome, :cpf, :tel, :email, :end)
+                                        """), {
+                                    "u": st.session_state.username,
+                                    "nome": nome,
+                                    "cpf": cpf_cnpj or None,
+                                    "tel": telefone or None,
+                                    "email": email or None,
+                                    "end": endereco or None
                                 })
                                 conn.commit()
-                            st.success("Cliente excluído com sucesso!")
+                            st.success("Cliente cadastrado com sucesso!")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Erro ao excluir: {e}")
-
-            st.divider()
-            st.dataframe(df_clientes, use_container_width=True,
-                         hide_index=True)
-
-    except Exception as e:
-        st.error(f"Erro ao carregar clientes: {e}")
-
-    # ==================== PRODUTOS & PREÇOS ====================
-    with inner_tabs[1]:
-        st.markdown("#### Cadastro de Produtos e Preços")
-
-        with st.form("form_produto", clear_on_submit=True):
-            col1, col2 = st.columns([2, 1])
-            with col1:
-                nome_prod = st.text_input("Nome do Produto *")
-                descricao = st.text_area("Descrição")
-            with col2:
-                unidade = st.text_input("Unidade", value="unidade")
-                preco = st.number_input(
-                    "Preço Atual (R$)", min_value=0.0, step=0.01, format="%.2f")
-
-            if st.form_submit_button("✅ Cadastrar Produto", use_container_width=True):
-                if nome_prod:
-                    try:
-                        with engine.connect() as conn:
-                            conn.execute(text("""
-                                INSERT INTO produtos (username, nome, descricao, unidade, preco_atual)
-                                VALUES (:u, :nome, :desc, :un, :preco)
-                            """), {
-                                "u": st.session_state.username,
-                                "nome": nome_prod,
-                                "desc": descricao or None,
-                                "un": unidade,
-                                "preco": preco
-                            })
-                            conn.commit()
-                        st.success(f"Produto '{nome_prod}' cadastrado!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro: {e}")
-                else:
-                    st.error("Nome do produto é obrigatório.")
+                            st.error(f"Erro: {e}")
+                    else:
+                        st.error("Nome é obrigatório.")
 
         st.divider()
-        st.markdown("**Produtos Cadastrados**")
+
+        # Editar e Excluir Cliente
+        st.markdown("#### Clientes Cadastrados")
         try:
-            df_prod = pd.read_sql(text("""
-                SELECT id, nome, unidade, preco_atual 
-                FROM produtos 
-                WHERE username = :u 
-                ORDER BY data_cadastro DESC
-            """), engine, params={"u": st.session_state.username})
-            st.dataframe(df_prod, use_container_width=True, hide_index=True)
-        except Exception as e:
-            st.error(f"Erro ao carregar produtos: {e}")
+            df_clientes = pd.read_sql(text("""
+                        SELECT id, nome, cpf_cnpj, telefone, email, endereco 
+                        FROM clientes 
+                        WHERE username = :u 
+                        ORDER BY data_cadastro DESC
+                    """), engine, params={"u": st.session_state.username})
 
-    # ==================== FORMAS DE PAGAMENTO ====================
-    with inner_tabs[2]:
-        st.markdown("#### Formas de Pagamento Aceitas")
+            if df_clientes.empty:
+                st.info("Nenhum cliente cadastrado ainda.")
+            else:
+                cliente_nome = st.selectbox(
+                    "Selecione um cliente:",
+                    df_clientes['nome'].tolist(),
+                    key="faturamento_cliente_select"
+                )
+                cliente = df_clientes[df_clientes['nome']
+                                      == cliente_nome].iloc[0]
 
-        with st.form("form_forma"):
-            nova_forma = st.text_input("Nova Forma de Pagamento")
-            if st.form_submit_button("Adicionar"):
-                if nova_forma:
-                    try:
-                        with engine.connect() as conn:
-                            conn.execute(text("""
-                                INSERT INTO formas_pagamento (username, nome, ativo)
-                                VALUES (:u, :nome, TRUE)
-                            """), {"u": st.session_state.username, "nome": nova_forma})
-                            conn.commit()
-                        st.success("Forma de pagamento adicionada!")
-                        st.rerun()
-                    except:
-                        st.warning("Essa forma já existe.")
+                col_e, col_d = st.columns(2)
 
-        st.divider()
-        st.markdown("**Formas de Pagamento Cadastradas**")
-        try:
-            df_formas = pd.read_sql(text("""
-                SELECT nome, ativo FROM formas_pagamento 
-                WHERE username = :u OR username IS NULL
-            """), engine, params={"u": st.session_state.username})
-            st.dataframe(df_formas, use_container_width=True, hide_index=True)
+                with col_e:
+                    with st.expander("✏️ Editar Cliente"):
+                        with st.form("form_editar_cliente"):
+                            n_nome = st.text_input(
+                                "Nome", value=cliente['nome'])
+                            n_cpf = st.text_input(
+                                "CPF/CNPJ", value=cliente['cpf_cnpj'] or "")
+                            n_tel = st.text_input(
+                                "Telefone", value=cliente['telefone'] or "")
+                            n_email = st.text_input(
+                                "Email", value=cliente['email'] or "")
+                            n_end = st.text_area(
+                                "Endereço", value=cliente['endereco'] or "")
+
+                            if st.form_submit_button("Salvar"):
+                                with engine.connect() as conn:
+                                    conn.execute(text("""
+                                                UPDATE clientes SET 
+                                                    nome = :nome, cpf_cnpj = :cpf, telefone = :tel,
+                                                    email = :email, endereco = :end
+                                                WHERE id = :id
+                                            """), {
+                                        "nome": n_nome, "cpf": n_cpf, "tel": n_tel,
+                                        "email": n_email, "end": n_end, "id": cliente['id']
+                                    })
+                                    conn.commit()
+                                st.success("Atualizado!")
+                                st.rerun()
+
+                with col_d:
+                    with st.expander("🗑️ Excluir Cliente"):
+                        st.warning("Essa ação não pode ser desfeita!")
+                        if st.button("Excluir Cliente", type="primary"):
+                            with engine.connect() as conn:
+                                conn.execute(text("DELETE FROM clientes WHERE id = :id"),
+                                             {"id": cliente['id']})
+                                conn.commit()
+                            st.success("Cliente excluído!")
+                            st.rerun()
+
+                st.dataframe(
+                    df_clientes, use_container_width=True, hide_index=True)
         except Exception as e:
             st.error(f"Erro: {e}")
 
-    # ==================== NOVA VENDA ====================
+            # ==================== PRODUTOS ====================
+    with inner_tabs[1]:
+        st.markdown("#### 📦 Produtos & Preços")
+        st.info("Em desenvolvimento...")
+
+        # ==================== FORMAS DE PAGAMENTO ====================
+    with inner_tabs[2]:
+        st.markdown("#### 💳 Formas de Pagamento")
+        st.info("Em desenvolvimento...")
+
+        # ==================== NOVA VENDA ====================
     with inner_tabs[3]:
-        st.markdown("#### 🛒 Registrar Nova Venda")
-
-        # Carregar dados para os selects
-        try:
-            df_clientes = pd.read_sql(text("SELECT id, nome FROM clientes WHERE username = :u"),
-                                      engine, params={"u": st.session_state.username})
-            df_produtos = pd.read_sql(text("SELECT id, nome, preco_atual FROM produtos WHERE username = :u"),
-                                      engine, params={"u": st.session_state.username})
-            df_formas = pd.read_sql(text("""
-                SELECT id, nome FROM formas_pagamento 
-                WHERE username = :u OR username IS NULL
-            """), engine, params={"u": st.session_state.username})
-        except:
-            df_clientes = pd.DataFrame()
-            df_produtos = pd.DataFrame()
-            df_formas = pd.DataFrame()
-
-        if df_clientes.empty or df_produtos.empty or df_formas.empty:
-            st.warning(
-                "Cadastre pelo menos 1 Cliente, 1 Produto e 1 Forma de Pagamento antes de registrar vendas.")
-        else:
-            with st.form("form_venda"):
-                cliente = st.selectbox("Cliente", df_clientes['nome'].tolist())
-                produto = st.selectbox("Produto", df_produtos['nome'].tolist())
-                quantidade = st.number_input("Quantidade", min_value=1, step=1)
-                forma = st.selectbox("Forma de Pagamento",
-                                     df_formas['nome'].tolist())
-                desconto = st.number_input(
-                    "Desconto (R$)", min_value=0.0, step=0.01, format="%.2f")
-
-                if st.form_submit_button("✅ Registrar Venda", use_container_width=True):
-                    # Lógica de salvar a venda (vou completar na próxima mensagem se precisar)
-                    st.success(
-                        "Venda registrada com sucesso! (funcionalidade em ajuste)")
-
-        with fat_tabs[1]:
-            st.subheader("Controle de Estoque")
-            st.info("Em desenvolvimento...")
-
-        with fat_tabs[2]:
-            st.subheader("Registros de Vendas por Período")
-            st.info("Em desenvolvimento...")
+        st.markdown("#### 🛒 Nova Venda")
+        st.info("Em desenvolvimento...")
