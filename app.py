@@ -759,9 +759,11 @@ else:
 
     # ==================== CLIENTES ====================
     with inner_tabs[0]:
-        st.markdown("#### Cadastro de Clientes")
+        st.markdown("#### 👥 Gestão de Clientes")
 
-        with st.form("form_cliente", clear_on_submit=True):
+    # ========== CADASTRAR NOVO CLIENTE ==========
+    with st.expander("➕ Cadastrar Novo Cliente", expanded=False):
+        with st.form("form_novo_cliente", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
                 nome = st.text_input("Nome / Razão Social *")
@@ -771,7 +773,7 @@ else:
                 email = st.text_input("E-mail")
                 endereco = st.text_area("Endereço")
 
-            if st.form_submit_button("✅ Registrar Cliente", use_container_width=True):
+            if st.form_submit_button("Cadastrar Cliente"):
                 if nome:
                     try:
                         with engine.connect() as conn:
@@ -787,29 +789,106 @@ else:
                                 "end": endereco or None
                             })
                             conn.commit()
-                        st.success(f"Cliente '{nome}' cadastrado com sucesso!")
+                        st.success("Cliente cadastrado com sucesso!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Erro ao cadastrar cliente: {e}")
+                        st.error(f"Erro ao cadastrar: {e}")
                 else:
-                    st.error("Nome é obrigatório.")
+                    st.error("O nome é obrigatório.")
 
-        st.divider()
-        st.markdown("**Clientes Cadastrados**")
-        try:
-            df_clientes = pd.read_sql(text("""
-                SELECT id, nome, cpf_cnpj, telefone, email 
-                FROM clientes 
-                WHERE username = :u 
-                ORDER BY data_cadastro DESC
-            """), engine, params={"u": st.session_state.username})
-            if not df_clientes.empty:
-                st.dataframe(
-                    df_clientes, use_container_width=True, hide_index=True)
-            else:
-                st.info("Nenhum cliente cadastrado ainda.")
-        except Exception as e:
-            st.error(f"Erro ao carregar clientes: {e}")
+    st.divider()
+
+    # ========== LISTAR, EDITAR E EXCLUIR ==========
+    st.markdown("#### Clientes Cadastrados")
+
+    try:
+        df_clientes = pd.read_sql(text("""
+            SELECT id, nome, cpf_cnpj, telefone, email, endereco 
+            FROM clientes 
+            WHERE username = :u 
+            ORDER BY data_cadastro DESC
+        """), engine, params={"u": st.session_state.username})
+
+        if df_clientes.empty:
+            st.info("Nenhum cliente cadastrado ainda.")
+        else:
+            # Selecionar cliente para editar ou excluir
+            cliente_selecionado = st.selectbox(
+                "Selecione um cliente para editar ou excluir:",
+                options=df_clientes['nome'].tolist(),
+                key="select_cliente"
+            )
+
+            cliente_info = df_clientes[df_clientes['nome']
+                                       == cliente_selecionado].iloc[0]
+
+            col1, col2 = st.columns(2)
+
+            # ========== EDITAR CLIENTE ==========
+            with col1:
+                with st.expander("✏️ Editar Cliente", expanded=True):
+                    with st.form("form_editar_cliente"):
+                        novo_nome = st.text_input(
+                            "Nome", value=cliente_info['nome'])
+                        novo_cpf = st.text_input(
+                            "CPF/CNPJ", value=cliente_info['cpf_cnpj'] or "")
+                        novo_telefone = st.text_input(
+                            "Telefone", value=cliente_info['telefone'] or "")
+                        novo_email = st.text_input(
+                            "Email", value=cliente_info['email'] or "")
+                        novo_endereco = st.text_area(
+                            "Endereço", value=cliente_info['endereco'] or "")
+
+                        if st.form_submit_button("Salvar Alterações"):
+                            try:
+                                with engine.connect() as conn:
+                                    conn.execute(text("""
+                                        UPDATE clientes 
+                                        SET nome = :nome, cpf_cnpj = :cpf, telefone = :tel, 
+                                            email = :email, endereco = :end
+                                        WHERE id = :id AND username = :u
+                                    """), {
+                                        "nome": novo_nome,
+                                        "cpf": novo_cpf or None,
+                                        "tel": novo_telefone or None,
+                                        "email": novo_email or None,
+                                        "end": novo_endereco or None,
+                                        "id": int(cliente_info['id']),
+                                        "u": st.session_state.username
+                                    })
+                                    conn.commit()
+                                st.success("Cliente atualizado com sucesso!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao atualizar: {e}")
+
+            # ========== EXCLUIR CLIENTE ==========
+            with col2:
+                with st.expander("🗑️ Excluir Cliente", expanded=True):
+                    st.warning("⚠️ Esta ação não pode ser desfeita!")
+                    if st.button("Excluir Cliente Permanentemente", type="primary"):
+                        try:
+                            with engine.connect() as conn:
+                                conn.execute(text("""
+                                    DELETE FROM clientes 
+                                    WHERE id = :id AND username = :u
+                                """), {
+                                    "id": int(cliente_info['id']),
+                                    "u": st.session_state.username
+                                })
+                                conn.commit()
+                            st.success("Cliente excluído com sucesso!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao excluir cliente: {e}")
+
+            st.divider()
+            st.markdown("**Lista de Clientes**")
+            st.dataframe(df_clientes, use_container_width=True,
+                         hide_index=True)
+
+    except Exception as e:
+        st.error(f"Erro ao carregar clientes: {e}")
 
     # ==================== PRODUTOS & PREÇOS ====================
     with inner_tabs[1]:
