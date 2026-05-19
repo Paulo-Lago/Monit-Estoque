@@ -1420,6 +1420,7 @@ else:
                         c.nome as cliente,
                         p.nome as produto,
                         v.quantidade,
+                        v.preco_unitario,
                         v.valor_total,
                         v.valor_pago,
                         (v.valor_total - v.valor_pago) as valor_devendo,
