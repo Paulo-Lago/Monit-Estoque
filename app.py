@@ -1121,7 +1121,8 @@ else:
                                             WHERE id = :id
                                         """), {
                                             "preco": novo_preco,
-                                            "id": produto_selecionado['id']
+                                            # ← CORREÇÃO AQUI
+                                            "id": int(produto_selecionado['id'])
                                         })
                                         conn.commit()
                                     st.success(
