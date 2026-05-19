@@ -1138,15 +1138,19 @@ else:
             with inner_tabs[3]:
                 st.markdown("#### 🛒 Registrar Nova Venda")
 
+                # Inicializa session_state se não existir
+                if "venda_dados" not in st.session_state:
+                    st.session_state.venda_dados = None
+                if "mostrar_confirmacao" not in st.session_state:
+                    st.session_state.mostrar_confirmacao = False
+
                 try:
                     df_clientes = pd.read_sql(text("""
-                        SELECT id, nome FROM clientes 
-                        WHERE username = :u ORDER BY nome
+                        SELECT id, nome FROM clientes WHERE username = :u ORDER BY nome
                     """), engine, params={"u": st.session_state.username})
 
                     df_produtos = pd.read_sql(text("""
-                        SELECT id, nome, preco_atual FROM produtos 
-                        WHERE username = :u ORDER BY nome
+                        SELECT id, nome, preco_atual FROM produtos WHERE username = :u ORDER BY nome
                     """), engine, params={"u": st.session_state.username})
 
                     df_formas = pd.read_sql(text("""
@@ -1159,102 +1163,172 @@ else:
                         st.warning(
                             "Cadastre pelo menos 1 Cliente, 1 Produto e 1 Forma de Pagamento ativa.")
                     else:
-                        with st.form("form_nova_venda", clear_on_submit=True):
+
+                        # ==================== MODO CONFIRMAÇÃO ====================
+                        if st.session_state.mostrar_confirmacao and st.session_state.venda_dados:
+
+                            dados = st.session_state.venda_dados
+
+                            st.markdown("### Confirmação da Venda")
+                            st.markdown("---")
+
                             col1, col2 = st.columns(2)
-
                             with col1:
-                                cliente_nome = st.selectbox(
-                                    "Cliente *", df_clientes['nome'].tolist(), key="venda_cliente")
-                                cliente_id = int(
-                                    df_clientes[df_clientes['nome'] == cliente_nome].iloc[0]['id'])
-
-                                produto_nome = st.selectbox(
-                                    "Produto *", df_produtos['nome'].tolist(), key="venda_produto")
-                                produto_row = df_produtos[df_produtos['nome']
-                                                          == produto_nome].iloc[0]
-                                produto_id = int(produto_row['id'])
-                                preco_unit = float(produto_row['preco_atual'])
-
-                                st.info(
-                                    f"**Preço unitário:** R$ {preco_unit:.2f}")
-
+                                st.write(
+                                    f"**Cliente:** {dados['cliente_nome']}")
+                                st.write(
+                                    f"**Produto:** {dados['produto_nome']}")
+                                st.write(
+                                    f"**Quantidade:** {dados['quantidade']}")
                             with col2:
-                                quantidade = st.number_input(
-                                    "Quantidade *", min_value=1, step=1, value=1, key="venda_qtd")
-                                forma_nome = st.selectbox(
-                                    "Forma de Pagamento *", df_formas['nome'].tolist(), key="venda_forma")
-                                forma_id = int(
-                                    df_formas[df_formas['nome'] == forma_nome].iloc[0]['id'])
-
-                                valor_pago = st.number_input(
-                                    "Valor Pago agora (R$)",
-                                    min_value=0.0, step=0.01, value=0.0, format="%.2f",
-                                    key="venda_valor_pago"
-                                )
-
-                                desconto = st.number_input(
-                                    "Desconto (R$)",
-                                    min_value=0.0, step=0.01, value=0.0, format="%.2f",
-                                    key="venda_desconto"
-                                )
-
-                            # Resumo enquanto preenche
-                            valor_bruto = quantidade * preco_unit
-                            valor_total = max(0, valor_bruto - desconto)
-                            valor_devendo = max(0, valor_total - valor_pago)
+                                st.write(
+                                    f"**Forma de Pagamento:** {dados['forma_nome']}")
+                                st.write(
+                                    f"**Preço Unitário:** R$ {dados['preco_unit']:.2f}")
+                                st.write(
+                                    f"**Desconto:** R$ {dados['desconto']:.2f}")
 
                             st.markdown("---")
-                            st.caption(
-                                "Resumo da venda (atualiza enquanto você preenche)")
                             col_r1, col_r2, col_r3 = st.columns(3)
                             with col_r1:
                                 st.metric("Valor Total",
-                                          f"R$ {valor_total:.2f}")
+                                          f"R$ {dados['valor_total']:.2f}")
                             with col_r2:
-                                st.metric("Valor Pago", f"R$ {valor_pago:.2f}")
+                                st.metric("Valor Pago",
+                                          f"R$ {dados['valor_pago']:.2f}")
                             with col_r3:
                                 st.metric("Ficará Devendo",
-                                          f"R$ {valor_devendo:.2f}")
+                                          f"R$ {dados['valor_devendo']:.2f}")
 
-                            observacoes = st.text_area(
-                                "Observações (opcional)", key="venda_obs")
+                            if dados.get('observacoes'):
+                                st.write(
+                                    f"**Observações:** {dados['observacoes']}")
 
-                            submitted = st.form_submit_button(
-                                "✅ Registrar Venda", type="primary")
+                            st.markdown("---")
+                            st.warning("Confirma o registro desta venda?")
 
-                        # Depois do submit (fora do form)
-                        if submitted:
-                            try:
-                                with engine.connect() as conn:
-                                    conn.execute(text("""
-                                        INSERT INTO vendas 
-                                        (username, cliente_id, data_venda, produto_id, quantidade, 
-                                         preco_unitario, forma_pagamento_id, desconto, valor_total, 
-                                         valor_pago, observacoes)
-                                        VALUES (:u, :cliente_id, CURRENT_DATE, :produto_id, :qtd,
-                                                :preco, :forma_id, :desconto, :total, :valor_pago, :obs)
-                                    """), {
-                                        "u": st.session_state.username,
-                                        "cliente_id": cliente_id,
-                                        "produto_id": produto_id,
-                                        "qtd": quantidade,
-                                        "preco": preco_unit,
-                                        "forma_id": forma_id,
-                                        "desconto": desconto,
-                                        "total": valor_total,
-                                        "valor_pago": valor_pago,
-                                        "obs": observacoes or None
-                                    })
-                                    conn.commit()
+                            col_btn1, col_btn2 = st.columns(2)
+                            with col_btn1:
+                                if st.button("✅ Confirmar e Registrar Venda", type="primary", use_container_width=True):
+                                    try:
+                                        with engine.connect() as conn:
+                                            conn.execute(text("""
+                                                INSERT INTO vendas 
+                                                (username, cliente_id, data_venda, produto_id, quantidade, 
+                                                 preco_unitario, forma_pagamento_id, desconto, valor_total, 
+                                                 valor_pago, observacoes)
+                                                VALUES (:u, :cliente_id, CURRENT_DATE, :produto_id, :qtd,
+                                                        :preco, :forma_id, :desconto, :total, :valor_pago, :obs)
+                                            """), {
+                                                "u": st.session_state.username,
+                                                "cliente_id": dados['cliente_id'],
+                                                "produto_id": dados['produto_id'],
+                                                "qtd": dados['quantidade'],
+                                                "preco": dados['preco_unit'],
+                                                "forma_id": dados['forma_id'],
+                                                "desconto": dados['desconto'],
+                                                "total": dados['valor_total'],
+                                                "valor_pago": dados['valor_pago'],
+                                                "obs": dados.get('observacoes')
+                                            })
+                                            conn.commit()
 
-                                st.balloons()
-                                st.success("✅ Venda registrada com sucesso!")
+                                        st.balloons()
+                                        st.success(
+                                            "✅ Venda registrada com sucesso!")
 
-                                # Força recarregar a página para limpar tudo
+                                        # Limpa os dados e volta para o formulário limpo
+                                        st.session_state.venda_dados = None
+                                        st.session_state.mostrar_confirmacao = False
+                                        st.rerun()
+
+                                    except Exception as e:
+                                        st.error(
+                                            f"Erro ao registrar venda: {e}")
+
+                            with col_btn2:
+                                if st.button("← Voltar para Editar", use_container_width=True):
+                                    st.session_state.mostrar_confirmacao = False
+                                    st.rerun()
+
+                        # ==================== MODO FORMULÁRIO ====================
+                        else:
+                            with st.form("form_nova_venda", clear_on_submit=True):
+                                col1, col2 = st.columns(2)
+
+                                with col1:
+                                    cliente_nome = st.selectbox(
+                                        "Cliente *", df_clientes['nome'].tolist(), key="venda_cliente")
+                                    cliente_id = int(
+                                        df_clientes[df_clientes['nome'] == cliente_nome].iloc[0]['id'])
+
+                                    produto_nome = st.selectbox(
+                                        "Produto *", df_produtos['nome'].tolist(), key="venda_produto")
+                                    produto_row = df_produtos[df_produtos['nome']
+                                                              == produto_nome].iloc[0]
+                                    produto_id = int(produto_row['id'])
+                                    preco_unit = float(
+                                        produto_row['preco_atual'])
+
+                                    st.info(
+                                        f"**Preço unitário:** R$ {preco_unit:.2f}")
+
+                                with col2:
+                                    quantidade = st.number_input(
+                                        "Quantidade *", min_value=1, step=1, value=1, key="venda_qtd")
+                                    forma_nome = st.selectbox(
+                                        "Forma de Pagamento *", df_formas['nome'].tolist(), key="venda_forma")
+                                    forma_id = int(
+                                        df_formas[df_formas['nome'] == forma_nome].iloc[0]['id'])
+
+                                    valor_pago = st.number_input(
+                                        "Valor Pago agora (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_valor_pago")
+                                    desconto = st.number_input(
+                                        "Desconto (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_desconto")
+
+                                valor_bruto = quantidade * preco_unit
+                                valor_total = max(0, valor_bruto - desconto)
+                                valor_devendo = max(
+                                    0, valor_total - valor_pago)
+
+                                st.markdown("---")
+                                st.caption("Resumo da venda")
+                                col_r1, col_r2, col_r3 = st.columns(3)
+                                with col_r1:
+                                    st.metric("Valor Total",
+                                              f"R$ {valor_total:.2f}")
+                                with col_r2:
+                                    st.metric("Valor Pago",
+                                              f"R$ {valor_pago:.2f}")
+                                with col_r3:
+                                    st.metric("Ficará Devendo",
+                                              f"R$ {valor_devendo:.2f}")
+
+                                observacoes = st.text_area(
+                                    "Observações (opcional)", key="venda_obs")
+
+                                submitted = st.form_submit_button(
+                                    "✅ Registrar Venda", type="primary")
+
+                            # Quando clicar em Registrar Venda, guarda os dados e vai para confirmação
+                            if submitted:
+                                st.session_state.venda_dados = {
+                                    "cliente_id": cliente_id,
+                                    "cliente_nome": cliente_nome,
+                                    "produto_id": produto_id,
+                                    "produto_nome": produto_nome,
+                                    "quantidade": quantidade,
+                                    "preco_unit": preco_unit,
+                                    "forma_id": forma_id,
+                                    "forma_nome": forma_nome,
+                                    "valor_pago": valor_pago,
+                                    "desconto": desconto,
+                                    "valor_total": valor_total,
+                                    "valor_devendo": valor_devendo,
+                                    "observacoes": observacoes
+                                }
+                                st.session_state.mostrar_confirmacao = True
                                 st.rerun()
-
-                            except Exception as e:
-                                st.error(f"Erro ao registrar venda: {e}")
 
                 except Exception as e:
                     st.error(f"Erro ao carregar dados: {e}")
