@@ -847,7 +847,7 @@ else:
                                 "E-mail",
                                 "Endereço"
                             ]],
-                            use_container_width=True,
+                            width='stretch',
                             hide_index=True,
                             column_config={
                                 "Nome / Razão Social": st.column_config.TextColumn(
@@ -988,7 +988,7 @@ else:
                         st.dataframe(
                             df_display[["Produto", "Unidade",
                                         "Preço Atual (R$)"]],
-                            use_container_width=True,
+                            width='stretch',
                             hide_index=True,
                             column_config={
                                 "Preço Atual (R$)": st.column_config.NumberColumn(
@@ -1209,7 +1209,7 @@ else:
 
                             col_btn1, col_btn2 = st.columns(2)
                             with col_btn1:
-                                if st.button("✅ Confirmar e Registrar Venda", type="primary", use_container_width=True):
+                                if st.button("✅ Confirmar e Registrar Venda", type="primary", width='stretch'):
                                     try:
                                         with engine.connect() as conn:
                                             conn.execute(text("""
@@ -1247,7 +1247,7 @@ else:
                                             f"Erro ao registrar venda: {e}")
 
                             with col_btn2:
-                                if st.button("← Voltar para Editar", use_container_width=True):
+                                if st.button("← Voltar para Editar", width='stretch'):
                                     st.session_state.mostrar_confirmacao = False
                                     st.rerun()
 
@@ -1467,7 +1467,7 @@ else:
                     st.dataframe(
                         df_display[["Data", "Cliente", "Produto",
                                     "Valor Total", "Valor Pago", "Valor Devendo"]],
-                        use_container_width=True,
+                        width='stretch',
                         hide_index=True
                     )
 
