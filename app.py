@@ -1446,10 +1446,8 @@ else:
                     st.info(
                         "Nenhuma venda pendente encontrada no período selecionado.")
                 else:
-                    # === MELHORIA NA TABELA ===
+                    # Formatação da tabela
                     df_display = df_aberto.copy()
-
-                    # Renomear colunas para ficar mais bonito
                     df_display = df_display.rename(columns={
                         "data_venda": "Data",
                         "cliente": "Cliente",
@@ -1459,7 +1457,6 @@ else:
                         "valor_devendo": "Valor Devendo"
                     })
 
-                    # Formatação de valores
                     df_display["Valor Total"] = df_display["Valor Total"].apply(
                         lambda x: f"R$ {x:,.2f}")
                     df_display["Valor Pago"] = df_display["Valor Pago"].apply(
@@ -1493,7 +1490,8 @@ else:
                     valor_devendo_atual = float(
                         venda_selecionada['valor_devendo'])
                     valor_pago_atual = float(venda_selecionada['valor_pago'])
-             # ==================== ABA DE AÇÕES ====================
+
+                    # ==================== ABA DE AÇÕES ====================
                     tab_pagamento, tab_editar, tab_excluir = st.tabs([
                         "💰 Registrar Pagamento",
                         "✏️ Editar Venda",
@@ -1505,21 +1503,16 @@ else:
                         with st.form("form_receber_pagamento"):
                             valor_recebido = st.number_input(
                                 "Valor Recebido agora (R$)",
-                                min_value=0.01,
-                                max_value=valor_devendo_atual,
-                                step=0.01,
-                                format="%.2f",
+                                min_value=0.01, max_value=valor_devendo_atual,
+                                step=0.01, format="%.2f",
                                 value=min(50.0, valor_devendo_atual)
                             )
-
                             if st.form_submit_button("Confirmar Recebimento"):
                                 novo_valor_pago = valor_pago_atual + valor_recebido
                                 try:
                                     with engine.connect() as conn:
                                         conn.execute(text("""
-                                            UPDATE vendas 
-                                            SET valor_pago = :novo_pago 
-                                            WHERE id = :id
+                                            UPDATE vendas SET valor_pago = :novo_pago WHERE id = :id
                                         """), {"novo_pago": novo_valor_pago, "id": venda_id})
                                         conn.commit()
                                     st.success(
@@ -1532,12 +1525,13 @@ else:
                     with tab_editar:
                         st.warning(
                             "Atenção: Editar uma venda pode afetar o controle financeiro.")
-
                         with st.form("form_editar_venda"):
                             nova_qtd = st.number_input(
                                 "Quantidade", min_value=1, value=int(venda_selecionada['quantidade']))
-                            novo_desconto = st.number_input("Desconto (R$)", min_value=0.0, value=float(
-                                venda_selecionada.get('desconto', 0)), step=0.01, format="%.2f")
+                            novo_desconto = st.number_input("Desconto (R$)", min_value=0.0,
+                                                            value=float(
+                                                                venda_selecionada.get('desconto', 0)),
+                                                            step=0.01, format="%.2f")
                             novas_obs = st.text_area(
                                 "Observações", value=venda_selecionada.get('observacoes', '') or "")
 
@@ -1548,17 +1542,12 @@ else:
                                     with engine.connect() as conn:
                                         conn.execute(text("""
                                             UPDATE vendas 
-                                            SET quantidade = :qtd, 
-                                                desconto = :desconto, 
-                                                valor_total = :total,
-                                                observacoes = :obs
+                                            SET quantidade = :qtd, desconto = :desconto, 
+                                                valor_total = :total, observacoes = :obs
                                             WHERE id = :id
                                         """), {
-                                            "qtd": nova_qtd,
-                                            "desconto": novo_desconto,
-                                            "total": novo_valor_total,
-                                            "obs": novas_obs,
-                                            "id": venda_id
+                                            "qtd": nova_qtd, "desconto": novo_desconto,
+                                            "total": novo_valor_total, "obs": novas_obs, "id": venda_id
                                         })
                                         conn.commit()
                                     st.success("Venda atualizada com sucesso!")
@@ -1570,9 +1559,7 @@ else:
                     with tab_excluir:
                         if valor_pago_atual > 0:
                             st.warning(
-                                f"⚠️ Esta venda já possui R$ {valor_pago_atual:,.2f} em pagamentos registrados. "
-                                "Ao excluir, esses pagamentos também serão removidos."
-                            )
+                                f"⚠️ Esta venda já possui R$ {valor_pago_atual:,.2f} em pagamentos registrados.")
                         else:
                             st.info(
                                 "Esta venda ainda não possui pagamentos registrados.")
@@ -1594,9 +1581,10 @@ else:
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Erro ao excluir venda: {e}")
+
             except Exception as e:
-                st.error("Ocorreu um erro inesperado.")
-                print(e)  # log no terminal
+                st.error("Ocorreu um erro ao carregar as vendas pendentes.")
+                print(e)  # Log no terminal para debug
 
         # ============================================
         # ABA 3 → REGISTROS DE VENDAS
