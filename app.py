@@ -1134,22 +1134,19 @@ else:
                 except Exception as e:
                     st.error(f"Erro ao carregar formas de pagamento: {e}")
 
-                    # ==================== 4. NOVA VENDA ====================
+             # ==================== 4. NOVA VENDA ====================
             with inner_tabs[3]:
                 st.markdown("#### 🛒 Registrar Nova Venda")
 
                 try:
-                    # Carregar dados necessários
                     df_clientes = pd.read_sql(text("""
                         SELECT id, nome FROM clientes 
-                        WHERE username = :u 
-                        ORDER BY nome
+                        WHERE username = :u ORDER BY nome
                     """), engine, params={"u": st.session_state.username})
 
                     df_produtos = pd.read_sql(text("""
                         SELECT id, nome, preco_atual FROM produtos 
-                        WHERE username = :u 
-                        ORDER BY nome
+                        WHERE username = :u ORDER BY nome
                     """), engine, params={"u": st.session_state.username})
 
                     df_formas = pd.read_sql(text("""
@@ -1160,7 +1157,7 @@ else:
 
                     if df_clientes.empty or df_produtos.empty or df_formas.empty:
                         st.warning(
-                            "Cadastre pelo menos 1 Cliente, 1 Produto e 1 Forma de Pagamento ativa antes de registrar vendas.")
+                            "Cadastre pelo menos 1 Cliente, 1 Produto e 1 Forma de Pagamento ativa.")
                     else:
                         with st.form("form_nova_venda", clear_on_submit=True):
                             col1, col2 = st.columns(2)
@@ -1179,7 +1176,7 @@ else:
                                 preco_unit = float(produto_row['preco_atual'])
 
                                 st.info(
-                                    f"**Preço unitário atual:** R$ {preco_unit:.2f}")
+                                    f"**Preço unitário:** R$ {preco_unit:.2f}")
 
                             with col2:
                                 quantidade = st.number_input(
@@ -1189,82 +1186,77 @@ else:
                                 forma_id = int(
                                     df_formas[df_formas['nome'] == forma_nome].iloc[0]['id'])
 
-                                # Campo de pagamento parcial
                                 valor_pago = st.number_input(
                                     "Valor Pago agora (R$)",
-                                    min_value=0.0,
-                                    step=0.01,
-                                    value=0.0,
-                                    format="%.2f",
+                                    min_value=0.0, step=0.01, value=0.0, format="%.2f",
                                     key="venda_valor_pago"
                                 )
 
                                 desconto = st.number_input(
                                     "Desconto (R$)",
-                                    min_value=0.0,
-                                    step=0.01,
-                                    value=0.0,
-                                    format="%.2f",
+                                    min_value=0.0, step=0.01, value=0.0, format="%.2f",
                                     key="venda_desconto"
                                 )
 
-                            # Cálculos automáticos
+                            # Cálculo (só para o usuário ver enquanto preenche)
                             valor_bruto = quantidade * preco_unit
                             valor_total = max(0, valor_bruto - desconto)
                             valor_devendo = max(0, valor_total - valor_pago)
 
-                            # Resumo visual
+                            # Resumo enquanto preenche
                             st.markdown("---")
+                            st.caption(
+                                "Resumo da venda (atualiza enquanto você preenche)")
                             col_r1, col_r2, col_r3 = st.columns(3)
-
                             with col_r1:
                                 st.metric("Valor Total",
                                           f"R$ {valor_total:.2f}")
                             with col_r2:
                                 st.metric("Valor Pago", f"R$ {valor_pago:.2f}")
                             with col_r3:
-                                if valor_devendo > 0:
-                                    st.metric(
-                                        "Ainda Devendo", f"R$ {valor_devendo:.2f}", delta_color="inverse")
-                                else:
-                                    st.metric("Quitado", "R$ 0,00",
-                                              delta_color="normal")
+                                st.metric("Ficará Devendo",
+                                          f"R$ {valor_devendo:.2f}")
 
                             observacoes = st.text_area(
                                 "Observações (opcional)", key="venda_obs")
 
-                            if st.form_submit_button("✅ Registrar Venda", type="primary"):
-                                try:
-                                    with engine.connect() as conn:
-                                        conn.execute(text("""
-                                            INSERT INTO vendas 
-                                            (username, cliente_id, data_venda, produto_id, quantidade, 
-                                             preco_unitario, forma_pagamento_id, desconto, valor_total, 
-                                             valor_pago, observacoes)
-                                            VALUES (:u, :cliente_id, CURRENT_DATE, :produto_id, :qtd,
-                                                    :preco, :forma_id, :desconto, :total, :valor_pago, :obs)
-                                        """), {
-                                            "u": st.session_state.username,
-                                            "cliente_id": cliente_id,
-                                            "produto_id": produto_id,
-                                            "qtd": quantidade,
-                                            "preco": preco_unit,
-                                            "forma_id": forma_id,
-                                            "desconto": desconto,
-                                            "total": valor_total,
-                                            "valor_pago": valor_pago,
-                                            "obs": observacoes or None
-                                        })
-                                        conn.commit()
-                                    st.balloons()
-                                    st.success(
-                                        f"✅ Venda registrada com sucesso! Total: R$ {valor_total:.2f}")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Erro ao registrar venda: {e}")
+                            # Botão de registrar
+                            submitted = st.form_submit_button(
+                                "✅ Registrar Venda", type="primary")
+
+                        # Depois de registrar (fora do form para limpar melhor)
+                        if submitted:
+                            try:
+                                with engine.connect() as conn:
+                                    conn.execute(text("""
+                                        INSERT INTO vendas 
+                                        (username, cliente_id, data_venda, produto_id, quantidade, 
+                                         preco_unitario, forma_pagamento_id, desconto, valor_total, 
+                                         valor_pago, observacoes)
+                                        VALUES (:u, :cliente_id, CURRENT_DATE, :produto_id, :qtd,
+                                                :preco, :forma_id, :desconto, :total, :valor_pago, :obs)
+                                    """), {
+                                        "u": st.session_state.username,
+                                        "cliente_id": cliente_id,
+                                        "produto_id": produto_id,
+                                        "qtd": quantidade,
+                                        "preco": preco_unit,
+                                        "forma_id": forma_id,
+                                        "desconto": desconto,
+                                        "total": valor_total,
+                                        "valor_pago": valor_pago,
+                                        "obs": observacoes or None
+                                    })
+                                    conn.commit()
+
+                                st.balloons()
+                                st.success(f"✅ Venda registrada com sucesso!")
+                                # Não mostramos mais o resumo depois de registrar
+                            except Exception as e:
+                                st.error(f"Erro ao registrar venda: {e}")
 
                 except Exception as e:
-                    st.error(f"Erro ao carregar dados para venda: {e}")
+                    st.error(f"Erro ao carregar dados: {e}")
 
         # ============================================
         # ABA 1 → ESTOQUE
