@@ -189,22 +189,22 @@ else:
 
                 with engine.connect() as conn:
                     total_ovos = conn.execute(text("""
-                        SELECT COALESCE(SUM(quantidade), 0) FROM producao 
+                        SELECT COALESCE(SUM(quantidade), 0) FROM producao
                         WHERE username = :u AND data BETWEEN :inicio AND :fim
                     """), {"u": st.session_state.username, "inicio": data_inicio, "fim": data_fim}).scalar()
 
                     aves_reg_periodo = conn.execute(text("""
-                        SELECT COALESCE(SUM(quantidade_total), 0) FROM aves 
+                        SELECT COALESCE(SUM(quantidade_total), 0) FROM aves
                         WHERE username = :u AND data_registro BETWEEN :inicio AND :fim
                     """), {"u": st.session_state.username, "inicio": data_inicio, "fim": data_fim}).scalar()
 
                     aves_mortas_periodo = conn.execute(text("""
-                        SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas 
+                        SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas
                         WHERE username = :u AND data BETWEEN :inicio AND :fim
                     """), {"u": st.session_state.username, "inicio": data_inicio, "fim": data_fim}).scalar()
 
                     ovos_quebrados_periodo = conn.execute(text("""
-                        SELECT COALESCE(SUM(quantidade), 0) FROM ovos_quebrados 
+                        SELECT COALESCE(SUM(quantidade), 0) FROM ovos_quebrados
                         WHERE username = :u AND data BETWEEN :inicio AND :fim
                     """), {"u": st.session_state.username, "inicio": data_inicio, "fim": data_fim}).scalar()
 
@@ -224,17 +224,17 @@ else:
                 for galpao in GALPOES:
                     with engine.connect() as conn:
                         ovos_galpao = conn.execute(text("""
-                            SELECT COALESCE(SUM(quantidade), 0) FROM producao 
+                            SELECT COALESCE(SUM(quantidade), 0) FROM producao
                             WHERE username = :u AND galpao = :g AND data BETWEEN :inicio AND :fim
                         """), {"u": st.session_state.username, "g": galpao, "inicio": data_inicio, "fim": data_fim}).scalar()
 
                         reg = conn.execute(text("""
-                            SELECT COALESCE(SUM(quantidade_total), 0) FROM aves 
+                            SELECT COALESCE(SUM(quantidade_total), 0) FROM aves
                             WHERE username = :u AND galpao = :g AND data_registro BETWEEN :inicio AND :fim
                         """), {"u": st.session_state.username, "g": galpao, "inicio": data_inicio, "fim": data_fim}).scalar()
 
                         mortas = conn.execute(text("""
-                            SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas 
+                            SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas
                             WHERE username = :u AND galpao = :g AND data BETWEEN :inicio AND :fim
                         """), {"u": st.session_state.username, "g": galpao, "inicio": data_inicio, "fim": data_fim}).scalar()
 
@@ -299,9 +299,9 @@ else:
 
             try:
                 df_edit = pd.read_sql(text("""
-                    SELECT id, data, quantidade, tipo, galpao, cor 
-                    FROM producao 
-                    WHERE username = :username 
+                    SELECT id, data, quantidade, tipo, galpao, cor
+                    FROM producao
+                    WHERE username = :username
                     ORDER BY id DESC
                 """), engine, params={"username": st.session_state.username})
 
@@ -337,8 +337,8 @@ else:
                         try:
                             with engine.connect() as conn:
                                 conn.execute(text("""
-                                    UPDATE producao 
-                                    SET quantidade = :qtd, tipo = :tipo, galpao = :galpao, cor = :cor 
+                                    UPDATE producao
+                                    SET quantidade = :qtd, tipo = :tipo, galpao = :galpao, cor = :cor
                                     WHERE id = :id AND username = :username
                                 """), {
                                     "qtd": novo_val, "tipo": novo_tipo,
@@ -361,9 +361,9 @@ else:
 
             try:
                 df_producao = pd.read_sql(text("""
-                    SELECT data, quantidade, tipo, galpao, cor 
-                    FROM producao 
-                    WHERE username = :username 
+                    SELECT data, quantidade, tipo, galpao, cor
+                    FROM producao
+                    WHERE username = :username
                     ORDER BY data DESC
                 """), engine, params={"username": st.session_state.username})
 
@@ -569,11 +569,11 @@ else:
                 try:
                     with engine.connect() as conn:
                         total_reg = conn.execute(text("""
-                            SELECT COALESCE(SUM(quantidade_total), 0) FROM aves 
+                            SELECT COALESCE(SUM(quantidade_total), 0) FROM aves
                             WHERE username = :u AND galpao = :g
                         """), {"u": st.session_state.username, "g": galpao}).scalar()
                         total_morto = conn.execute(text("""
-                            SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas 
+                            SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas
                             WHERE username = :u AND galpao = :g
                         """), {"u": st.session_state.username, "g": galpao}).scalar()
                     total_vivo = max(0, total_reg - total_morto)
@@ -599,23 +599,23 @@ else:
 
             try:
                 df_producao = pd.read_sql(text("""
-                    SELECT data, quantidade, tipo, galpao, cor 
-                    FROM producao 
-                    WHERE username = :username 
+                    SELECT data, quantidade, tipo, galpao, cor
+                    FROM producao
+                    WHERE username = :username
                     ORDER BY data
                 """), engine, params={"username": st.session_state.username})
 
                 df_quebrados = pd.read_sql(text("""
-                    SELECT data, quantidade, galpao 
-                    FROM ovos_quebrados 
-                    WHERE username = :username 
+                    SELECT data, quantidade, galpao
+                    FROM ovos_quebrados
+                    WHERE username = :username
                     ORDER BY data
                 """), engine, params={"username": st.session_state.username})
 
                 df_mortas = pd.read_sql(text("""
-                    SELECT data, quantidade, galpao 
-                    FROM aves_mortas 
-                    WHERE username = :username 
+                    SELECT data, quantidade, galpao
+                    FROM aves_mortas
+                    WHERE username = :username
                     ORDER BY data
                 """), engine, params={"username": st.session_state.username})
 
@@ -725,14 +725,14 @@ else:
                         try:
                             with engine.connect() as conn:
                                 result = conn.execute(text("""
-                                    SELECT password FROM usuarios 
+                                    SELECT password FROM usuarios
                                     WHERE username = :u
                                 """), {"u": st.session_state.username}).fetchone()
 
                                 if result and result[0] == current_pw:
                                     conn.execute(text("""
-                                        UPDATE usuarios 
-                                        SET password = :new_pw 
+                                        UPDATE usuarios
+                                        SET password = :new_pw
                                         WHERE username = :u
                                     """), {"new_pw": new_pw, "u": st.session_state.username})
                                     conn.commit()
@@ -817,9 +817,9 @@ else:
 
                 try:
                     df_clientes = pd.read_sql(text("""
-                        SELECT id, nome, cpf_cnpj, telefone, email, endereco 
-                        FROM clientes 
-                        WHERE username = :u 
+                        SELECT id, nome, cpf_cnpj, telefone, email, endereco
+                        FROM clientes
+                        WHERE username = :u
                         ORDER BY data_cadastro DESC
                     """), engine, params={"u": st.session_state.username})
 
@@ -890,7 +890,7 @@ else:
                                     if st.form_submit_button("Salvar Alterações"):
                                         with engine.connect() as conn:
                                             conn.execute(text("""
-                                                UPDATE clientes 
+                                                UPDATE clientes
                                                 SET nome = :nome, cpf_cnpj = :cpf, telefone = :tel,
                                                     email = :email, endereco = :end
                                                 WHERE id = :id
@@ -968,9 +968,9 @@ else:
 
                 try:
                     df_produtos = pd.read_sql(text("""
-                        SELECT id, nome, descricao, unidade, preco_atual 
-                        FROM produtos 
-                        WHERE username = :u 
+                        SELECT id, nome, descricao, unidade, preco_atual
+                        FROM produtos
+                        WHERE username = :u
                         ORDER BY data_cadastro DESC
                     """), engine, params={"u": st.session_state.username})
 
@@ -1027,8 +1027,8 @@ else:
                                 try:
                                     with engine.connect() as conn:
                                         conn.execute(text("""
-                                            UPDATE produtos 
-                                            SET preco_atual = :preco 
+                                            UPDATE produtos
+                                            SET preco_atual = :preco
                                             WHERE id = :id
                                         """), {
                                             "preco": novo_preco,
@@ -1082,10 +1082,10 @@ else:
 
                 try:
                     df_formas = pd.read_sql(text("""
-                        SELECT id, nome, ativo, username 
-                        FROM formas_pagamento 
+                        SELECT id, nome, ativo, username
+                        FROM formas_pagamento
                         WHERE username = :u OR username IS NULL
-                        ORDER BY 
+                        ORDER BY
                             CASE WHEN username IS NULL THEN 0 ELSE 1 END,
                             nome
                     """), engine, params={"u": st.session_state.username})
@@ -1120,8 +1120,8 @@ else:
                                     if st.button("Salvar", key=f"btn_salvar_forma_{row['id']}"):
                                         with engine.connect() as conn:
                                             conn.execute(text("""
-                                                UPDATE formas_pagamento 
-                                                SET ativo = :ativo 
+                                                UPDATE formas_pagamento
+                                                SET ativo = :ativo
                                                 WHERE id = :id
                                             """), {
                                                 "ativo": ativo,
@@ -1154,7 +1154,7 @@ else:
                     """), engine, params={"u": st.session_state.username})
 
                     df_formas = pd.read_sql(text("""
-                        SELECT id, nome FROM formas_pagamento 
+                        SELECT id, nome FROM formas_pagamento
                         WHERE (username = :u OR username IS NULL) AND ativo = TRUE
                         ORDER BY nome
                     """), engine, params={"u": st.session_state.username})
@@ -1213,9 +1213,9 @@ else:
                                     try:
                                         with engine.connect() as conn:
                                             conn.execute(text("""
-                                                INSERT INTO vendas 
-                                                (username, cliente_id, data_venda, produto_id, quantidade, 
-                                                 preco_unitario, forma_pagamento_id, desconto, valor_total, 
+                                                INSERT INTO vendas
+                                                (username, cliente_id, data_venda, produto_id, quantidade,
+                                                 preco_unitario, forma_pagamento_id, desconto, valor_total,
                                                  valor_pago, observacoes)
                                                 VALUES (:u, :cliente_id, CURRENT_DATE, :produto_id, :qtd,
                                                         :preco, :forma_id, :desconto, :total, :valor_pago, :obs)
@@ -1359,7 +1359,7 @@ else:
             with col_f3:
                 try:
                     df_clientes_filtro = pd.read_sql(text("""
-                        SELECT DISTINCT c.nome 
+                        SELECT DISTINCT c.nome
                         FROM vendas v
                         JOIN clientes c ON v.cliente_id = c.id
                         WHERE v.username = :u
@@ -1378,13 +1378,13 @@ else:
             try:
                 with engine.connect() as conn:
                     resumo = conn.execute(text("""
-                        SELECT 
+                        SELECT
                             COUNT(*) as qtd_pendente,
                             COALESCE(SUM(valor_total), 0) as total_geral,
                             COALESCE(SUM(valor_pago), 0) as total_recebido,
                             COALESCE(SUM(valor_total - valor_pago), 0) as total_em_aberto
-                        FROM vendas 
-                        WHERE username = :u 
+                        FROM vendas
+                        WHERE username = :u
                         AND (valor_total - valor_pago) > 0
                         AND data_venda BETWEEN :inicio AND :fim
                     """), {
@@ -1414,7 +1414,7 @@ else:
 
             try:
                 query = """
-                    SELECT 
+                    SELECT
                         v.id,
                         v.data_venda,
                         c.nome as cliente,
@@ -1446,20 +1446,30 @@ else:
                     st.info(
                         "Nenhuma venda pendente encontrada no período selecionado.")
                 else:
-                    # Formatação para exibição
+                    # === MELHORIA NA TABELA ===
                     df_display = df_aberto.copy()
-                    df_display['data_venda'] = pd.to_datetime(
-                        df_display['data_venda']).dt.strftime('%d/%m/%Y')
-                    df_display['valor_total'] = df_display['valor_total'].apply(
+
+                    # Renomear colunas para ficar mais bonito
+                    df_display = df_display.rename(columns={
+                        "data_venda": "Data",
+                        "cliente": "Cliente",
+                        "produto": "Produto",
+                        "valor_total": "Valor Total",
+                        "valor_pago": "Valor Pago",
+                        "valor_devendo": "Valor Devendo"
+                    })
+
+                    # Formatação de valores
+                    df_display["Valor Total"] = df_display["Valor Total"].apply(
                         lambda x: f"R$ {x:,.2f}")
-                    df_display['valor_pago'] = df_display['valor_pago'].apply(
+                    df_display["Valor Pago"] = df_display["Valor Pago"].apply(
                         lambda x: f"R$ {x:,.2f}")
-                    df_display['valor_devendo'] = df_display['valor_devendo'].apply(
+                    df_display["Valor Devendo"] = df_display["Valor Devendo"].apply(
                         lambda x: f"R$ {x:,.2f}")
 
                     st.dataframe(
-                        df_display[["data_venda", "cliente", "produto",
-                                    "valor_total", "valor_pago", "valor_devendo"]],
+                        df_display[["Data", "Cliente", "Produto",
+                                    "Valor Total", "Valor Pago", "Valor Devendo"]],
                         use_container_width=True,
                         hide_index=True
                     )
@@ -1468,10 +1478,15 @@ else:
                     st.markdown(
                         "**Selecionar Venda para Registrar Pagamento**")
 
+                    # === SELECTBOX MELHORADO ===
+                    def format_venda(x):
+                        row = df_aberto[df_aberto['id'] == x].iloc[0]
+                        return f"Venda #{x}  •  {row['cliente']}  •  Devendo: R$ {row['valor_devendo']:,.2f}"
+
                     venda_id = st.selectbox(
                         "Escolha uma venda:",
                         options=df_aberto['id'].tolist(),
-                        format_func=lambda x: f"Venda #{x} | {df_aberto[df_aberto['id']==x]['cliente'].values[0]} | Devendo: R$ {df_aberto[df_aberto['id']==x]['valor_devendo'].values[0]:.2f}",
+                        format_func=format_venda,
                         key="fin_select_venda"
                     )
 
@@ -1499,10 +1514,10 @@ else:
                                 try:
                                     with engine.connect() as conn:
                                         conn.execute(text("""
-                                            UPDATE vendas 
-                                            SET valor_pago = :novo_pago 
-                                            WHERE id = :id
-                                        """), {
+                                                UPDATE vendas 
+                                                SET valor_pago = :novo_pago 
+                                                WHERE id = :id
+                                            """), {
                                             "novo_pago": novo_valor_pago,
                                             "id": venda_id
                                         })
