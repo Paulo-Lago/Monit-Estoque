@@ -812,7 +812,7 @@ else:
                             else:
                                 st.error("O nome é obrigatório.")
 
-                st.divider()
+                                st.divider()
                 st.markdown("**Clientes Cadastrados**")
 
                 try:
@@ -826,6 +826,40 @@ else:
                     if df_clientes.empty:
                         st.info("Nenhum cliente cadastrado ainda.")
                     else:
+                        # === MELHORIA NA VISUALIZAÇÃO DA TABELA ===
+                        df_display = df_clientes.copy()
+
+                        # Renomear colunas para ficar mais bonito
+                        df_display = df_display.rename(columns={
+                            "nome": "Nome / Razão Social",
+                            "cpf_cnpj": "CPF / CNPJ",
+                            "telefone": "Telefone",
+                            "email": "E-mail",
+                            "endereco": "Endereço"
+                        })
+
+                        # Mostrar tabela mais limpa (sem o ID)
+                        st.dataframe(
+                            df_display[[
+                                "Nome / Razão Social",
+                                "CPF / CNPJ",
+                                "Telefone",
+                                "E-mail",
+                                "Endereço"
+                            ]],
+                            use_container_width=True,
+                            hide_index=True,
+                            column_config={
+                                "Nome / Razão Social": st.column_config.TextColumn(
+                                    help="Nome completo ou razão social do cliente"
+                                ),
+                                "Endereço": st.column_config.TextColumn(
+                                    width="large"
+                                )
+                            }
+                        )
+
+                        # Selectbox para editar/excluir continua igual
                         cliente_nome = st.selectbox(
                             "Selecione um cliente para editar ou excluir:",
                             df_clientes['nome'].tolist(),
@@ -879,9 +913,6 @@ else:
                                         conn.commit()
                                     st.success("Cliente excluído com sucesso!")
                                     st.rerun()
-
-                        st.dataframe(
-                            df_clientes, use_container_width=True, hide_index=True)
 
                 except Exception as e:
                     st.error(f"Erro ao carregar clientes: {e}")
