@@ -886,6 +886,117 @@ else:
                 except Exception as e:
                     st.error(f"Erro ao carregar clientes: {e}")
 
+            # ==================== 2. PRODUTOS & PREÇOS ====================
+            with inner_tabs[1]:
+                st.markdown("#### 📦 Produtos & Preços")
+
+                # --- Cadastrar Novo Produto ---
+                with st.expander("➕ Cadastrar Novo Produto", expanded=False):
+                    with st.form("form_novo_produto", clear_on_submit=True):
+                        col1, col2 = st.columns([2, 1])
+
+                        with col1:
+                            nome_prod = st.text_input(
+                                "Nome do Produto *", key="prod_nome_novo")
+                            descricao = st.text_area(
+                                "Descrição", key="prod_desc_novo")
+
+                        with col2:
+                            unidade = st.text_input(
+                                "Unidade de Medida", value="unidade", key="prod_un_novo")
+                            preco = st.number_input(
+                                "Preço Atual (R$)", min_value=0.0, step=0.01, format="%.2f", key="prod_preco_novo")
+
+                        if st.form_submit_button("Cadastrar Produto"):
+                            if nome_prod:
+                                try:
+                                    with engine.connect() as conn:
+                                        conn.execute(text("""
+                                            INSERT INTO produtos (username, nome, descricao, unidade, preco_atual)
+                                            VALUES (:u, :nome, :desc, :un, :preco)
+                                        """), {
+                                            "u": st.session_state.username,
+                                            "nome": nome_prod,
+                                            "desc": descricao or None,
+                                            "un": unidade,
+                                            "preco": preco
+                                        })
+                                        conn.commit()
+                                    st.success(
+                                        "✅ Produto cadastrado com sucesso!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao cadastrar produto: {e}")
+                            else:
+                                st.error("Nome do produto é obrigatório.")
+
+                st.divider()
+                st.markdown("**Produtos Cadastrados**")
+
+                try:
+                    df_produtos = pd.read_sql(text("""
+                        SELECT id, nome, descricao, unidade, preco_atual 
+                        FROM produtos 
+                        WHERE username = :u 
+                        ORDER BY data_cadastro DESC
+                    """), engine, params={"u": st.session_state.username})
+
+                    if df_produtos.empty:
+                        st.info("Nenhum produto cadastrado ainda.")
+                    else:
+                        # Mostrar tabela
+                        st.dataframe(
+                            df_produtos[["nome", "unidade", "preco_atual"]],
+                            use_container_width=True,
+                            hide_index=True
+                        )
+
+                        st.markdown("---")
+                        st.markdown("**Atualizar Preço de um Produto**")
+
+                        col_sel, col_preco, col_btn = st.columns([2, 1.2, 1])
+
+                        with col_sel:
+                            prod_nome = st.selectbox(
+                                "Selecione o produto",
+                                df_produtos['nome'].tolist(),
+                                key="faturamento_select_produto"
+                            )
+                            produto_selecionado = df_produtos[df_produtos['nome']
+                                                              == prod_nome].iloc[0]
+
+                        with col_preco:
+                            novo_preco = st.number_input(
+                                "Novo Preço (R$)",
+                                value=float(
+                                    produto_selecionado['preco_atual']),
+                                step=0.01,
+                                format="%.2f",
+                                key="faturamento_novo_preco"
+                            )
+
+                        with col_btn:
+                            if st.button("Atualizar Preço", width='stretch', key="btn_atualizar_preco"):
+                                try:
+                                    with engine.connect() as conn:
+                                        conn.execute(text("""
+                                            UPDATE produtos 
+                                            SET preco_atual = :preco 
+                                            WHERE id = :id
+                                        """), {
+                                            "preco": novo_preco,
+                                            "id": produto_selecionado['id']
+                                        })
+                                        conn.commit()
+                                    st.success(
+                                        f"Preço de '{prod_nome}' atualizado para R$ {novo_preco:.2f}!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao atualizar preço: {e}")
+
+                except Exception as e:
+                    st.error(f"Erro ao carregar produtos: {e}")
+
         # ============================================
         # ABA 1 → ESTOQUE
         # ============================================
