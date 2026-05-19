@@ -1475,10 +1475,8 @@ else:
                     )
 
                     st.markdown("---")
-                    st.markdown(
-                        "**Selecionar Venda para Registrar Pagamento**")
+                    st.markdown("**Selecionar Venda para Gerenciar**")
 
-                    # === SELECTBOX MELHORADO ===
                     def format_venda(x):
                         row = df_aberto[df_aberto['id'] == x].iloc[0]
                         return f"Venda #{x}  •  {row['cliente']}  •  Devendo: R$ {row['valor_devendo']:,.2f}"
@@ -1490,13 +1488,20 @@ else:
                         key="fin_select_venda"
                     )
 
-                    # Pega os dados da venda selecionada
                     venda_selecionada = df_aberto[df_aberto['id']
                                                   == venda_id].iloc[0]
                     valor_devendo_atual = float(
                         venda_selecionada['valor_devendo'])
+                    valor_pago_atual = float(venda_selecionada['valor_pago'])
+             # ==================== ABA DE AÇÕES ====================
+                    tab_pagamento, tab_editar, tab_excluir = st.tabs([
+                        "💰 Registrar Pagamento",
+                        "✏️ Editar Venda",
+                        "🗑️ Excluir Venda"
+                    ])
 
-                    with st.expander("💰 Registrar Pagamento", expanded=True):
+                    # --- 1. REGISTRAR PAGAMENTO ---
+                    with tab_pagamento:
                         with st.form("form_receber_pagamento"):
                             valor_recebido = st.number_input(
                                 "Valor Recebido agora (R$)",
@@ -1508,30 +1513,90 @@ else:
                             )
 
                             if st.form_submit_button("Confirmar Recebimento"):
-                                novo_valor_pago = float(
-                                    venda_selecionada['valor_pago']) + valor_recebido
-
+                                novo_valor_pago = valor_pago_atual + valor_recebido
                                 try:
                                     with engine.connect() as conn:
                                         conn.execute(text("""
-                                                UPDATE vendas 
-                                                SET valor_pago = :novo_pago 
-                                                WHERE id = :id
-                                            """), {
-                                            "novo_pago": novo_valor_pago,
+                                            UPDATE vendas 
+                                            SET valor_pago = :novo_pago 
+                                            WHERE id = :id
+                                        """), {"novo_pago": novo_valor_pago, "id": venda_id})
+                                        conn.commit()
+                                    st.success(
+                                        f"Pagamento de R$ {valor_recebido:.2f} registrado!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro: {e}")
+
+                    # --- 2. EDITAR VENDA ---
+                    with tab_editar:
+                        st.warning(
+                            "Atenção: Editar uma venda pode afetar o controle financeiro.")
+
+                        with st.form("form_editar_venda"):
+                            nova_qtd = st.number_input(
+                                "Quantidade", min_value=1, value=int(venda_selecionada['quantidade']))
+                            novo_desconto = st.number_input("Desconto (R$)", min_value=0.0, value=float(
+                                venda_selecionada.get('desconto', 0)), step=0.01, format="%.2f")
+                            novas_obs = st.text_area(
+                                "Observações", value=venda_selecionada.get('observacoes', '') or "")
+
+                            if st.form_submit_button("Salvar Alterações"):
+                                novo_valor_total = (
+                                    nova_qtd * float(venda_selecionada['preco_unitario'])) - novo_desconto
+                                try:
+                                    with engine.connect() as conn:
+                                        conn.execute(text("""
+                                            UPDATE vendas 
+                                            SET quantidade = :qtd, 
+                                                desconto = :desconto, 
+                                                valor_total = :total,
+                                                observacoes = :obs
+                                            WHERE id = :id
+                                        """), {
+                                            "qtd": nova_qtd,
+                                            "desconto": novo_desconto,
+                                            "total": novo_valor_total,
+                                            "obs": novas_obs,
                                             "id": venda_id
                                         })
                                         conn.commit()
-
-                                    st.success(
-                                        f"Pagamento de R$ {valor_recebido:.2f} registrado com sucesso!")
+                                    st.success("Venda atualizada com sucesso!")
                                     st.rerun()
                                 except Exception as e:
-                                    st.error(
-                                        f"Erro ao registrar pagamento: {e}")
+                                    st.error(f"Erro ao editar venda: {e}")
 
+                    # --- 3. EXCLUIR VENDA ---
+                    with tab_excluir:
+                        if valor_pago_atual > 0:
+                            st.warning(
+                                f"⚠️ Esta venda já possui R$ {valor_pago_atual:,.2f} em pagamentos registrados. "
+                                "Ao excluir, esses pagamentos também serão removidos."
+                            )
+                        else:
+                            st.info(
+                                "Esta venda ainda não possui pagamentos registrados.")
+
+                        st.markdown(
+                            "**Tem certeza que deseja excluir esta venda?**")
+                        st.error("Esta ação não pode ser desfeita.")
+
+                        confirmacao = st.checkbox(
+                            "Entendo que esta ação é irreversível", key=f"confirm_delete_{venda_id}")
+
+                        if st.button("🗑️ Excluir Venda Permanentemente", type="primary", disabled=not confirmacao):
+                            try:
+                                with engine.connect() as conn:
+                                    conn.execute(text("DELETE FROM vendas WHERE id = :id"), {
+                                                 "id": venda_id})
+                                    conn.commit()
+                                st.success("Venda excluída com sucesso!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao excluir venda: {e}")
             except Exception as e:
-                st.error(f"Erro ao carregar vendas pendentes: {e}")
+                st.error("Ocorreu um erro inesperado.")
+                print(e)  # log no terminal
 
         # ============================================
         # ABA 3 → REGISTROS DE VENDAS
