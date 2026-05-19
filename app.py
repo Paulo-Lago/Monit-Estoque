@@ -887,6 +887,7 @@ else:
                     st.error(f"Erro ao carregar clientes: {e}")
 
             # ==================== 2. PRODUTOS & PREÇOS ====================
+                    # ==================== 2. PRODUTOS & PREÇOS ====================
             with inner_tabs[1]:
                 st.markdown("#### 📦 Produtos & Preços")
 
@@ -944,11 +945,25 @@ else:
                     if df_produtos.empty:
                         st.info("Nenhum produto cadastrado ainda.")
                     else:
-                        # Mostrar tabela
+                        # === MELHORIA NA TABELA ===
+                        df_display = df_produtos.copy()
+                        df_display = df_display.rename(columns={
+                            "nome": "Produto",
+                            "unidade": "Unidade",
+                            "preco_atual": "Preço Atual (R$)"
+                        })
+
                         st.dataframe(
-                            df_produtos[["nome", "unidade", "preco_atual"]],
+                            df_display[["Produto", "Unidade",
+                                        "Preço Atual (R$)"]],
                             use_container_width=True,
-                            hide_index=True
+                            hide_index=True,
+                            column_config={
+                                "Preço Atual (R$)": st.column_config.NumberColumn(
+                                    format="R$ %.2f",
+                                    help="Preço atual do produto"
+                                )
+                            }
                         )
 
                         st.markdown("---")
