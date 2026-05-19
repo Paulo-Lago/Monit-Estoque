@@ -1134,7 +1134,7 @@ else:
                 except Exception as e:
                     st.error(f"Erro ao carregar formas de pagamento: {e}")
 
-             # ==================== 4. NOVA VENDA ====================
+            # ==================== 4. NOVA VENDA ====================
             with inner_tabs[3]:
                 st.markdown("#### 🛒 Registrar Nova Venda")
 
@@ -1198,12 +1198,11 @@ else:
                                     key="venda_desconto"
                                 )
 
-                            # Cálculo (só para o usuário ver enquanto preenche)
+                            # Resumo enquanto preenche
                             valor_bruto = quantidade * preco_unit
                             valor_total = max(0, valor_bruto - desconto)
                             valor_devendo = max(0, valor_total - valor_pago)
 
-                            # Resumo enquanto preenche
                             st.markdown("---")
                             st.caption(
                                 "Resumo da venda (atualiza enquanto você preenche)")
@@ -1220,11 +1219,10 @@ else:
                             observacoes = st.text_area(
                                 "Observações (opcional)", key="venda_obs")
 
-                            # Botão de registrar
                             submitted = st.form_submit_button(
                                 "✅ Registrar Venda", type="primary")
 
-                        # Depois de registrar (fora do form para limpar melhor)
+                        # Depois do submit (fora do form)
                         if submitted:
                             try:
                                 with engine.connect() as conn:
@@ -1250,8 +1248,11 @@ else:
                                     conn.commit()
 
                                 st.balloons()
-                                st.success(f"✅ Venda registrada com sucesso!")
-                                # Não mostramos mais o resumo depois de registrar
+                                st.success("✅ Venda registrada com sucesso!")
+
+                                # Força recarregar a página para limpar tudo
+                                st.rerun()
+
                             except Exception as e:
                                 st.error(f"Erro ao registrar venda: {e}")
 
