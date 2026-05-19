@@ -867,7 +867,9 @@ else:
                         )
 
                         cliente = df_clientes[df_clientes['nome']
-                                              == cliente_nome].iloc[0]
+                                              == cliente_nome].iloc[0].to_dict()
+                        # Converte numpy.int64 para int normal
+                        cliente['id'] = int(cliente['id'])
 
                         col1, col2 = st.columns(2)
 
