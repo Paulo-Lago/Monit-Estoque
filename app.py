@@ -768,7 +768,7 @@ else:
                 "🛒 Nova Venda"
             ])
 
-            # ==================== 1. CLIENTES ====================
+            # ==================== 0. CLIENTES ====================
             with inner_tabs[0]:
                 st.markdown("#### 👥 Gestão de Clientes")
 
@@ -919,96 +919,7 @@ else:
                 except Exception as e:
                     st.error(f"Erro ao carregar clientes: {e}")
 
-             # ==================== 3. FORMAS DE PAGAMENTO ====================
-            with inner_tabs[2]:
-                st.markdown("#### 💳 Formas de Pagamento Aceitas")
-
-                # --- Adicionar Nova Forma de Pagamento ---
-                with st.expander("➕ Adicionar Nova Forma de Pagamento", expanded=False):
-                    with st.form("form_nova_forma", clear_on_submit=True):
-                        nome_forma = st.text_input(
-                            "Nome da Forma de Pagamento *", key="forma_nome_novo")
-
-                        if st.form_submit_button("Adicionar Forma de Pagamento"):
-                            if nome_forma:
-                                try:
-                                    with engine.connect() as conn:
-                                        conn.execute(text("""
-                                            INSERT INTO formas_pagamento (username, nome, ativo)
-                                            VALUES (:u, :nome, TRUE)
-                                        """), {
-                                            "u": st.session_state.username,
-                                            "nome": nome_forma
-                                        })
-                                        conn.commit()
-                                    st.success(
-                                        "Forma de pagamento adicionada com sucesso!")
-                                    st.rerun()
-                                except Exception:
-                                    st.warning(
-                                        "Essa forma de pagamento já existe para você.")
-                            else:
-                                st.error(
-                                    "O nome da forma de pagamento é obrigatório.")
-
-                st.divider()
-                st.markdown("**Formas de Pagamento Cadastradas**")
-
-                try:
-                    df_formas = pd.read_sql(text("""
-                        SELECT id, nome, ativo, username 
-                        FROM formas_pagamento 
-                        WHERE username = :u OR username IS NULL
-                        ORDER BY 
-                            CASE WHEN username IS NULL THEN 0 ELSE 1 END,
-                            nome
-                    """), engine, params={"u": st.session_state.username})
-
-                    if df_formas.empty:
-                        st.info("Nenhuma forma de pagamento cadastrada.")
-                    else:
-                        for _, row in df_formas.iterrows():
-                            col1, col2, col3 = st.columns([3, 1.5, 1])
-
-                            with col1:
-                                # Destaca formas globais
-                                if row['username'] is None:
-                                    st.markdown(
-                                        f"**{row['nome']}** <small>(Padrão)</small>", unsafe_allow_html=True)
-                                else:
-                                    st.write(f"**{row['nome']}**")
-
-                            with col2:
-                                # Checkbox para ativar/desativar (só permite nas do usuário)
-                                if row['username'] is not None:
-                                    ativo = st.checkbox(
-                                        "Ativa",
-                                        value=bool(row['ativo']),
-                                        key=f"forma_ativa_{row['id']}"
-                                    )
-                                else:
-                                    st.write("✅ Ativa (Padrão)")
-
-                            with col3:
-                                if row['username'] is not None:
-                                    if st.button("Salvar", key=f"btn_salvar_forma_{row['id']}"):
-                                        with engine.connect() as conn:
-                                            conn.execute(text("""
-                                                UPDATE formas_pagamento 
-                                                SET ativo = :ativo 
-                                                WHERE id = :id
-                                            """), {
-                                                "ativo": ativo,
-                                                "id": row['id']
-                                            })
-                                            conn.commit()
-                                        st.success("Atualizado!")
-                                        st.rerun()
-
-                except Exception as e:
-                    st.error(f"Erro ao carregar formas de pagamento: {e}")
-
-     # ==================== 2. PRODUTOS & PREÇOS ====================
+     # ==================== 1. PRODUTOS & PREÇOS ====================
             with inner_tabs[1]:
                 st.markdown("#### 📦 Produtos & Preços")
 
@@ -1133,6 +1044,227 @@ else:
 
                 except Exception as e:
                     st.error(f"Erro ao carregar produtos: {e}")
+
+        # ==================== 2. FORMAS DE PAGAMENTO ====================
+            with inner_tabs[2]:
+                st.markdown("#### 💳 Formas de Pagamento Aceitas")
+
+                # --- Adicionar Nova Forma de Pagamento ---
+                with st.expander("➕ Adicionar Nova Forma de Pagamento", expanded=False):
+                    with st.form("form_nova_forma", clear_on_submit=True):
+                        nome_forma = st.text_input(
+                            "Nome da Forma de Pagamento *", key="forma_nome_novo")
+
+                        if st.form_submit_button("Adicionar Forma de Pagamento"):
+                            if nome_forma:
+                                try:
+                                    with engine.connect() as conn:
+                                        conn.execute(text("""
+                                            INSERT INTO formas_pagamento (username, nome, ativo)
+                                            VALUES (:u, :nome, TRUE)
+                                        """), {
+                                            "u": st.session_state.username,
+                                            "nome": nome_forma
+                                        })
+                                        conn.commit()
+                                    st.success(
+                                        "Forma de pagamento adicionada com sucesso!")
+                                    st.rerun()
+                                except Exception:
+                                    st.warning(
+                                        "Essa forma de pagamento já existe para você.")
+                            else:
+                                st.error(
+                                    "O nome da forma de pagamento é obrigatório.")
+
+                st.divider()
+                st.markdown("**Formas de Pagamento Cadastradas**")
+
+                try:
+                    df_formas = pd.read_sql(text("""
+                        SELECT id, nome, ativo, username 
+                        FROM formas_pagamento 
+                        WHERE username = :u OR username IS NULL
+                        ORDER BY 
+                            CASE WHEN username IS NULL THEN 0 ELSE 1 END,
+                            nome
+                    """), engine, params={"u": st.session_state.username})
+
+                    if df_formas.empty:
+                        st.info("Nenhuma forma de pagamento cadastrada.")
+                    else:
+                        for _, row in df_formas.iterrows():
+                            col1, col2, col3 = st.columns([3, 1.5, 1])
+
+                            with col1:
+                                # Destaca formas globais
+                                if row['username'] is None:
+                                    st.markdown(
+                                        f"**{row['nome']}** <small>(Padrão)</small>", unsafe_allow_html=True)
+                                else:
+                                    st.write(f"**{row['nome']}**")
+
+                            with col2:
+                                # Checkbox para ativar/desativar (só permite nas do usuário)
+                                if row['username'] is not None:
+                                    ativo = st.checkbox(
+                                        "Ativa",
+                                        value=bool(row['ativo']),
+                                        key=f"forma_ativa_{row['id']}"
+                                    )
+                                else:
+                                    st.write("✅ Ativa (Padrão)")
+
+                            with col3:
+                                if row['username'] is not None:
+                                    if st.button("Salvar", key=f"btn_salvar_forma_{row['id']}"):
+                                        with engine.connect() as conn:
+                                            conn.execute(text("""
+                                                UPDATE formas_pagamento 
+                                                SET ativo = :ativo 
+                                                WHERE id = :id
+                                            """), {
+                                                "ativo": ativo,
+                                                "id": row['id']
+                                            })
+                                            conn.commit()
+                                        st.success("Atualizado!")
+                                        st.rerun()
+
+                except Exception as e:
+                    st.error(f"Erro ao carregar formas de pagamento: {e}")
+
+                    # ==================== 4. NOVA VENDA ====================
+            with inner_tabs[3]:
+                st.markdown("#### 🛒 Registrar Nova Venda")
+
+                try:
+                    # Carregar dados necessários
+                    df_clientes = pd.read_sql(text("""
+                        SELECT id, nome FROM clientes 
+                        WHERE username = :u 
+                        ORDER BY nome
+                    """), engine, params={"u": st.session_state.username})
+
+                    df_produtos = pd.read_sql(text("""
+                        SELECT id, nome, preco_atual FROM produtos 
+                        WHERE username = :u 
+                        ORDER BY nome
+                    """), engine, params={"u": st.session_state.username})
+
+                    df_formas = pd.read_sql(text("""
+                        SELECT id, nome FROM formas_pagamento 
+                        WHERE (username = :u OR username IS NULL) AND ativo = TRUE
+                        ORDER BY nome
+                    """), engine, params={"u": st.session_state.username})
+
+                    if df_clientes.empty or df_produtos.empty or df_formas.empty:
+                        st.warning(
+                            "Cadastre pelo menos 1 Cliente, 1 Produto e 1 Forma de Pagamento ativa antes de registrar vendas.")
+                    else:
+                        with st.form("form_nova_venda", clear_on_submit=True):
+                            col1, col2 = st.columns(2)
+
+                            with col1:
+                                cliente_nome = st.selectbox(
+                                    "Cliente *", df_clientes['nome'].tolist(), key="venda_cliente")
+                                cliente_id = int(
+                                    df_clientes[df_clientes['nome'] == cliente_nome].iloc[0]['id'])
+
+                                produto_nome = st.selectbox(
+                                    "Produto *", df_produtos['nome'].tolist(), key="venda_produto")
+                                produto_row = df_produtos[df_produtos['nome']
+                                                          == produto_nome].iloc[0]
+                                produto_id = int(produto_row['id'])
+                                preco_unit = float(produto_row['preco_atual'])
+
+                                st.info(
+                                    f"**Preço unitário atual:** R$ {preco_unit:.2f}")
+
+                            with col2:
+                                quantidade = st.number_input(
+                                    "Quantidade *", min_value=1, step=1, value=1, key="venda_qtd")
+                                forma_nome = st.selectbox(
+                                    "Forma de Pagamento *", df_formas['nome'].tolist(), key="venda_forma")
+                                forma_id = int(
+                                    df_formas[df_formas['nome'] == forma_nome].iloc[0]['id'])
+
+                                # Campo de pagamento parcial
+                                valor_pago = st.number_input(
+                                    "Valor Pago agora (R$)",
+                                    min_value=0.0,
+                                    step=0.01,
+                                    value=0.0,
+                                    format="%.2f",
+                                    key="venda_valor_pago"
+                                )
+
+                                desconto = st.number_input(
+                                    "Desconto (R$)",
+                                    min_value=0.0,
+                                    step=0.01,
+                                    value=0.0,
+                                    format="%.2f",
+                                    key="venda_desconto"
+                                )
+
+                            # Cálculos automáticos
+                            valor_bruto = quantidade * preco_unit
+                            valor_total = max(0, valor_bruto - desconto)
+                            valor_devendo = max(0, valor_total - valor_pago)
+
+                            # Resumo visual
+                            st.markdown("---")
+                            col_r1, col_r2, col_r3 = st.columns(3)
+
+                            with col_r1:
+                                st.metric("Valor Total",
+                                          f"R$ {valor_total:.2f}")
+                            with col_r2:
+                                st.metric("Valor Pago", f"R$ {valor_pago:.2f}")
+                            with col_r3:
+                                if valor_devendo > 0:
+                                    st.metric(
+                                        "Ainda Devendo", f"R$ {valor_devendo:.2f}", delta_color="inverse")
+                                else:
+                                    st.metric("Quitado", "R$ 0,00",
+                                              delta_color="normal")
+
+                            observacoes = st.text_area(
+                                "Observações (opcional)", key="venda_obs")
+
+                            if st.form_submit_button("✅ Registrar Venda", type="primary"):
+                                try:
+                                    with engine.connect() as conn:
+                                        conn.execute(text("""
+                                            INSERT INTO vendas 
+                                            (username, cliente_id, data_venda, produto_id, quantidade, 
+                                             preco_unitario, forma_pagamento_id, desconto, valor_total, 
+                                             valor_pago, observacoes)
+                                            VALUES (:u, :cliente_id, CURRENT_DATE, :produto_id, :qtd,
+                                                    :preco, :forma_id, :desconto, :total, :valor_pago, :obs)
+                                        """), {
+                                            "u": st.session_state.username,
+                                            "cliente_id": cliente_id,
+                                            "produto_id": produto_id,
+                                            "qtd": quantidade,
+                                            "preco": preco_unit,
+                                            "forma_id": forma_id,
+                                            "desconto": desconto,
+                                            "total": valor_total,
+                                            "valor_pago": valor_pago,
+                                            "obs": observacoes or None
+                                        })
+                                        conn.commit()
+                                    st.balloons()
+                                    st.success(
+                                        f"✅ Venda registrada com sucesso! Total: R$ {valor_total:.2f}")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao registrar venda: {e}")
+
+                except Exception as e:
+                    st.error(f"Erro ao carregar dados para venda: {e}")
 
         # ============================================
         # ABA 1 → ESTOQUE
