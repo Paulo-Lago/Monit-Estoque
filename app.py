@@ -1340,12 +1340,183 @@ else:
             st.subheader("Estoque")
             st.info("Em desenvolvimento...")
 
-        # ============================================
-        # ABA 2 → FINANCEIRO
-        # ============================================
+            # =====================================================
+        # ABA 2: FINANCEIRO (Vendas em Aberto + Recebimentos)
+        # =====================================================
         with fat_tabs[2]:
-            st.subheader("Financeiro - Vendas em Aberto")
-            st.info("Em desenvolvimento...")
+            st.subheader("💰 Financeiro - Vendas em Aberto")
+
+            # ==================== FILTROS ====================
+            st.markdown("#### Filtros")
+
+            col_f1, col_f2, col_f3 = st.columns([1.3, 1.3, 2])
+            with col_f1:
+                data_inicio = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=30),
+                                            format="DD/MM/YYYY", key="fin_data_inicio")
+            with col_f2:
+                data_fim = st.date_input("Data Final", value=datetime.now().date(),
+                                         format="DD/MM/YYYY", key="fin_data_fim")
+            with col_f3:
+                try:
+                    df_clientes_filtro = pd.read_sql(text("""
+                        SELECT DISTINCT c.nome 
+                        FROM vendas v
+                        JOIN clientes c ON v.cliente_id = c.id
+                        WHERE v.username = :u
+                    """), engine, params={"u": st.session_state.username})
+
+                    opcoes_clientes = ["Todos"] + \
+                        df_clientes_filtro['nome'].tolist()
+                    cliente_filtro = st.selectbox(
+                        "Cliente", opcoes_clientes, key="fin_cliente_filtro")
+                except:
+                    cliente_filtro = "Todos"
+
+            # ==================== RESUMO ====================
+            st.markdown("#### Resumo")
+
+            try:
+                with engine.connect() as conn:
+                    resumo = conn.execute(text("""
+                        SELECT 
+                            COUNT(*) as qtd_pendente,
+                            COALESCE(SUM(valor_total), 0) as total_geral,
+                            COALESCE(SUM(valor_pago), 0) as total_recebido,
+                            COALESCE(SUM(valor_total - valor_pago), 0) as total_em_aberto
+                        FROM vendas 
+                        WHERE username = :u 
+                        AND (valor_total - valor_pago) > 0
+                        AND data_venda BETWEEN :inicio AND :fim
+                    """), {
+                        "u": st.session_state.username,
+                        "inicio": data_inicio,
+                        "fim": data_fim
+                    }).fetchone()
+
+                col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+                with col_m1:
+                    st.metric("Vendas Pendentes", resumo[0])
+                with col_m2:
+                    st.metric("Valor Total", f"R$ {resumo[1]:,.2f}")
+                with col_m3:
+                    st.metric("Já Recebido", f"R$ {resumo[2]:,.2f}")
+                with col_m4:
+                    st.metric("Total em Aberto",
+                              f"R$ {resumo[3]:,.2f}", delta_color="inverse")
+
+            except Exception as e:
+                st.error(f"Erro ao carregar resumo: {e}")
+
+            st.divider()
+
+            # ==================== LISTA DE VENDAS PENDENTES ====================
+            st.markdown("#### Vendas com Saldo Pendente")
+
+            try:
+                query = """
+                    SELECT 
+                        v.id,
+                        v.data_venda,
+                        c.nome as cliente,
+                        p.nome as produto,
+                        v.quantidade,
+                        v.valor_total,
+                        v.valor_pago,
+                        (v.valor_total - v.valor_pago) as valor_devendo,
+                        v.observacoes
+                    FROM vendas v
+                    JOIN clientes c ON v.cliente_id = c.id
+                    JOIN produtos p ON v.produto_id = p.id
+                    WHERE v.username = :u
+                    AND (v.valor_total - v.valor_pago) > 0
+                    AND v.data_venda BETWEEN :inicio AND :fim
+                """
+                params = {"u": st.session_state.username,
+                          "inicio": data_inicio, "fim": data_fim}
+
+                if cliente_filtro != "Todos":
+                    query += " AND c.nome = :cliente"
+                    params["cliente"] = cliente_filtro
+
+                query += " ORDER BY v.data_venda DESC"
+
+                df_aberto = pd.read_sql(text(query), engine, params=params)
+
+                if df_aberto.empty:
+                    st.info(
+                        "Nenhuma venda pendente encontrada no período selecionado.")
+                else:
+                    # Formatação para exibição
+                    df_display = df_aberto.copy()
+                    df_display['data_venda'] = pd.to_datetime(
+                        df_display['data_venda']).dt.strftime('%d/%m/%Y')
+                    df_display['valor_total'] = df_display['valor_total'].apply(
+                        lambda x: f"R$ {x:,.2f}")
+                    df_display['valor_pago'] = df_display['valor_pago'].apply(
+                        lambda x: f"R$ {x:,.2f}")
+                    df_display['valor_devendo'] = df_display['valor_devendo'].apply(
+                        lambda x: f"R$ {x:,.2f}")
+
+                    st.dataframe(
+                        df_display[["data_venda", "cliente", "produto",
+                                    "valor_total", "valor_pago", "valor_devendo"]],
+                        use_container_width=True,
+                        hide_index=True
+                    )
+
+                    st.markdown("---")
+                    st.markdown(
+                        "**Selecionar Venda para Registrar Pagamento**")
+
+                    venda_id = st.selectbox(
+                        "Escolha uma venda:",
+                        options=df_aberto['id'].tolist(),
+                        format_func=lambda x: f"Venda #{x} | {df_aberto[df_aberto['id']==x]['cliente'].values[0]} | Devendo: R$ {df_aberto[df_aberto['id']==x]['valor_devendo'].values[0]:.2f}",
+                        key="fin_select_venda"
+                    )
+
+                    # Pega os dados da venda selecionada
+                    venda_selecionada = df_aberto[df_aberto['id']
+                                                  == venda_id].iloc[0]
+                    valor_devendo_atual = float(
+                        venda_selecionada['valor_devendo'])
+
+                    with st.expander("💰 Registrar Pagamento", expanded=True):
+                        with st.form("form_receber_pagamento"):
+                            valor_recebido = st.number_input(
+                                "Valor Recebido agora (R$)",
+                                min_value=0.01,
+                                max_value=valor_devendo_atual,
+                                step=0.01,
+                                format="%.2f",
+                                value=min(50.0, valor_devendo_atual)
+                            )
+
+                            if st.form_submit_button("Confirmar Recebimento"):
+                                novo_valor_pago = float(
+                                    venda_selecionada['valor_pago']) + valor_recebido
+
+                                try:
+                                    with engine.connect() as conn:
+                                        conn.execute(text("""
+                                            UPDATE vendas 
+                                            SET valor_pago = :novo_pago 
+                                            WHERE id = :id
+                                        """), {
+                                            "novo_pago": novo_valor_pago,
+                                            "id": venda_id
+                                        })
+                                        conn.commit()
+
+                                    st.success(
+                                        f"Pagamento de R$ {valor_recebido:.2f} registrado com sucesso!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(
+                                        f"Erro ao registrar pagamento: {e}")
+
+            except Exception as e:
+                st.error(f"Erro ao carregar vendas pendentes: {e}")
 
         # ============================================
         # ABA 3 → REGISTROS DE VENDAS
