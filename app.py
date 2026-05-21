@@ -912,7 +912,7 @@ else:
                     st.error(f"Erro ao calcular resumo: {e}")
 
         # ======================== ABA 7: CONFIGURAÇÕES ========================
-        with tabs[7]:
+        with tabs[6]:
             st.markdown("### ⚙️ Configurações da Conta")
             st.markdown(f"**Usuário atual:** `{st.session_state.username}`")
             st.divider()
