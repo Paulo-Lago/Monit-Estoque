@@ -981,7 +981,7 @@ else:
                 "💰 Financeiro"
             ])
 
-            # --- 1. NOVA VENDA (VERSÃO PROFISSIONAL COM VISUAL MODERNO) ---
+# --- 1. NOVA VENDA (VERSÃO PROFISSIONAL COM VISUAL MODERNO) ---
 with vendas_tabs[0]:
     # CSS customizado para cards e botões
     st.markdown("""
@@ -1217,7 +1217,7 @@ with vendas_tabs[0]:
 
         # --- 2. REGISTROS DE VENDAS ---
         with vendas_tabs[1]:
-            st.markdown("#### 📋 Histórico de Vendas")
+            st.markdown("#### 📋 Registros de Vendas")
 
             # ==================== FILTROS ====================
             st.markdown("#### Filtros")
