@@ -819,7 +819,7 @@ else:
                 st.error(f"Erro ao carregar gráficos: {e}")
 
         # ======================== ABA 6: OVOS QUEBRADOS ========================
-        with tabs[6]:
+        with tabs[5]:
             st.markdown("### 🔨 Gerenciamento de Ovos Quebrados")
 
             tab_registrar, tab_historico = st.tabs(
