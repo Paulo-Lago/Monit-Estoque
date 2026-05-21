@@ -1508,14 +1508,29 @@ else:
                                 step=0.01, format="%.2f",
                                 value=min(50.0, valor_devendo_atual)
                             )
+                            obs_pagamento = st.text_input(
+                                "Observação (opcional)", key="obs_pagamento")
+
                             if st.form_submit_button("Confirmar Recebimento"):
                                 novo_valor_pago = valor_pago_atual + valor_recebido
                                 try:
                                     with engine.connect() as conn:
+                                        # Atualiza o valor pago na venda
                                         conn.execute(text("""
                                             UPDATE vendas SET valor_pago = :novo_pago WHERE id = :id
                                         """), {"novo_pago": novo_valor_pago, "id": venda_id})
+
+                                        # Insere no histórico de pagamentos
+                                        conn.execute(text("""
+                                            INSERT INTO pagamentos (venda_id, valor, observacoes)
+                                            VALUES (:venda_id, :valor, :obs)
+                                        """), {
+                                            "venda_id": venda_id,
+                                            "valor": valor_recebido,
+                                            "obs": obs_pagamento or None
+                                        })
                                         conn.commit()
+
                                     st.success(
                                         f"Pagamento de R$ {valor_recebido:.2f} registrado!")
                                     st.rerun()
@@ -1583,8 +1598,32 @@ else:
                             except Exception as e:
                                 st.error(f"Erro ao excluir venda: {e}")
 
+                    # --- 4. HISTÓRICO DE PAGAMENTOS ---
+                    with st.expander("📜 Histórico de Pagamentos desta Venda", expanded=False):
+                        try:
+                            df_historico = pd.read_sql(text("""
+                                SELECT data_pagamento as Data, valor as Valor, observacoes as Observação
+                                FROM pagamentos 
+                                WHERE venda_id = :venda_id
+                                ORDER BY data_pagamento DESC
+                            """), engine, params={"venda_id": venda_id})
+
+                            if df_historico.empty:
+                                st.info(
+                                    "Nenhum pagamento registrado ainda para esta venda.")
+                            else:
+                                df_historico["Data"] = pd.to_datetime(
+                                    df_historico["Data"]).dt.strftime('%d/%m/%Y %H:%M')
+                                df_historico["Valor"] = df_historico["Valor"].apply(
+                                    lambda x: f"R$ {x:,.2f}")
+                                st.dataframe(
+                                    df_historico, width='stretch', hide_index=True)
+
+                        except Exception as e:
+                            st.error(f"Erro ao carregar histórico: {e}")
+
             except Exception as e:
-                st.error("Ocorreu um erro ao carregar as vendas pendentes.")
+                st.error(f"Erro ao carregar vendas: {e}")
                 print(e)  # Log no terminal para debug
 
         # ============================================
