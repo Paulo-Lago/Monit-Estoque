@@ -1522,7 +1522,11 @@ else:
                             "Atenção: Editar uma venda pode afetar o controle financeiro.")
                         with st.form("form_editar_venda"):
                             nova_qtd = st.number_input(
-                                "Quantidade", min_value=1, value=int(venda_selecionada['quantidade']))
+                                "Quantidade",
+                                min_value=1,
+                                value=int(venda_selecionada['quantidade']),
+                                step=1
+                            )
                             novo_desconto = st.number_input("Desconto (R$)", min_value=0.0,
                                                             value=float(
                                                                 venda_selecionada.get('desconto', 0)),
