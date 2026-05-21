@@ -1602,7 +1602,10 @@ else:
                     with st.expander("📜 Histórico de Pagamentos desta Venda", expanded=False):
                         try:
                             df_historico = pd.read_sql(text("""
-                                SELECT data_pagamento as Data, valor as Valor, observacoes as Observação
+                                SELECT 
+                                    data_pagamento, 
+                                    valor, 
+                                    observacoes
                                 FROM pagamentos 
                                 WHERE venda_id = :venda_id
                                 ORDER BY data_pagamento DESC
@@ -1612,10 +1615,19 @@ else:
                                 st.info(
                                     "Nenhum pagamento registrado ainda para esta venda.")
                             else:
+                                # Renomeia as colunas de forma segura
+                                df_historico = df_historico.rename(columns={
+                                    "data_pagamento": "Data",
+                                    "valor": "Valor",
+                                    "observacoes": "Observação"
+                                })
+
+                                # Formata a data e o valor
                                 df_historico["Data"] = pd.to_datetime(
                                     df_historico["Data"]).dt.strftime('%d/%m/%Y %H:%M')
                                 df_historico["Valor"] = df_historico["Valor"].apply(
                                     lambda x: f"R$ {x:,.2f}")
+
                                 st.dataframe(
                                     df_historico, width='stretch', hide_index=True)
 
