@@ -1642,5 +1642,142 @@ else:
         # ABA 3 → REGISTROS DE VENDAS
         # ============================================
         with fat_tabs[3]:
-            st.subheader("Registros de Vendas")
-            st.info("Em desenvolvimento...")
+            st.subheader("📋 Registros de Vendas")
+
+            # ==================== FILTROS ====================
+            st.markdown("#### Filtros")
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                data_inicio = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=30),
+                                            format="DD/MM/YYYY", key="reg_data_inicio")
+            with col2:
+                data_fim = st.date_input("Data Final", value=datetime.now().date(),
+                                         format="DD/MM/YYYY", key="reg_data_fim")
+            with col3:
+                try:
+                    df_clientes_reg = pd.read_sql(text("""
+                        SELECT DISTINCT c.nome FROM vendas v
+                        JOIN clientes c ON v.cliente_id = c.id
+                        WHERE v.username = :u
+                    """), engine, params={"u": st.session_state.username})
+                    clientes_lista = ["Todos"] + \
+                        df_clientes_reg['nome'].tolist()
+                except:
+                    clientes_lista = ["Todos"]
+
+                cliente_filtro = st.selectbox(
+                    "Cliente", clientes_lista, key="reg_cliente")
+
+            with col4:
+                status_filtro = st.selectbox(
+                    "Status", ["Todas", "Quitadas", "Com Pendência"], key="reg_status")
+
+            # Busca por texto
+            busca = st.text_input(
+                "Buscar por nome do cliente ou produto", key="reg_busca")
+
+            # ==================== RESUMO ====================
+            st.markdown("#### Resumo do Período")
+
+            try:
+                with engine.connect() as conn:
+                    resumo = conn.execute(text("""
+                        SELECT 
+                            COUNT(*) as total_vendas,
+                            COALESCE(SUM(valor_total), 0) as valor_total,
+                            COALESCE(SUM(valor_pago), 0) as valor_recebido,
+                            COALESCE(SUM(valor_total - valor_pago), 0) as valor_pendente
+                        FROM vendas 
+                        WHERE username = :u 
+                        AND data_venda BETWEEN :inicio AND :fim
+                    """), {
+                        "u": st.session_state.username,
+                        "inicio": data_inicio,
+                        "fim": data_fim
+                    }).fetchone()
+
+                col_r1, col_r2, col_r3, col_r4 = st.columns(4)
+                with col_r1:
+                    st.metric("Total de Vendas", resumo[0])
+                with col_r2:
+                    st.metric("Valor Total", f"R$ {resumo[1]:,.2f}")
+                with col_r3:
+                    st.metric("Valor Recebido", f"R$ {resumo[2]:,.2f}")
+                with col_r4:
+                    st.metric("Valor Pendente",
+                              f"R$ {resumo[3]:,.2f}", delta_color="inverse")
+
+            except Exception as e:
+                st.error(f"Erro ao carregar resumo: {e}")
+
+            st.divider()
+
+            # ==================== TABELA DE VENDAS ====================
+            st.markdown("#### Lista de Vendas")
+
+            try:
+                query = """
+                    SELECT 
+                        v.id,
+                        v.data_venda,
+                        c.nome as cliente,
+                        p.nome as produto,
+                        v.quantidade,
+                        v.valor_total,
+                        v.valor_pago,
+                        (v.valor_total - v.valor_pago) as valor_devendo,
+                        v.observacoes
+                    FROM vendas v
+                    JOIN clientes c ON v.cliente_id = c.id
+                    JOIN produtos p ON v.produto_id = p.id
+                    WHERE v.username = :u
+                    AND v.data_venda BETWEEN :inicio AND :fim
+                """
+                params = {"u": st.session_state.username,
+                          "inicio": data_inicio, "fim": data_fim}
+
+                if cliente_filtro != "Todos":
+                    query += " AND c.nome = :cliente"
+                    params["cliente"] = cliente_filtro
+
+                if status_filtro == "Quitadas":
+                    query += " AND (v.valor_total - v.valor_pago) <= 0"
+                elif status_filtro == "Com Pendência":
+                    query += " AND (v.valor_total - v.valor_pago) > 0"
+
+                if busca:
+                    query += " AND (c.nome ILIKE :busca OR p.nome ILIKE :busca)"
+                    params["busca"] = f"%{busca}%"
+
+                query += " ORDER BY v.data_venda DESC"
+
+                df_vendas = pd.read_sql(text(query), engine, params=params)
+
+                if df_vendas.empty:
+                    st.info("Nenhuma venda encontrada com os filtros selecionados.")
+                else:
+                    # Formatação
+                    df_display = df_vendas.copy()
+                    df_display['data_venda'] = pd.to_datetime(
+                        df_display['data_venda']).dt.strftime('%d/%m/%Y')
+                    df_display['valor_total'] = df_display['valor_total'].apply(
+                        lambda x: f"R$ {x:,.2f}")
+                    df_display['valor_pago'] = df_display['valor_pago'].apply(
+                        lambda x: f"R$ {x:,.2f}")
+                    df_display['valor_devendo'] = df_display['valor_devendo'].apply(
+                        lambda x: f"R$ {x:,.2f}")
+
+                    st.dataframe(
+                        df_display[["data_venda", "cliente", "produto", "quantidade",
+                                    "valor_total", "valor_pago", "valor_devendo"]],
+                        width='stretch',
+                        hide_index=True
+                    )
+
+                    # Total no final
+                    st.caption(f"Mostrando {len(df_vendas)} vendas")
+
+            except Exception as e:
+                st.error(f"Erro ao carregar vendas: {e}")
