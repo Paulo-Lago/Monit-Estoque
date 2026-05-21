@@ -806,7 +806,6 @@ else:
                                 )
                                 st.plotly_chart(fig, width='stretch')
                                 st.divider()
-
                 # ==================== AVES MORTAS ====================
                 with tab_mortas:
                     st.markdown("#### 🐔 Aves Mortas por Período")
