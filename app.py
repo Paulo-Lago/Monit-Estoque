@@ -1340,7 +1340,7 @@ else:
             st.subheader("Estoque")
             st.info("Em desenvolvimento...")
 
-            # =====================================================
+        # =====================================================
         # ABA 2: FINANCEIRO (Vendas em Aberto + Recebimentos)
         # =====================================================
         with fat_tabs[2]:
@@ -1359,8 +1359,7 @@ else:
             with col_f3:
                 try:
                     df_clientes_filtro = pd.read_sql(text("""
-                        SELECT DISTINCT c.nome
-                        FROM vendas v
+                        SELECT DISTINCT c.nome FROM vendas v
                         JOIN clientes c ON v.cliente_id = c.id
                         WHERE v.username = :u
                     """), engine, params={"u": st.session_state.username})
@@ -1372,19 +1371,17 @@ else:
                 except:
                     cliente_filtro = "Todos"
 
-            # ==================== RESUMO ====================
-            st.markdown("#### Resumo")
+            # ==================== RESUMO (focado em pendências) ====================
+            st.markdown("#### Resumo de Pendências")
 
             try:
                 with engine.connect() as conn:
                     resumo = conn.execute(text("""
-                        SELECT
+                        SELECT 
                             COUNT(*) as qtd_pendente,
-                            COALESCE(SUM(valor_total), 0) as total_geral,
-                            COALESCE(SUM(valor_pago), 0) as total_recebido,
                             COALESCE(SUM(valor_total - valor_pago), 0) as total_em_aberto
-                        FROM vendas
-                        WHERE username = :u
+                        FROM vendas 
+                        WHERE username = :u 
                         AND (valor_total - valor_pago) > 0
                         AND data_venda BETWEEN :inicio AND :fim
                     """), {
@@ -1393,24 +1390,20 @@ else:
                         "fim": data_fim
                     }).fetchone()
 
-                col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+                col_m1, col_m2 = st.columns(2)
                 with col_m1:
-                    st.metric("Vendas Pendentes", resumo[0])
+                    st.metric("Vendas com Pendência", resumo[0])
                 with col_m2:
-                    st.metric("Valor Total", f"R$ {resumo[1]:,.2f}")
-                with col_m3:
-                    st.metric("Já Recebido", f"R$ {resumo[2]:,.2f}")
-                with col_m4:
                     st.metric("Total em Aberto",
-                              f"R$ {resumo[3]:,.2f}", delta_color="inverse")
+                              f"R$ {resumo[1]:,.2f}", delta_color="inverse")
 
             except Exception as e:
                 st.error(f"Erro ao carregar resumo: {e}")
 
             st.divider()
 
-            # ==================== LISTA DE VENDAS PENDENTES ====================
-            st.markdown("#### Vendas com Saldo Pendente")
+            # ==================== LISTA DE TODAS AS VENDAS ====================
+            st.markdown("#### Todas as Vendas do Período")
 
             try:
                 query = """
@@ -1429,7 +1422,6 @@ else:
                     JOIN clientes c ON v.cliente_id = c.id
                     JOIN produtos p ON v.produto_id = p.id
                     WHERE v.username = :u
-                    AND (v.valor_total - v.valor_pago) > 0
                     AND v.data_venda BETWEEN :inicio AND :fim
                 """
                 params = {"u": st.session_state.username,
@@ -1441,14 +1433,13 @@ else:
 
                 query += " ORDER BY v.data_venda DESC"
 
-                df_aberto = pd.read_sql(text(query), engine, params=params)
+                df_vendas = pd.read_sql(text(query), engine, params=params)
 
-                if df_aberto.empty:
-                    st.info(
-                        "Nenhuma venda pendente encontrada no período selecionado.")
+                if df_vendas.empty:
+                    st.info("Nenhuma venda encontrada no período selecionado.")
                 else:
                     # Formatação da tabela
-                    df_display = df_aberto.copy()
+                    df_display = df_vendas.copy()
                     df_display = df_display.rename(columns={
                         "data_venda": "Data",
                         "cliente": "Cliente",
@@ -1463,7 +1454,9 @@ else:
                     df_display["Valor Pago"] = df_display["Valor Pago"].apply(
                         lambda x: f"R$ {x:,.2f}")
                     df_display["Valor Devendo"] = df_display["Valor Devendo"].apply(
-                        lambda x: f"R$ {x:,.2f}")
+                        # Garante que nunca mostre negativo
+                        lambda x: f"R$ {max(0, x):,.2f}"
+                    )
 
                     st.dataframe(
                         df_display[["Data", "Cliente", "Produto",
@@ -1476,20 +1469,21 @@ else:
                     st.markdown("**Selecionar Venda para Gerenciar**")
 
                     def format_venda(x):
-                        row = df_aberto[df_aberto['id'] == x].iloc[0]
-                        return f"Venda #{x}  •  {row['cliente']}  •  Devendo: R$ {row['valor_devendo']:,.2f}"
+                        row = df_vendas[df_vendas['id'] == x].iloc[0]
+                        devendo = max(0, row['valor_devendo'])
+                        return f"Venda #{x}  •  {row['cliente']}  •  Devendo: R$ {devendo:,.2f}"
 
                     venda_id = st.selectbox(
                         "Escolha uma venda:",
-                        options=df_aberto['id'].tolist(),
+                        options=df_vendas['id'].tolist(),
                         format_func=format_venda,
                         key="fin_select_venda"
                     )
 
-                    venda_selecionada = df_aberto[df_aberto['id']
+                    venda_selecionada = df_vendas[df_vendas['id']
                                                   == venda_id].iloc[0]
-                    valor_devendo_atual = float(
-                        venda_selecionada['valor_devendo'])
+                    valor_devendo_atual = max(
+                        0, float(venda_selecionada['valor_devendo']))
                     valor_pago_atual = float(venda_selecionada['valor_pago'])
 
                     # ==================== ABA DE AÇÕES ====================
@@ -1508,29 +1502,14 @@ else:
                                 step=0.01, format="%.2f",
                                 value=min(50.0, valor_devendo_atual)
                             )
-                            obs_pagamento = st.text_input(
-                                "Observação (opcional)", key="obs_pagamento")
-
                             if st.form_submit_button("Confirmar Recebimento"):
                                 novo_valor_pago = valor_pago_atual + valor_recebido
                                 try:
                                     with engine.connect() as conn:
-                                        # Atualiza o valor pago na venda
                                         conn.execute(text("""
                                             UPDATE vendas SET valor_pago = :novo_pago WHERE id = :id
                                         """), {"novo_pago": novo_valor_pago, "id": venda_id})
-
-                                        # Insere no histórico de pagamentos
-                                        conn.execute(text("""
-                                            INSERT INTO pagamentos (venda_id, valor, observacoes)
-                                            VALUES (:venda_id, :valor, :obs)
-                                        """), {
-                                            "venda_id": venda_id,
-                                            "valor": valor_recebido,
-                                            "obs": obs_pagamento or None
-                                        })
                                         conn.commit()
-
                                     st.success(
                                         f"Pagamento de R$ {valor_recebido:.2f} registrado!")
                                     st.rerun()
@@ -1597,42 +1576,6 @@ else:
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Erro ao excluir venda: {e}")
-
-                    # --- 4. HISTÓRICO DE PAGAMENTOS ---
-                    with st.expander("📜 Histórico de Pagamentos desta Venda", expanded=False):
-                        try:
-                            df_historico = pd.read_sql(text("""
-                                SELECT 
-                                    data_pagamento, 
-                                    valor, 
-                                    observacoes
-                                FROM pagamentos 
-                                WHERE venda_id = :venda_id
-                                ORDER BY data_pagamento DESC
-                            """), engine, params={"venda_id": venda_id})
-
-                            if df_historico.empty:
-                                st.info(
-                                    "Nenhum pagamento registrado ainda para esta venda.")
-                            else:
-                                # Renomeia as colunas de forma segura
-                                df_historico = df_historico.rename(columns={
-                                    "data_pagamento": "Data",
-                                    "valor": "Valor",
-                                    "observacoes": "Observação"
-                                })
-
-                                # Formata a data e o valor
-                                df_historico["Data"] = pd.to_datetime(
-                                    df_historico["Data"]).dt.strftime('%d/%m/%Y %H:%M')
-                                df_historico["Valor"] = df_historico["Valor"].apply(
-                                    lambda x: f"R$ {x:,.2f}")
-
-                                st.dataframe(
-                                    df_historico, width='stretch', hide_index=True)
-
-                        except Exception as e:
-                            st.error(f"Erro ao carregar histórico: {e}")
 
             except Exception as e:
                 st.error(f"Erro ao carregar vendas: {e}")
