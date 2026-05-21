@@ -169,8 +169,8 @@ else:
             "⚙️ Configurações"
         ])
 
-        # ======================== ABA 1: NOVA COLHEITA ========================
-        with tabs[1]:
+        # ======================== ABA 0: NOVA COLHEITA ========================
+        with tabs[0]:
             st.markdown("### 📝 Registrar Nova Colheita")
 
             col1, col2 = st.columns(2)
@@ -211,8 +211,8 @@ else:
                 else:
                     st.error("Quantidade deve ser maior que zero.")
 
-        # ======================== ABA 2: PRODUÇÃO & HISTÓRICO ========================
-        with tabs[2]:
+        # ======================== ABA 1: PRODUÇÃO & HISTÓRICO ========================
+        with tabs[1]:
             st.markdown("### 📋 Produção & Histórico")
 
             prod_tabs = st.tabs(["📊 Monitoramento", "🔍 Histórico & Edição"])
@@ -397,8 +397,8 @@ else:
                 except Exception as e:
                     st.error(f"Erro ao carregar histórico: {e}")
 
-        # ======================== ABA 4: REGISTRAR AVES ========================
-        with tabs[4]:
+        # ======================== ABA 2: REGISTRAR AVES ========================
+        with tabs[2]:
             st.markdown("### 🐔 Gerenciamento de Aves")
 
             tab_reg_aves, tab_mortas, tab_historico = st.tabs(
@@ -598,8 +598,8 @@ else:
                 except Exception as e:
                     st.error(f"Erro ao calcular resumo: {e}")
 
-        # ======================== ABA 5: GRÁFICOS ========================
-        with tabs[5]:
+        # ======================== ABA 3: GRÁFICOS ========================
+        with tabs[3]:
             st.markdown("### 📈 Gráficos e Análises")
 
             tab_prod, tab_quebrados, tab_mortas, tab_caixas = st.tabs([
@@ -818,8 +818,8 @@ else:
             except Exception as e:
                 st.error(f"Erro ao carregar gráficos: {e}")
 
-        # ======================== ABA 6: OVOS QUEBRADOS ========================
-        with tabs[5]:
+        # ======================== ABA 4: OVOS QUEBRADOS ========================
+        with tabs[4]:
             st.markdown("### 🔨 Gerenciamento de Ovos Quebrados")
 
             tab_registrar, tab_historico = st.tabs(
@@ -911,8 +911,8 @@ else:
                 except Exception as e:
                     st.error(f"Erro ao calcular resumo: {e}")
 
-        # ======================== ABA 6: CONFIGURAÇÕES ========================
-        with tabs[6]:
+        # ======================== ABA 5: CONFIGURAÇÕES ========================
+        with tabs[5]:
             st.markdown("### ⚙️ Configurações da Conta")
             st.markdown(f"**Usuário atual:** `{st.session_state.username}`")
             st.divider()
