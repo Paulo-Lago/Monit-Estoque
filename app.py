@@ -627,6 +627,7 @@ else:
                 if not df_mortas.empty:
                     df_mortas['data'] = pd.to_datetime(df_mortas['data'])
 
+                # ==================== PRODUÇÃO DE OVOS ====================
                 with tab_prod:
                     st.markdown("#### Produção de Ovos por Período")
                     if df_producao.empty:
@@ -661,57 +662,150 @@ else:
 
                                 if not df_pivot.empty:
                                     fig = px.bar(
-                                        df_pivot,
-                                        x=df_pivot.index,
-                                        y=df_pivot.columns,
+                                        df_pivot, x=df_pivot.index, y=df_pivot.columns,
                                         title=f"Produção - {galpao}",
                                         labels={
-                                            'x': 'Data',
-                                            'value': 'Quantidade',
-                                            'variable': 'Tipo'
-                                        },
-                                        text_auto=True,
-                                        barmode='group'
+                                            'x': 'Data', 'value': 'Quantidade', 'variable': 'Tipo'},
+                                        text_auto=True, barmode='group'
                                     )
-
-                                    # === ESTILO ATUALIZADO ===
                                     fig.update_layout(
                                         plot_bgcolor='#ffffff',
                                         paper_bgcolor='#ffffff',
                                         font=dict(color="#000000", size=12),
                                         title_font=dict(color="#000000"),
                                         xaxis=dict(
-                                            tickformat='%d/%m',
-                                            color="#000000"
-                                        ),
-                                        yaxis=dict(
-                                            color="#000000"
-                                        )
+                                            tickformat='%d/%m', color="#000000"),
+                                        yaxis=dict(color="#000000")
                                     )
-
                                     st.plotly_chart(fig, width='stretch')
                                 st.divider()
 
+                # ==================== OVOS QUEBRADOS ====================
                 with tab_quebrados:
                     st.markdown("#### 🔨 Ovos Quebrados por Período")
                     if df_quebrados.empty:
                         st.info("Nenhum registro de ovos quebrados.")
                     else:
-                        # (código similar ao original, resumido para não ficar muito longo)
-                        st.info(
-                            "Gráficos de Ovos Quebrados funcionando normalmente.")
+                        col_d1, col_d2 = st.columns(2)
+                        with col_d1:
+                            data_inicio = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=30),
+                                                        format="DD/MM/YYYY", key="data_inicio_quebrados")
+                        with col_d2:
+                            data_fim = st.date_input("Data Final", value=datetime.now().date(),
+                                                     format="DD/MM/YYYY", key="data_fim_quebrados")
 
+                        df_filtrado = df_quebrados[
+                            (df_quebrados['data'].dt.date >= data_inicio) &
+                            (df_quebrados['data'].dt.date <= data_fim)
+                        ].copy()
+
+                        if df_filtrado.empty:
+                            st.warning(
+                                "Nenhum registro encontrado no período selecionado.")
+                        else:
+                            for galpao in sorted(df_filtrado['galpao'].unique()):
+                                st.markdown(f"**{galpao}**")
+                                df_g = df_filtrado[df_filtrado['galpao'] == galpao]
+                                df_agg = df_g.groupby(
+                                    'data')['quantidade'].sum().reset_index()
+
+                                fig = px.bar(
+                                    df_agg, x='data', y='quantidade',
+                                    title=f"Ovos Quebrados - {galpao}",
+                                    labels={'data': 'Data',
+                                            'quantidade': 'Quantidade'},
+                                    text_auto=True
+                                )
+                                fig.update_layout(
+                                    plot_bgcolor='#ffffff',
+                                    paper_bgcolor='#ffffff',
+                                    font=dict(color="#000000", size=12),
+                                    title_font=dict(color="#000000"),
+                                    xaxis=dict(tickformat='%d/%m',
+                                               color="#000000"),
+                                    yaxis=dict(color="#000000")
+                                )
+                                st.plotly_chart(fig, width='stretch')
+                                st.divider()
+
+                # ==================== AVES MORTAS ====================
                 with tab_mortas:
                     st.markdown("#### 🐔 Aves Mortas por Período")
                     if df_mortas.empty:
                         st.info("Nenhum registro de aves mortas.")
                     else:
-                        st.info(
-                            "Gráficos de Aves Mortas funcionando normalmente.")
+                        col_d1, col_d2 = st.columns(2)
+                        with col_d1:
+                            data_inicio = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=30),
+                                                        format="DD/MM/YYYY", key="data_inicio_mortas")
+                        with col_d2:
+                            data_fim = st.date_input("Data Final", value=datetime.now().date(),
+                                                     format="DD/MM/YYYY", key="data_fim_mortas")
 
+                        df_filtrado = df_mortas[
+                            (df_mortas['data'].dt.date >= data_inicio) &
+                            (df_mortas['data'].dt.date <= data_fim)
+                        ].copy()
+
+                        if df_filtrado.empty:
+                            st.warning(
+                                "Nenhum registro encontrado no período selecionado.")
+                        else:
+                            for galpao in sorted(df_filtrado['galpao'].unique()):
+                                st.markdown(f"**{galpao}**")
+                                df_g = df_filtrado[df_filtrado['galpao'] == galpao]
+                                df_agg = df_g.groupby(
+                                    'data')['quantidade'].sum().reset_index()
+
+                                fig = px.bar(
+                                    df_agg, x='data', y='quantidade',
+                                    title=f"Aves Mortas - {galpao}",
+                                    labels={'data': 'Data',
+                                            'quantidade': 'Quantidade'},
+                                    text_auto=True
+                                )
+                                fig.update_layout(
+                                    plot_bgcolor='#ffffff',
+                                    paper_bgcolor='#ffffff',
+                                    font=dict(color="#000000", size=12),
+                                    title_font=dict(color="#000000"),
+                                    xaxis=dict(tickformat='%d/%m',
+                                               color="#000000"),
+                                    yaxis=dict(color="#000000")
+                                )
+                                st.plotly_chart(fig, width='stretch')
+                                st.divider()
+
+                # ==================== CAIXAS DE OVOS ====================
                 with tab_caixas:
-                    st.markdown("#### 📦 Caixas de Ovos Fechadas")
-                    st.info("Sub-aba de Caixas de Ovos funcionando normalmente.")
+                    st.markdown(
+                        "#### 📦 Caixas de Ovos Fechadas (Últimos 30 dias)")
+                    if df_producao.empty:
+                        st.info("Nenhum registro de produção.")
+                    else:
+                        data_limite = datetime.now().date() - pd.Timedelta(days=30)
+                        df_recente = df_producao[df_producao['data'].dt.date >= data_limite].copy(
+                        )
+
+                        if df_recente.empty:
+                            st.warning("Nenhum registro nos últimos 30 dias.")
+                        else:
+                            resumo = df_recente.groupby(['galpao', 'tipo', 'cor'])[
+                                'quantidade'].sum().reset_index()
+                            resumo['caixas'] = resumo['quantidade'] // 360
+                            resumo['ovos_restantes'] = resumo['quantidade'] % 360
+
+                            for galpao in sorted(resumo['galpao'].unique()):
+                                st.markdown(f"**{galpao}**")
+                                df_g = resumo[resumo['galpao'] == galpao]
+                                st.dataframe(
+                                    df_g[['tipo', 'cor', 'quantidade', 'caixas', 'ovos_restantes']].rename(columns={
+                                        'tipo': 'Tipo', 'cor': 'Cor', 'quantidade': 'Total de Ovos',
+                                        'caixas': 'Caixas Completas (360)', 'ovos_restantes': 'Ovos Restantes'
+                                    }),
+                                    width='stretch', hide_index=True
+                                )
+                                st.divider()
 
             except Exception as e:
                 st.error(f"Erro ao carregar gráficos: {e}")
