@@ -892,7 +892,83 @@ else:
         # ======================== ABA 6: OVOS QUEBRADOS ========================
         with tabs[6]:
             st.markdown("### 🔨 Gerenciamento de Ovos Quebrados")
-            st.info("Funcionalidade de Ovos Quebrados funcionando normalmente.")
+
+            tab_registrar, tab_historico = st.tabs(
+                ["➕ Registrar Ovos Quebrados", "📋 Histórico"])
+
+            # ==================== REGISTRAR OVOS QUEBRADOS ====================
+            with tab_registrar:
+                st.markdown("#### ➕ Registrar Ovos Quebrados")
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    data_quebrados = st.date_input("📅 Data", value=datetime.now().date(),
+                                                   format="DD/MM/YYYY", key="data_quebrados_reg")
+                    galpao_quebrados = st.selectbox(
+                        "🏠 Galpão", GALPOES, key="galpao_quebrados_reg")
+                with col2:
+                    qtd_quebrados = st.number_input("🔨 Quantidade de Ovos Quebrados", min_value=1, step=1,
+                                                    format="%d", key="qtd_quebrados_reg")
+
+                if st.button("✅ Registrar Ovos Quebrados", width='stretch', type="primary"):
+                    if qtd_quebrados > 0:
+                        try:
+                            with engine.connect() as conn:
+                                conn.execute(text("""
+                                    INSERT INTO ovos_quebrados (username, galpao, quantidade, data)
+                                    VALUES (:username, :galpao, :qtd, :data)
+                                """), {
+                                    "username": st.session_state.username,
+                                    "galpao": galpao_quebrados,
+                                    "qtd": qtd_quebrados,
+                                    "data": data_quebrados
+                                })
+                                conn.commit()
+                            st.success(
+                                f"✅ {qtd_quebrados} ovos quebrados registrados no {galpao_quebrados}!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao registrar: {e}")
+
+            # ==================== HISTÓRICO ====================
+            with tab_historico:
+                st.markdown("#### 📋 Histórico de Ovos Quebrados")
+
+                try:
+                    df_quebrados_hist = pd.read_sql(text("""
+                        SELECT id, data, galpao as Galpão, quantidade as Quantidade
+                        FROM ovos_quebrados 
+                        WHERE username = :username 
+                        ORDER BY data DESC
+                    """), engine, params={"username": st.session_state.username})
+
+                    if df_quebrados_hist.empty:
+                        st.info("Nenhum registro de ovos quebrados encontrado.")
+                    else:
+                        df_quebrados_hist['data'] = pd.to_datetime(
+                            df_quebrados_hist['data']).dt.strftime('%d/%m/%Y')
+
+                        st.dataframe(df_quebrados_hist[["data", "Galpão", "Quantidade"]].rename(
+                            columns={"data": "Data"}), width='stretch', hide_index=True)
+
+                except Exception as e:
+                    st.error(f"Erro ao carregar histórico: {e}")
+
+            # ==================== RESUMO ====================
+            st.divider()
+            st.markdown("#### 📊 Resumo de Ovos Quebrados por Galpão")
+
+            for galpao in GALPOES:
+                try:
+                    with engine.connect() as conn:
+                        total = conn.execute(text("""
+                            SELECT COALESCE(SUM(quantidade), 0) FROM ovos_quebrados
+                            WHERE username = :u AND galpao = :g
+                        """), {"u": st.session_state.username, "g": galpao}).scalar()
+
+                    st.metric(f"{galpao} - Total Quebrados", f"{total} ovos")
+                except Exception as e:
+                    st.error(f"Erro ao calcular resumo: {e}")
 
         # ======================== ABA 7: CONFIGURAÇÕES ========================
         with tabs[7]:
