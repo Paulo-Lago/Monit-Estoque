@@ -543,46 +543,44 @@ else:
             with tab_historico:
                 st.markdown("#### 📋 Histórico de Aves Registradas")
 
-            try:
-                df_aves = pd.read_sql(text("""
+                try:
+                    df_aves = pd.read_sql(text("""
                         SELECT id, data_registro, galpao, quantidade_total
-                        FROM aves
-                        WHERE username = :username
+                        FROM aves 
+                        WHERE username = :username 
                         ORDER BY data_registro DESC
                     """), engine, params={"username": st.session_state.username})
 
-                if df_aves.empty:
-                    st.info("Nenhum registro de aves encontrado.")
-                else:
-                    # Renomeia de forma segura
-                    df_aves = df_aves.rename(columns={
-                        "data_registro": "Data",
-                        "galpao": "Galpão",
-                        "quantidade_total": "Quantidade"
-                    })
+                    if df_aves.empty:
+                        st.info("Nenhum registro de aves encontrado.")
+                    else:
+                        df_aves = df_aves.rename(columns={
+                            "data_registro": "Data",
+                            "galpao": "Galpão",
+                            "quantidade_total": "Quantidade"
+                        })
+                        df_aves['Data'] = pd.to_datetime(
+                            df_aves['Data']).dt.strftime('%d/%m/%Y')
 
-                    df_aves['Data'] = pd.to_datetime(
-                        df_aves['Data']).dt.strftime('%d/%m/%Y')
+                        # Select para editar/excluir
+                        opcoes = {
+                            row['id']: f"📅 {row['Data']} | {row['Galpão']} | {row['Quantidade']} aves"
+                            for _, row in df_aves.iterrows()
+                        }
 
-                    # Select para editar
-                    opcoes = {
-                        row['id']: f"📅 {row['Data']} | {row['Galpão']} | {row['Quantidade']} aves"
-                        for _, row in df_aves.iterrows()
-                    }
+                        selecao = st.selectbox(
+                            "Selecione um registro para editar ou excluir:", list(opcoes.values()))
+                        selected_id = [
+                            k for k, v in opcoes.items() if v == selecao][0]
 
-                    selecao = st.selectbox(
-                        "Selecione um registro para editar:", list(opcoes.values()))
-                    selected_id = [
-                        k for k, v in opcoes.items() if v == selecao][0]
+                        registro = df_aves[df_aves['id']
+                                           == selected_id].iloc[0]
 
-                    registro = df_aves[df_aves['id']
-                                       == selected_id].iloc[0]
+                        st.markdown("---")
+                        st.markdown("**Editar ou Excluir Registro**")
 
-                    st.markdown("---")
-                     st.markdown("**Editar Registro**")
-
-                      col1, col2 = st.columns(2)
-                       with col1:
+                        col1, col2 = st.columns(2)
+                        with col1:
                             novo_galpao = st.selectbox("Galpão", GALPOES,
                                                        index=GALPOES.index(registro['Galpão']))
                             nova_qtd = st.number_input("Quantidade", min_value=1, step=1,
@@ -633,12 +631,12 @@ else:
                                 except Exception as e:
                                     st.error(f"Erro ao excluir: {e}")
 
-                    st.divider()
-                    st.markdown("**Histórico Completo**")
-                    st.dataframe(df_aves, width='stretch', hide_index=True)
+                        st.divider()
+                        st.markdown("**Histórico Completo**")
+                        st.dataframe(df_aves, width='stretch', hide_index=True)
 
-            except Exception as e:
-                st.error(f"Erro ao carregar histórico: {e}")
+                except Exception as e:
+                    st.error(f"Erro ao carregar histórico: {e}")
 
             # ==================== RESUMO ATUAL ====================
             st.divider()
