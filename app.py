@@ -38,28 +38,12 @@ def aplicar_estilo_customizado():
     st.markdown(f"""
     <style>
     .stApp {{
-        background-color: white !important;
         background-image: url("data:image/png;base64,{logo_base64}") !important;
-        background-size: 30% !important;
+        background-size: 26% !important;
         background-position: center !important;
         background-repeat: no-repeat !important;
         background-attachment: fixed !important;
-        opacity: 0.95;
-    }}
-
-    /* Força todas as letras para preto */
-    .stApp, .stApp * {{
-        color: black !important;
-    }}
-
-    /* Força títulos e textos principais */
-    h1, h2, h3, h4, h5, h6, p, span, label, div {{
-        color: black !important;
-    }}
-
-    /* Força textos do Streamlit */
-    .stMarkdown, .stText, .stMetric, .stSelectbox, .stTextInput, .stNumberInput {{
-        color: black !important;
+        opacity: 0.92;
     }}
     </style>
     """, unsafe_allow_html=True)
