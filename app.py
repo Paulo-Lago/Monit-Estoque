@@ -546,8 +546,8 @@ else:
             try:
                 df_aves = pd.read_sql(text("""
                         SELECT id, data_registro, galpao, quantidade_total
-                        FROM aves 
-                        WHERE username = :username 
+                        FROM aves
+                        WHERE username = :username
                         ORDER BY data_registro DESC
                     """), engine, params={"username": st.session_state.username})
 
@@ -579,38 +579,59 @@ else:
                                        == selected_id].iloc[0]
 
                     st.markdown("---")
-                    st.markdown("**Editar Registro**")
+                     st.markdown("**Editar Registro**")
 
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        novo_galpao = st.selectbox("Galpão", GALPOES,
-                                                   index=GALPOES.index(registro['Galpão']))
-                        nova_qtd = st.number_input("Quantidade", min_value=1, step=1,
-                                                   value=int(registro['Quantidade']))
-                    with col2:
-                        nova_data = st.date_input("Data", value=pd.to_datetime(registro['Data']).date(),
-                                                  format="DD/MM/YYYY")
+                      col1, col2 = st.columns(2)
+                       with col1:
+                            novo_galpao = st.selectbox("Galpão", GALPOES,
+                                                       index=GALPOES.index(registro['Galpão']))
+                            nova_qtd = st.number_input("Quantidade", min_value=1, step=1,
+                                                       value=int(registro['Quantidade']))
+                        with col2:
+                            nova_data = st.date_input("Data", value=pd.to_datetime(registro['Data']).date(),
+                                                      format="DD/MM/YYYY")
 
-                    if st.button("✅ Salvar Alterações", width='stretch', type="primary"):
-                        try:
-                            with engine.connect() as conn:
-                                conn.execute(text("""
-                                        UPDATE aves 
-                                        SET galpao = :galpao, quantidade_total = :qtd, data_registro = :data
-                                        WHERE id = :id AND username = :username
-                                    """), {
-                                    "galpao": novo_galpao,
-                                    "qtd": nova_qtd,
-                                    "data": nova_data,
-                                    "id": selected_id,
-                                    "username": st.session_state.username
-                                })
-                                conn.commit()
-                            st.success(
-                                "✅ Registro atualizado com sucesso!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro ao atualizar: {e}")
+                        col_btn1, col_btn2 = st.columns(2)
+                        with col_btn1:
+                            if st.button("✅ Salvar Alterações", width='stretch', type="primary"):
+                                try:
+                                    with engine.connect() as conn:
+                                        conn.execute(text("""
+                                            UPDATE aves 
+                                            SET galpao = :galpao, quantidade_total = :qtd, data_registro = :data
+                                            WHERE id = :id AND username = :username
+                                        """), {
+                                            "galpao": novo_galpao,
+                                            "qtd": nova_qtd,
+                                            "data": nova_data,
+                                            "id": selected_id,
+                                            "username": st.session_state.username
+                                        })
+                                        conn.commit()
+                                    st.success(
+                                        "✅ Registro atualizado com sucesso!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao atualizar: {e}")
+
+                        with col_btn2:
+                            st.warning("⚠️ Excluir este registro?")
+                            if st.button("🗑️ Excluir Registro", type="primary"):
+                                try:
+                                    with engine.connect() as conn:
+                                        conn.execute(text("""
+                                            DELETE FROM aves 
+                                            WHERE id = :id AND username = :username
+                                        """), {
+                                            "id": selected_id,
+                                            "username": st.session_state.username
+                                        })
+                                        conn.commit()
+                                    st.success(
+                                        "✅ Registro excluído com sucesso!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao excluir: {e}")
 
                     st.divider()
                     st.markdown("**Histórico Completo**")
