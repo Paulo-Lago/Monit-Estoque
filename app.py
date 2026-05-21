@@ -215,7 +215,8 @@ else:
         with tabs[1]:
             st.markdown("### 📋 Produção & Histórico")
 
-            prod_tabs = st.tabs(["📊 Monitoramento", "🔍 Histórico & Edição"])
+            prod_tabs = st.tabs(
+                ["📊 Monitoramento", "🔍 Histórico & Edição", "📦 Caixas de Ovos"])
 
             # ==================== SUB-ABA 1: MONITORAMENTO ====================
             with prod_tabs[0]:
@@ -394,8 +395,40 @@ else:
                                 st.error(f"Erro ao atualizar: {e}")
                     else:
                         st.info("📭 Nenhum registro de colheita encontrado.")
+
                 except Exception as e:
                     st.error(f"Erro ao carregar histórico: {e}")
+
+             # ==================== CAIXAS DE OVOS ====================
+                with prod_tabs[2]:
+                    st.markdown(
+                        "#### 📦 Caixas de Ovos Fechadas (Últimos 30 dias)")
+                    if df_producao.empty:
+                        st.info("Nenhum registro de produção.")
+                    else:
+                        data_limite = datetime.now().date() - pd.Timedelta(days=30)
+                        df_recente = df_producao[df_producao['data'].dt.date >= data_limite].copy(
+                        )
+
+                        if df_recente.empty:
+                            st.warning("Nenhum registro nos últimos 30 dias.")
+                        else:
+                            resumo = df_recente.groupby(['galpao', 'tipo', 'cor'])[
+                                'quantidade'].sum().reset_index()
+                            resumo['caixas'] = resumo['quantidade'] // 360
+                            resumo['ovos_restantes'] = resumo['quantidade'] % 360
+
+                            for galpao in sorted(resumo['galpao'].unique()):
+                                st.markdown(f"**{galpao}**")
+                                df_g = resumo[resumo['galpao'] == galpao]
+                                st.dataframe(
+                                    df_g[['tipo', 'cor', 'quantidade', 'caixas', 'ovos_restantes']].rename(columns={
+                                        'tipo': 'Tipo', 'cor': 'Cor', 'quantidade': 'Total de Ovos',
+                                        'caixas': 'Caixas Completas (360)', 'ovos_restantes': 'Ovos Restantes'
+                                    }),
+                                    width='stretch', hide_index=True
+                                )
+                                st.divider()
 
         # ======================== ABA 2: REGISTRAR AVES ========================
         with tabs[2]:
@@ -603,7 +636,7 @@ else:
             st.markdown("### 📈 Gráficos e Análises")
 
             tab_prod, tab_quebrados, tab_mortas, tab_caixas = st.tabs([
-                "🥚 Produção de Ovos", "🔨 Ovos Quebrados", "🐔 Aves Mortas", "📦 Caixas de Ovos"
+                "🥚 Produção de Ovos", "🔨 Ovos Quebrados", "🐔 Aves Mortas"
             ])
 
             try:
@@ -782,37 +815,6 @@ else:
                                     yaxis=dict(color="#000000")
                                 )
                                 st.plotly_chart(fig, width='stretch')
-                                st.divider()
-
-                # ==================== CAIXAS DE OVOS ====================
-                with tab_caixas:
-                    st.markdown(
-                        "#### 📦 Caixas de Ovos Fechadas (Últimos 30 dias)")
-                    if df_producao.empty:
-                        st.info("Nenhum registro de produção.")
-                    else:
-                        data_limite = datetime.now().date() - pd.Timedelta(days=30)
-                        df_recente = df_producao[df_producao['data'].dt.date >= data_limite].copy(
-                        )
-
-                        if df_recente.empty:
-                            st.warning("Nenhum registro nos últimos 30 dias.")
-                        else:
-                            resumo = df_recente.groupby(['galpao', 'tipo', 'cor'])[
-                                'quantidade'].sum().reset_index()
-                            resumo['caixas'] = resumo['quantidade'] // 360
-                            resumo['ovos_restantes'] = resumo['quantidade'] % 360
-
-                            for galpao in sorted(resumo['galpao'].unique()):
-                                st.markdown(f"**{galpao}**")
-                                df_g = resumo[resumo['galpao'] == galpao]
-                                st.dataframe(
-                                    df_g[['tipo', 'cor', 'quantidade', 'caixas', 'ovos_restantes']].rename(columns={
-                                        'tipo': 'Tipo', 'cor': 'Cor', 'quantidade': 'Total de Ovos',
-                                        'caixas': 'Caixas Completas (360)', 'ovos_restantes': 'Ovos Restantes'
-                                    }),
-                                    width='stretch', hide_index=True
-                                )
                                 st.divider()
 
             except Exception as e:
