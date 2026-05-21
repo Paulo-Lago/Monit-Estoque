@@ -749,396 +749,27 @@ else:
         st.header("💰 Faturamento & Controle de Estoque")
 
         fat_tabs = st.tabs([
-            "Faturamento",
+            "Vendas",
             "Estoque",
-            "Financeiro",
-            "Registros de Vendas"
+            "Cadastros"
         ])
 
         # ============================================
-        # ABA 0 → FATURAMENTO
+        # ABA 0 → VENDAS
         # ============================================
         with fat_tabs[0]:
-            st.subheader("Faturamento")
+            st.subheader("Vendas")
 
-            inner_tabs = st.tabs([
-                "👥 Clientes",
-                "📦 Produtos & Preços",
-                "💳 Formas de Pagamento",
-                "🛒 Nova Venda"
+            vendas_tabs = st.tabs([
+                "🛒 Nova Venda",
+                "📋 Registros de Vendas",
+                "💰 Financeiro"
             ])
 
-            # ==================== 0. CLIENTES ====================
-            with inner_tabs[0]:
-                st.markdown("#### 👥 Gestão de Clientes")
-
-                with st.expander("➕ Cadastrar Novo Cliente", expanded=False):
-                    with st.form("form_novo_cliente", clear_on_submit=True):
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            nome = st.text_input(
-                                "Nome / Razão Social *", key="cli_nome_novo")
-                            cpf_cnpj = st.text_input(
-                                "CPF ou CNPJ", key="cli_cpf_novo")
-                            telefone = st.text_input(
-                                "Telefone / WhatsApp", key="cli_tel_novo")
-                        with col2:
-                            email = st.text_input(
-                                "E-mail", key="cli_email_novo")
-                            endereco = st.text_area(
-                                "Endereço", key="cli_end_novo")
-
-                        if st.form_submit_button("Cadastrar Cliente"):
-                            if nome:
-                                try:
-                                    with engine.connect() as conn:
-                                        conn.execute(text("""
-                                            INSERT INTO clientes (username, nome, cpf_cnpj, telefone, email, endereco)
-                                            VALUES (:u, :nome, :cpf, :tel, :email, :end)
-                                        """), {
-                                            "u": st.session_state.username,
-                                            "nome": nome,
-                                            "cpf": cpf_cnpj or None,
-                                            "tel": telefone or None,
-                                            "email": email or None,
-                                            "end": endereco or None
-                                        })
-                                        conn.commit()
-                                    st.success(
-                                        "✅ Cliente cadastrado com sucesso!")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Erro ao cadastrar: {e}")
-                            else:
-                                st.error("O nome é obrigatório.")
-
-                                st.divider()
-                st.markdown("**Clientes Cadastrados**")
-
-                try:
-                    df_clientes = pd.read_sql(text("""
-                        SELECT id, nome, cpf_cnpj, telefone, email, endereco
-                        FROM clientes
-                        WHERE username = :u
-                        ORDER BY data_cadastro DESC
-                    """), engine, params={"u": st.session_state.username})
-
-                    if df_clientes.empty:
-                        st.info("Nenhum cliente cadastrado ainda.")
-                    else:
-                        # === MELHORIA NA VISUALIZAÇÃO DA TABELA ===
-                        df_display = df_clientes.copy()
-
-                        # Renomear colunas para ficar mais bonito
-                        df_display = df_display.rename(columns={
-                            "nome": "Nome / Razão Social",
-                            "cpf_cnpj": "CPF / CNPJ",
-                            "telefone": "Telefone",
-                            "email": "E-mail",
-                            "endereco": "Endereço"
-                        })
-
-                        # Mostrar tabela mais limpa (sem o ID)
-                        st.dataframe(
-                            df_display[[
-                                "Nome / Razão Social",
-                                "CPF / CNPJ",
-                                "Telefone",
-                                "E-mail",
-                                "Endereço"
-                            ]],
-                            width='stretch',
-                            hide_index=True,
-                            column_config={
-                                "Nome / Razão Social": st.column_config.TextColumn(
-                                    help="Nome completo ou razão social do cliente"
-                                ),
-                                "Endereço": st.column_config.TextColumn(
-                                    width="large"
-                                )
-                            }
-                        )
-
-                        # Selectbox para editar/excluir continua igual
-                        cliente_nome = st.selectbox(
-                            "Selecione um cliente para editar ou excluir:",
-                            df_clientes['nome'].tolist(),
-                            key="faturamento_select_cliente"
-                        )
-
-                        cliente = df_clientes[df_clientes['nome']
-                                              == cliente_nome].iloc[0].to_dict()
-                        # Converte numpy.int64 para int normal
-                        cliente['id'] = int(cliente['id'])
-
-                        col1, col2 = st.columns(2)
-
-                        with col1:
-                            with st.expander("✏️ Editar Cliente"):
-                                with st.form("form_editar_cliente"):
-                                    n_nome = st.text_input(
-                                        "Nome", value=cliente['nome'], key="edit_nome")
-                                    n_cpf = st.text_input(
-                                        "CPF/CNPJ", value=cliente.get('cpf_cnpj', ''), key="edit_cpf")
-                                    n_tel = st.text_input("Telefone", value=cliente.get(
-                                        'telefone', ''), key="edit_tel")
-                                    n_email = st.text_input("Email", value=cliente.get(
-                                        'email', ''), key="edit_email")
-                                    n_end = st.text_area("Endereço", value=cliente.get(
-                                        'endereco', ''), key="edit_end")
-
-                                    if st.form_submit_button("Salvar Alterações"):
-                                        with engine.connect() as conn:
-                                            conn.execute(text("""
-                                                UPDATE clientes
-                                                SET nome = :nome, cpf_cnpj = :cpf, telefone = :tel,
-                                                    email = :email, endereco = :end
-                                                WHERE id = :id
-                                            """), {
-                                                "nome": n_nome, "cpf": n_cpf or None,
-                                                "tel": n_tel or None, "email": n_email or None,
-                                                "end": n_end or None, "id": cliente['id']
-                                            })
-                                            conn.commit()
-                                        st.success(
-                                            "Cliente atualizado com sucesso!")
-                                        st.rerun()
-
-                        with col2:
-                            with st.expander("🗑️ Excluir Cliente"):
-                                st.warning(
-                                    "⚠️ Esta ação não pode ser desfeita!")
-                                if st.button("Excluir Cliente", type="primary", key="btn_excluir_cliente"):
-                                    with engine.connect() as conn:
-                                        conn.execute(text("DELETE FROM clientes WHERE id = :id"),
-                                                     {"id": cliente['id']})
-                                        conn.commit()
-                                    st.success("Cliente excluído com sucesso!")
-                                    st.rerun()
-
-                except Exception as e:
-                    st.error(f"Erro ao carregar clientes: {e}")
-
-     # ==================== 1. PRODUTOS & PREÇOS ====================
-            with inner_tabs[1]:
-                st.markdown("#### 📦 Produtos & Preços")
-
-                # --- Cadastrar Novo Produto ---
-                with st.expander("➕ Cadastrar Novo Produto", expanded=False):
-                    with st.form("form_novo_produto", clear_on_submit=True):
-                        col1, col2 = st.columns([2, 1])
-
-                        with col1:
-                            nome_prod = st.text_input(
-                                "Nome do Produto *", key="prod_nome_novo")
-                            descricao = st.text_area(
-                                "Descrição", key="prod_desc_novo")
-
-                        with col2:
-                            unidade = st.text_input(
-                                "Unidade de Medida", value="unidade", key="prod_un_novo")
-                            preco = st.number_input(
-                                "Preço Atual (R$)", min_value=0.0, step=0.01, format="%.2f", key="prod_preco_novo")
-
-                        if st.form_submit_button("Cadastrar Produto"):
-                            if nome_prod:
-                                try:
-                                    with engine.connect() as conn:
-                                        conn.execute(text("""
-                                            INSERT INTO produtos (username, nome, descricao, unidade, preco_atual)
-                                            VALUES (:u, :nome, :desc, :un, :preco)
-                                        """), {
-                                            "u": st.session_state.username,
-                                            "nome": nome_prod,
-                                            "desc": descricao or None,
-                                            "un": unidade,
-                                            "preco": preco
-                                        })
-                                        conn.commit()
-                                    st.success(
-                                        "✅ Produto cadastrado com sucesso!")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Erro ao cadastrar produto: {e}")
-                            else:
-                                st.error("Nome do produto é obrigatório.")
-
-                st.divider()
-                st.markdown("**Produtos Cadastrados**")
-
-                try:
-                    df_produtos = pd.read_sql(text("""
-                        SELECT id, nome, descricao, unidade, preco_atual
-                        FROM produtos
-                        WHERE username = :u
-                        ORDER BY data_cadastro DESC
-                    """), engine, params={"u": st.session_state.username})
-
-                    if df_produtos.empty:
-                        st.info("Nenhum produto cadastrado ainda.")
-                    else:
-                        # === MELHORIA NA TABELA ===
-                        df_display = df_produtos.copy()
-                        df_display = df_display.rename(columns={
-                            "nome": "Produto",
-                            "unidade": "Unidade",
-                            "preco_atual": "Preço Atual (R$)"
-                        })
-
-                        st.dataframe(
-                            df_display[["Produto", "Unidade",
-                                        "Preço Atual (R$)"]],
-                            width='stretch',
-                            hide_index=True,
-                            column_config={
-                                "Preço Atual (R$)": st.column_config.NumberColumn(
-                                    format="R$ %.2f",
-                                    help="Preço atual do produto"
-                                )
-                            }
-                        )
-
-                        st.markdown("---")
-                        st.markdown("**Atualizar Preço de um Produto**")
-
-                        col_sel, col_preco, col_btn = st.columns([2, 1.2, 1])
-
-                        with col_sel:
-                            prod_nome = st.selectbox(
-                                "Selecione o produto",
-                                df_produtos['nome'].tolist(),
-                                key="faturamento_select_produto"
-                            )
-                            produto_selecionado = df_produtos[df_produtos['nome']
-                                                              == prod_nome].iloc[0]
-
-                        with col_preco:
-                            novo_preco = st.number_input(
-                                "Novo Preço (R$)",
-                                value=float(
-                                    produto_selecionado['preco_atual']),
-                                step=0.01,
-                                format="%.2f",
-                                key="faturamento_novo_preco"
-                            )
-
-                        with col_btn:
-                            if st.button("Atualizar Preço", width='stretch', key="btn_atualizar_preco"):
-                                try:
-                                    with engine.connect() as conn:
-                                        conn.execute(text("""
-                                            UPDATE produtos
-                                            SET preco_atual = :preco
-                                            WHERE id = :id
-                                        """), {
-                                            "preco": novo_preco,
-                                            # ← CORREÇÃO AQUI
-                                            "id": int(produto_selecionado['id'])
-                                        })
-                                        conn.commit()
-                                    st.success(
-                                        f"Preço de '{prod_nome}' atualizado para R$ {novo_preco:.2f}!")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Erro ao atualizar preço: {e}")
-
-                except Exception as e:
-                    st.error(f"Erro ao carregar produtos: {e}")
-
-        # ==================== 2. FORMAS DE PAGAMENTO ====================
-            with inner_tabs[2]:
-                st.markdown("#### 💳 Formas de Pagamento Aceitas")
-
-                # --- Adicionar Nova Forma de Pagamento ---
-                with st.expander("➕ Adicionar Nova Forma de Pagamento", expanded=False):
-                    with st.form("form_nova_forma", clear_on_submit=True):
-                        nome_forma = st.text_input(
-                            "Nome da Forma de Pagamento *", key="forma_nome_novo")
-
-                        if st.form_submit_button("Adicionar Forma de Pagamento"):
-                            if nome_forma:
-                                try:
-                                    with engine.connect() as conn:
-                                        conn.execute(text("""
-                                            INSERT INTO formas_pagamento (username, nome, ativo)
-                                            VALUES (:u, :nome, TRUE)
-                                        """), {
-                                            "u": st.session_state.username,
-                                            "nome": nome_forma
-                                        })
-                                        conn.commit()
-                                    st.success(
-                                        "Forma de pagamento adicionada com sucesso!")
-                                    st.rerun()
-                                except Exception:
-                                    st.warning(
-                                        "Essa forma de pagamento já existe para você.")
-                            else:
-                                st.error(
-                                    "O nome da forma de pagamento é obrigatório.")
-
-                st.divider()
-                st.markdown("**Formas de Pagamento Cadastradas**")
-
-                try:
-                    df_formas = pd.read_sql(text("""
-                        SELECT id, nome, ativo, username
-                        FROM formas_pagamento
-                        WHERE username = :u OR username IS NULL
-                        ORDER BY
-                            CASE WHEN username IS NULL THEN 0 ELSE 1 END,
-                            nome
-                    """), engine, params={"u": st.session_state.username})
-
-                    if df_formas.empty:
-                        st.info("Nenhuma forma de pagamento cadastrada.")
-                    else:
-                        for _, row in df_formas.iterrows():
-                            col1, col2, col3 = st.columns([3, 1.5, 1])
-
-                            with col1:
-                                # Destaca formas globais
-                                if row['username'] is None:
-                                    st.markdown(
-                                        f"**{row['nome']}** <small>(Padrão)</small>", unsafe_allow_html=True)
-                                else:
-                                    st.write(f"**{row['nome']}**")
-
-                            with col2:
-                                # Checkbox para ativar/desativar (só permite nas do usuário)
-                                if row['username'] is not None:
-                                    ativo = st.checkbox(
-                                        "Ativa",
-                                        value=bool(row['ativo']),
-                                        key=f"forma_ativa_{row['id']}"
-                                    )
-                                else:
-                                    st.write("✅ Ativa (Padrão)")
-
-                            with col3:
-                                if row['username'] is not None:
-                                    if st.button("Salvar", key=f"btn_salvar_forma_{row['id']}"):
-                                        with engine.connect() as conn:
-                                            conn.execute(text("""
-                                                UPDATE formas_pagamento
-                                                SET ativo = :ativo
-                                                WHERE id = :id
-                                            """), {
-                                                "ativo": ativo,
-                                                "id": row['id']
-                                            })
-                                            conn.commit()
-                                        st.success("Atualizado!")
-                                        st.rerun()
-
-                except Exception as e:
-                    st.error(f"Erro ao carregar formas de pagamento: {e}")
-
-            # ==================== 4. NOVA VENDA ====================
-            with inner_tabs[3]:
+            # --- 1. NOVA VENDA ---
+            with vendas_tabs[0]:
                 st.markdown("#### 🛒 Registrar Nova Venda")
 
-                # Inicializa session_state se não existir
                 if "venda_dados" not in st.session_state:
                     st.session_state.venda_dados = None
                 if "mostrar_confirmacao" not in st.session_state:
@@ -1154,7 +785,7 @@ else:
                     """), engine, params={"u": st.session_state.username})
 
                     df_formas = pd.read_sql(text("""
-                        SELECT id, nome FROM formas_pagamento
+                        SELECT id, nome FROM formas_pagamento 
                         WHERE (username = :u OR username IS NULL) AND ativo = TRUE
                         ORDER BY nome
                     """), engine, params={"u": st.session_state.username})
@@ -1164,14 +795,10 @@ else:
                             "Cadastre pelo menos 1 Cliente, 1 Produto e 1 Forma de Pagamento ativa.")
                     else:
 
-                        # ==================== MODO CONFIRMAÇÃO ====================
                         if st.session_state.mostrar_confirmacao and st.session_state.venda_dados:
-
                             dados = st.session_state.venda_dados
-
                             st.markdown("### Confirmação da Venda")
                             st.markdown("---")
-
                             col1, col2 = st.columns(2)
                             with col1:
                                 st.write(
@@ -1213,12 +840,10 @@ else:
                                     try:
                                         with engine.connect() as conn:
                                             conn.execute(text("""
-                                                INSERT INTO vendas
-                                                (username, cliente_id, data_venda, produto_id, quantidade,
-                                                 preco_unitario, forma_pagamento_id, desconto, valor_total,
-                                                 valor_pago, observacoes)
-                                                VALUES (:u, :cliente_id, CURRENT_DATE, :produto_id, :qtd,
-                                                        :preco, :forma_id, :desconto, :total, :valor_pago, :obs)
+                                                INSERT INTO vendas (username, cliente_id, data_venda, produto_id, quantidade,
+                                                 preco_unitario, forma_pagamento_id, desconto, valor_total, valor_pago, observacoes)
+                                                VALUES (:u, :cliente_id, CURRENT_DATE, :produto_id, :qtd, :preco, :forma_id,
+                                                        :desconto, :total, :valor_pago, :obs)
                                             """), {
                                                 "u": st.session_state.username,
                                                 "cliente_id": dados['cliente_id'],
@@ -1232,16 +857,12 @@ else:
                                                 "obs": dados.get('observacoes')
                                             })
                                             conn.commit()
-
                                         st.balloons()
                                         st.success(
                                             "✅ Venda registrada com sucesso!")
-
-                                        # Limpa os dados e volta para o formulário limpo
                                         st.session_state.venda_dados = None
                                         st.session_state.mostrar_confirmacao = False
                                         st.rerun()
-
                                     except Exception as e:
                                         st.error(
                                             f"Erro ao registrar venda: {e}")
@@ -1251,11 +872,9 @@ else:
                                     st.session_state.mostrar_confirmacao = False
                                     st.rerun()
 
-                        # ==================== MODO FORMULÁRIO ====================
                         else:
                             with st.form("form_nova_venda", clear_on_submit=True):
                                 col1, col2 = st.columns(2)
-
                                 with col1:
                                     cliente_nome = st.selectbox(
                                         "Cliente *", df_clientes['nome'].tolist(), key="venda_cliente")
@@ -1270,9 +889,6 @@ else:
                                     preco_unit = float(
                                         produto_row['preco_atual'])
 
-                                    st.info(
-                                        f"**Preço unitário:** R$ {preco_unit:.2f}")
-
                                 with col2:
                                     quantidade = st.number_input(
                                         "Quantidade *", min_value=1, step=1, value=1, key="venda_qtd")
@@ -1280,37 +896,32 @@ else:
                                         "Forma de Pagamento *", df_formas['nome'].tolist(), key="venda_forma")
                                     forma_id = int(
                                         df_formas[df_formas['nome'] == forma_nome].iloc[0]['id'])
-
                                     valor_pago = st.number_input(
                                         "Valor Pago agora (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_valor_pago")
                                     desconto = st.number_input(
                                         "Desconto (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_desconto")
 
-                                valor_bruto = quantidade * preco_unit
-                                valor_total = max(0, valor_bruto - desconto)
-                                valor_devendo = max(
-                                    0, valor_total - valor_pago)
-
                                 st.markdown("---")
                                 st.caption("Resumo da venda")
                                 col_r1, col_r2, col_r3 = st.columns(3)
                                 with col_r1:
-                                    st.metric("Valor Total",
-                                              f"R$ {valor_total:.2f}")
+                                    st.metric(
+                                        "Valor Total", f"R$ {(quantidade * preco_unit) - desconto:.2f}")
                                 with col_r2:
                                     st.metric("Valor Pago",
                                               f"R$ {valor_pago:.2f}")
                                 with col_r3:
-                                    st.metric("Ficará Devendo",
-                                              f"R$ {valor_devendo:.2f}")
+                                    st.metric(
+                                        "Ficará Devendo", f"R$ {max(0, (quantidade * preco_unit) - desconto - valor_pago):.2f}")
 
                                 observacoes = st.text_area(
                                     "Observações (opcional)", key="venda_obs")
-
                                 submitted = st.form_submit_button(
                                     "✅ Registrar Venda", type="primary")
 
-                            # Quando clicar em Registrar Venda, guarda os dados e vai para confirmação
+                            st.info(
+                                f"**Preço unitário do produto selecionado:** R$ {preco_unit:.2f}")
+
                             if submitted:
                                 st.session_state.venda_dados = {
                                     "cliente_id": cliente_id,
@@ -1323,8 +934,8 @@ else:
                                     "forma_nome": forma_nome,
                                     "valor_pago": valor_pago,
                                     "desconto": desconto,
-                                    "valor_total": valor_total,
-                                    "valor_devendo": valor_devendo,
+                                    "valor_total": (quantidade * preco_unit) - desconto,
+                                    "valor_devendo": max(0, (quantidade * preco_unit) - desconto - valor_pago),
                                     "observacoes": observacoes
                                 }
                                 st.session_state.mostrar_confirmacao = True
@@ -1333,6 +944,284 @@ else:
                 except Exception as e:
                     st.error(f"Erro ao carregar dados: {e}")
 
+            # --- 2. REGISTROS DE VENDAS ---
+            with vendas_tabs[1]:
+                st.markdown("#### 📋 Registros de Vendas")
+
+                st.markdown("#### Filtros")
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    data_inicio = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=30),
+                                                format="DD/MM/YYYY", key="reg_data_inicio")
+                with col2:
+                    data_fim = st.date_input("Data Final", value=datetime.now().date(),
+                                             format="DD/MM/YYYY", key="reg_data_fim")
+                with col3:
+                    try:
+                        df_clientes_reg = pd.read_sql(text("""
+                            SELECT DISTINCT c.nome FROM vendas v JOIN clientes c ON v.cliente_id = c.id WHERE v.username = :u
+                        """), engine, params={"u": st.session_state.username})
+                        clientes_lista = ["Todos"] + \
+                            df_clientes_reg['nome'].tolist()
+                    except:
+                        clientes_lista = ["Todos"]
+                    cliente_filtro = st.selectbox(
+                        "Cliente", clientes_lista, key="reg_cliente")
+                with col4:
+                    status_filtro = st.selectbox(
+                        "Status", ["Todas", "Quitadas", "Com Pendência"], key="reg_status")
+
+                busca = st.text_input(
+                    "Buscar por nome do cliente ou produto", key="reg_busca")
+
+                st.markdown("#### Resumo do Período")
+                try:
+                    with engine.connect() as conn:
+                        resumo = conn.execute(text("""
+                            SELECT COUNT(*) as total_vendas, COALESCE(SUM(valor_total), 0) as valor_total,
+                                   COALESCE(SUM(valor_pago), 0) as valor_recebido,
+                                   COALESCE(SUM(valor_total - valor_pago), 0) as valor_pendente
+                            FROM vendas WHERE username = :u AND data_venda BETWEEN :inicio AND :fim
+                        """), {"u": st.session_state.username, "inicio": data_inicio, "fim": data_fim}).fetchone()
+
+                    col_r1, col_r2, col_r3, col_r4 = st.columns(4)
+                    with col_r1:
+                        st.metric("Total de Vendas", resumo[0])
+                    with col_r2:
+                        st.metric("Valor Total", f"R$ {resumo[1]:,.2f}")
+                    with col_r3:
+                        st.metric("Valor Recebido", f"R$ {resumo[2]:,.2f}")
+                    with col_r4:
+                        st.metric("Valor Pendente",
+                                  f"R$ {resumo[3]:,.2f}", delta_color="inverse")
+                except Exception as e:
+                    st.error(f"Erro ao carregar resumo: {e}")
+
+                st.divider()
+                st.markdown("#### Lista de Vendas")
+                try:
+                    query = """
+                        SELECT v.id, v.data_venda, c.nome as cliente, p.nome as produto, v.quantidade,
+                               v.valor_total, v.valor_pago, (v.valor_total - v.valor_pago) as valor_devendo, v.observacoes
+                        FROM vendas v
+                        JOIN clientes c ON v.cliente_id = c.id
+                        JOIN produtos p ON v.produto_id = p.id
+                        WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
+                    """
+                    params = {"u": st.session_state.username,
+                              "inicio": data_inicio, "fim": data_fim}
+                    if cliente_filtro != "Todos":
+                        query += " AND c.nome = :cliente"
+                        params["cliente"] = cliente_filtro
+                    if status_filtro == "Quitadas":
+                        query += " AND (v.valor_total - v.valor_pago) <= 0"
+                    elif status_filtro == "Com Pendência":
+                        query += " AND (v.valor_total - v.valor_pago) > 0"
+                    if busca:
+                        query += " AND (c.nome ILIKE :busca OR p.nome ILIKE :busca)"
+                        params["busca"] = f"%{busca}%"
+                    query += " ORDER BY v.data_venda DESC"
+
+                    df_vendas = pd.read_sql(text(query), engine, params=params)
+
+                    if df_vendas.empty:
+                        st.info(
+                            "Nenhuma venda encontrada com os filtros selecionados.")
+                    else:
+                        df_display = df_vendas.copy()
+                        df_display['data_venda'] = pd.to_datetime(
+                            df_display['data_venda']).dt.strftime('%d/%m/%Y')
+                        df_display['valor_total'] = df_display['valor_total'].apply(
+                            lambda x: f"R$ {x:,.2f}")
+                        df_display['valor_pago'] = df_display['valor_pago'].apply(
+                            lambda x: f"R$ {x:,.2f}")
+                        df_display['valor_devendo'] = df_display['valor_devendo'].apply(
+                            lambda x: f"R$ {x:,.2f}")
+
+                        st.dataframe(df_display[["data_venda", "cliente", "produto", "quantidade",
+                                                 "valor_total", "valor_pago", "valor_devendo"]],
+                                     width='stretch', hide_index=True)
+                        st.caption(f"Mostrando {len(df_vendas)} vendas")
+                except Exception as e:
+                    st.error(f"Erro ao carregar vendas: {e}")
+
+            # --- 3. FINANCEIRO ---
+            with vendas_tabs[2]:
+                st.markdown("#### 💰 Financeiro - Controle de Pagamentos")
+
+                st.markdown("#### Filtros")
+                col_f1, col_f2, col_f3 = st.columns([1.3, 1.3, 2])
+                with col_f1:
+                    data_inicio = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=30),
+                                                format="DD/MM/YYYY", key="fin_data_inicio")
+                with col_f2:
+                    data_fim = st.date_input("Data Final", value=datetime.now().date(),
+                                             format="DD/MM/YYYY", key="fin_data_fim")
+                with col_f3:
+                    try:
+                        df_clientes_filtro = pd.read_sql(text("""
+                            SELECT DISTINCT c.nome FROM vendas v JOIN clientes c ON v.cliente_id = c.id WHERE v.username = :u
+                        """), engine, params={"u": st.session_state.username})
+                        opcoes_clientes = ["Todos"] + \
+                            df_clientes_filtro['nome'].tolist()
+                        cliente_filtro = st.selectbox(
+                            "Cliente", opcoes_clientes, key="fin_cliente_filtro")
+                    except:
+                        cliente_filtro = "Todos"
+
+                st.markdown("#### Resumo de Pendências")
+                try:
+                    with engine.connect() as conn:
+                        resumo = conn.execute(text("""
+                            SELECT COUNT(*) as qtd_pendente, COALESCE(SUM(valor_total - valor_pago), 0) as total_em_aberto
+                            FROM vendas WHERE username = :u AND (valor_total - valor_pago) > 0
+                            AND data_venda BETWEEN :inicio AND :fim
+                        """), {"u": st.session_state.username, "inicio": data_inicio, "fim": data_fim}).fetchone()
+
+                    col_m1, col_m2 = st.columns(2)
+                    with col_m1:
+                        st.metric("Vendas com Pendência", resumo[0])
+                    with col_m2:
+                        st.metric("Total em Aberto",
+                                  f"R$ {resumo[1]:,.2f}", delta_color="inverse")
+                except Exception as e:
+                    st.error(f"Erro ao carregar resumo: {e}")
+
+                st.divider()
+                st.markdown("#### Todas as Vendas do Período")
+                try:
+                    query = """
+                        SELECT v.id, v.data_venda, c.nome as cliente, p.nome as produto, v.quantidade,
+                               v.preco_unitario, v.valor_total, v.valor_pago,
+                               (v.valor_total - v.valor_pago) as valor_devendo, v.observacoes
+                        FROM vendas v
+                        JOIN clientes c ON v.cliente_id = c.id
+                        JOIN produtos p ON v.produto_id = p.id
+                        WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
+                    """
+                    params = {"u": st.session_state.username,
+                              "inicio": data_inicio, "fim": data_fim}
+                    if cliente_filtro != "Todos":
+                        query += " AND c.nome = :cliente"
+                        params["cliente"] = cliente_filtro
+                    query += " ORDER BY v.data_venda DESC"
+
+                    df_vendas = pd.read_sql(text(query), engine, params=params)
+
+                    if df_vendas.empty:
+                        st.info(
+                            "Nenhuma venda encontrada no período selecionado.")
+                    else:
+                        df_display = df_vendas.copy()
+                        df_display = df_display.rename(columns={
+                            "data_venda": "Data", "cliente": "Cliente", "produto": "Produto",
+                            "valor_total": "Valor Total", "valor_pago": "Valor Pago", "valor_devendo": "Valor Devendo"
+                        })
+                        df_display["Valor Total"] = df_display["Valor Total"].apply(
+                            lambda x: f"R$ {x:,.2f}")
+                        df_display["Valor Pago"] = df_display["Valor Pago"].apply(
+                            lambda x: f"R$ {x:,.2f}")
+                        df_display["Valor Devendo"] = df_display["Valor Devendo"].apply(
+                            lambda x: f"R$ {max(0, x):,.2f}")
+
+                        st.dataframe(df_display[["Data", "Cliente", "Produto", "Valor Total", "Valor Pago", "Valor Devendo"]],
+                                     width='stretch', hide_index=True)
+
+                        st.markdown("---")
+                        st.markdown("**Selecionar Venda para Gerenciar**")
+
+                        def format_venda(x):
+                            row = df_vendas[df_vendas['id'] == x].iloc[0]
+                            devendo = max(0, row['valor_devendo'])
+                            return f"Venda #{x}  •  {row['cliente']}  •  Devendo: R$ {devendo:,.2f}"
+
+                        venda_id = st.selectbox("Escolha uma venda:", options=df_vendas['id'].tolist(),
+                                                format_func=format_venda, key="fin_select_venda")
+
+                        venda_selecionada = df_vendas[df_vendas['id']
+                                                      == venda_id].iloc[0]
+                        valor_devendo_atual = max(
+                            0, float(venda_selecionada['valor_devendo']))
+                        valor_pago_atual = float(
+                            venda_selecionada['valor_pago'])
+
+                        tab_pagamento, tab_editar, tab_excluir = st.tabs([
+                            "💰 Registrar Pagamento", "✏️ Editar Venda", "🗑️ Excluir Venda"
+                        ])
+
+                        with tab_pagamento:
+                            with st.form("form_receber_pagamento"):
+                                valor_recebido = st.number_input("Valor Recebido agora (R$)", min_value=0.0,
+                                                                 max_value=float(valor_devendo_atual), step=0.01,
+                                                                 format="%.2f", value=min(50.0, float(valor_devendo_atual)))
+                                if st.form_submit_button("Confirmar Recebimento"):
+                                    novo_valor_pago = valor_pago_atual + valor_recebido
+                                    try:
+                                        with engine.connect() as conn:
+                                            conn.execute(text("UPDATE vendas SET valor_pago = :novo_pago WHERE id = :id"),
+                                                         {"novo_pago": novo_valor_pago, "id": venda_id})
+                                            conn.commit()
+                                        st.success(
+                                            f"Pagamento de R$ {valor_recebido:.2f} registrado!")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Erro: {e}")
+
+                        with tab_editar:
+                            st.warning(
+                                "Atenção: Editar uma venda pode afetar o controle financeiro.")
+                            with st.form("form_editar_venda"):
+                                nova_qtd = st.number_input("Quantidade", min_value=1,
+                                                           value=int(venda_selecionada['quantidade']), step=1)
+                                novo_desconto = st.number_input("Desconto (R$)", min_value=0.0,
+                                                                value=float(
+                                                                    venda_selecionada.get('desconto', 0)),
+                                                                step=0.01, format="%.2f")
+                                novas_obs = st.text_area(
+                                    "Observações", value=venda_selecionada.get('observacoes', '') or "")
+                                if st.form_submit_button("Salvar Alterações"):
+                                    novo_valor_total = (
+                                        nova_qtd * float(venda_selecionada['preco_unitario'])) - novo_desconto
+                                    try:
+                                        with engine.connect() as conn:
+                                            conn.execute(text("""
+                                                UPDATE vendas SET quantidade = :qtd, desconto = :desconto,
+                                                    valor_total = :total, observacoes = :obs WHERE id = :id
+                                            """), {"qtd": nova_qtd, "desconto": novo_desconto,
+                                                   "total": novo_valor_total, "obs": novas_obs, "id": venda_id})
+                                            conn.commit()
+                                        st.success(
+                                            "Venda atualizada com sucesso!")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Erro ao editar venda: {e}")
+
+                        with tab_excluir:
+                            if valor_pago_atual > 0:
+                                st.warning(
+                                    f"⚠️ Esta venda já possui R$ {valor_pago_atual:,.2f} em pagamentos registrados.")
+                            else:
+                                st.info(
+                                    "Esta venda ainda não possui pagamentos registrados.")
+                            st.markdown(
+                                "**Tem certeza que deseja excluir esta venda?**")
+                            st.error("Esta ação não pode ser desfeita.")
+                            confirmacao = st.checkbox(
+                                "Entendo que esta ação é irreversível", key=f"confirm_delete_{venda_id}")
+                            if st.button("🗑️ Excluir Venda Permanentemente", type="primary", disabled=not confirmacao):
+                                try:
+                                    with engine.connect() as conn:
+                                        conn.execute(text("DELETE FROM vendas WHERE id = :id"), {
+                                                     "id": venda_id})
+                                        conn.commit()
+                                    st.success("Venda excluída com sucesso!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao excluir venda: {e}")
+
+                except Exception as e:
+                    st.error(f"Erro ao carregar vendas: {e}")
+
         # ============================================
         # ABA 1 → ESTOQUE
         # ============================================
@@ -1340,399 +1229,260 @@ else:
             st.subheader("Estoque")
             st.info("Em desenvolvimento...")
 
-        # =====================================================
-        # ABA 2: FINANCEIRO (Vendas em Aberto + Recebimentos)
-        # =====================================================
+        # ============================================
+        # ABA 2 → CADASTROS
+        # ============================================
         with fat_tabs[2]:
-            st.subheader("💰 Financeiro - Vendas em Aberto")
+            st.subheader("Cadastros")
 
-            # ==================== FILTROS ====================
-            st.markdown("#### Filtros")
+            cadastros_tabs = st.tabs([
+                "👥 Clientes",
+                "📦 Produtos & Preços",
+                "💳 Formas de Pagamento"
+            ])
 
-            col_f1, col_f2, col_f3 = st.columns([1.3, 1.3, 2])
-            with col_f1:
-                data_inicio = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=30),
-                                            format="DD/MM/YYYY", key="fin_data_inicio")
-            with col_f2:
-                data_fim = st.date_input("Data Final", value=datetime.now().date(),
-                                         format="DD/MM/YYYY", key="fin_data_fim")
-            with col_f3:
-                try:
-                    df_clientes_filtro = pd.read_sql(text("""
-                        SELECT DISTINCT c.nome FROM vendas v
-                        JOIN clientes c ON v.cliente_id = c.id
-                        WHERE v.username = :u
-                    """), engine, params={"u": st.session_state.username})
+            # --- 1. CLIENTES ---
+            with cadastros_tabs[0]:
+                st.markdown("#### 👥 Gestão de Clientes")
 
-                    opcoes_clientes = ["Todos"] + \
-                        df_clientes_filtro['nome'].tolist()
-                    cliente_filtro = st.selectbox(
-                        "Cliente", opcoes_clientes, key="fin_cliente_filtro")
-                except:
-                    cliente_filtro = "Todos"
+                with st.expander("➕ Cadastrar Novo Cliente", expanded=False):
+                    with st.form("form_novo_cliente", clear_on_submit=True):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            nome = st.text_input(
+                                "Nome / Razão Social *", key="cli_nome_novo")
+                            cpf_cnpj = st.text_input(
+                                "CPF ou CNPJ", key="cli_cpf_novo")
+                            telefone = st.text_input(
+                                "Telefone / WhatsApp", key="cli_tel_novo")
+                        with col2:
+                            email = st.text_input(
+                                "E-mail", key="cli_email_novo")
+                            endereco = st.text_area(
+                                "Endereço", key="cli_end_novo")
 
-            # ==================== RESUMO ====================
-            st.markdown("#### Resumo de Pendências")
-
-            try:
-                with engine.connect() as conn:
-                    resumo = conn.execute(text("""
-                        SELECT 
-                            COUNT(*) as qtd_pendente,
-                            COALESCE(SUM(valor_total - valor_pago), 0) as total_em_aberto
-                        FROM vendas 
-                        WHERE username = :u 
-                        AND (valor_total - valor_pago) > 0
-                        AND data_venda BETWEEN :inicio AND :fim
-                    """), {
-                        "u": st.session_state.username,
-                        "inicio": data_inicio,
-                        "fim": data_fim
-                    }).fetchone()
-
-                col_m1, col_m2 = st.columns(2)
-                with col_m1:
-                    st.metric("Vendas com Pendência", resumo[0])
-                with col_m2:
-                    st.metric("Total em Aberto",
-                              f"R$ {resumo[1]:,.2f}", delta_color="inverse")
-
-            except Exception as e:
-                st.error(f"Erro ao carregar resumo: {e}")
-
-            st.divider()
-
-            # ==================== LISTA DE TODAS AS VENDAS ====================
-            st.markdown("#### Todas as Vendas do Período")
-
-            try:
-                query = """
-                    SELECT
-                        v.id,
-                        v.data_venda,
-                        c.nome as cliente,
-                        p.nome as produto,
-                        v.quantidade,
-                        v.preco_unitario,
-                        v.valor_total,
-                        v.valor_pago,
-                        (v.valor_total - v.valor_pago) as valor_devendo,
-                        v.observacoes
-                    FROM vendas v
-                    JOIN clientes c ON v.cliente_id = c.id
-                    JOIN produtos p ON v.produto_id = p.id
-                    WHERE v.username = :u
-                    AND v.data_venda BETWEEN :inicio AND :fim
-                """
-                params = {"u": st.session_state.username,
-                          "inicio": data_inicio, "fim": data_fim}
-
-                if cliente_filtro != "Todos":
-                    query += " AND c.nome = :cliente"
-                    params["cliente"] = cliente_filtro
-
-                query += " ORDER BY v.data_venda DESC"
-
-                df_vendas = pd.read_sql(text(query), engine, params=params)
-
-                if df_vendas.empty:
-                    st.info("Nenhuma venda encontrada no período selecionado.")
-                else:
-                    # Formatação da tabela
-                    df_display = df_vendas.copy()
-                    df_display = df_display.rename(columns={
-                        "data_venda": "Data",
-                        "cliente": "Cliente",
-                        "produto": "Produto",
-                        "valor_total": "Valor Total",
-                        "valor_pago": "Valor Pago",
-                        "valor_devendo": "Valor Devendo"
-                    })
-
-                    df_display["Valor Total"] = df_display["Valor Total"].apply(
-                        lambda x: f"R$ {x:,.2f}")
-                    df_display["Valor Pago"] = df_display["Valor Pago"].apply(
-                        lambda x: f"R$ {x:,.2f}")
-                    df_display["Valor Devendo"] = df_display["Valor Devendo"].apply(
-                        lambda x: f"R$ {max(0, x):,.2f}"
-                    )
-
-                    st.dataframe(
-                        df_display[["Data", "Cliente", "Produto",
-                                    "Valor Total", "Valor Pago", "Valor Devendo"]],
-                        width='stretch',
-                        hide_index=True
-                    )
-
-                    st.markdown("---")
-                    st.markdown("**Selecionar Venda para Gerenciar**")
-
-                    def format_venda(x):
-                        row = df_vendas[df_vendas['id'] == x].iloc[0]
-                        devendo = max(0, row['valor_devendo'])
-                        return f"Venda #{x}  •  {row['cliente']}  •  Devendo: R$ {devendo:,.2f}"
-
-                    venda_id = st.selectbox(
-                        "Escolha uma venda:",
-                        options=df_vendas['id'].tolist(),
-                        format_func=format_venda,
-                        key="fin_select_venda"
-                    )
-
-                    venda_selecionada = df_vendas[df_vendas['id']
-                                                  == venda_id].iloc[0]
-                    valor_devendo_atual = max(
-                        0, float(venda_selecionada['valor_devendo']))
-                    valor_pago_atual = float(venda_selecionada['valor_pago'])
-
-                    # ==================== ABA DE AÇÕES ====================
-                    tab_pagamento, tab_editar, tab_excluir = st.tabs([
-                        "💰 Registrar Pagamento",
-                        "✏️ Editar Venda",
-                        "🗑️ Excluir Venda"
-                    ])
-
-                    # --- 1. REGISTRAR PAGAMENTO ---
-                    with tab_pagamento:
-                        with st.form("form_receber_pagamento"):
-                            valor_recebido = st.number_input(
-                                "Valor Recebido agora (R$)",
-                                min_value=0.0,
-                                max_value=float(valor_devendo_atual),
-                                step=0.01,
-                                format="%.2f",
-                                value=min(50.0, float(valor_devendo_atual))
-                            )
-                            if st.form_submit_button("Confirmar Recebimento"):
-                                novo_valor_pago = valor_pago_atual + valor_recebido
+                        if st.form_submit_button("Cadastrar Cliente"):
+                            if nome:
                                 try:
                                     with engine.connect() as conn:
                                         conn.execute(text("""
-                                            UPDATE vendas SET valor_pago = :novo_pago WHERE id = :id
-                                        """), {"novo_pago": novo_valor_pago, "id": venda_id})
+                                            INSERT INTO clientes (username, nome, cpf_cnpj, telefone, email, endereco)
+                                            VALUES (:u, :nome, :cpf, :tel, :email, :end)
+                                        """), {"u": st.session_state.username, "nome": nome,
+                                               "cpf": cpf_cnpj or None, "tel": telefone or None,
+                                               "email": email or None, "end": endereco or None})
                                         conn.commit()
                                     st.success(
-                                        f"Pagamento de R$ {valor_recebido:.2f} registrado!")
+                                        "✅ Cliente cadastrado com sucesso!")
                                     st.rerun()
                                 except Exception as e:
-                                    st.error(f"Erro: {e}")
+                                    st.error(f"Erro ao cadastrar: {e}")
+                            else:
+                                st.error("O nome é obrigatório.")
 
-                    # --- 2. EDITAR VENDA ---
-                    with tab_editar:
-                        st.warning(
-                            "Atenção: Editar uma venda pode afetar o controle financeiro.")
-                        with st.form("form_editar_venda"):
-                            nova_qtd = st.number_input(
-                                "Quantidade",
-                                min_value=1,
-                                value=int(venda_selecionada['quantidade']),
-                                step=1
-                            )
-                            novo_desconto = st.number_input(
-                                "Desconto (R$)",
-                                min_value=0.0,
-                                value=float(
-                                    venda_selecionada.get('desconto', 0)),
-                                step=0.01,
-                                format="%.2f"
-                            )
-                            novas_obs = st.text_area(
-                                "Observações",
-                                value=venda_selecionada.get(
-                                    'observacoes', '') or ""
-                            )
+                st.markdown("**Clientes Cadastrados**")
+                try:
+                    df_clientes = pd.read_sql(text("""
+                        SELECT id, nome, cpf_cnpj, telefone, email, endereco
+                        FROM clientes WHERE username = :u ORDER BY data_cadastro DESC
+                    """), engine, params={"u": st.session_state.username})
 
-                            if st.form_submit_button("Salvar Alterações"):
-                                novo_valor_total = (
-                                    nova_qtd * float(venda_selecionada['preco_unitario'])) - novo_desconto
+                    if df_clientes.empty:
+                        st.info("Nenhum cliente cadastrado ainda.")
+                    else:
+                        df_display = df_clientes.copy()
+                        df_display = df_display.rename(columns={
+                            "nome": "Nome / Razão Social", "cpf_cnpj": "CPF / CNPJ",
+                            "telefone": "Telefone", "email": "E-mail", "endereco": "Endereço"
+                        })
+                        st.dataframe(df_display[["Nome / Razão Social", "CPF / CNPJ", "Telefone", "E-mail", "Endereço"]],
+                                     width='stretch', hide_index=True,
+                                     column_config={"Nome / Razão Social": st.column_config.TextColumn(help="Nome completo ou razão social do cliente"),
+                                                    "Endereço": st.column_config.TextColumn(width="large")})
+
+                        cliente_nome = st.selectbox("Selecione um cliente para editar ou excluir:",
+                                                    df_clientes['nome'].tolist(), key="faturamento_select_cliente")
+                        cliente = df_clientes[df_clientes['nome']
+                                              == cliente_nome].iloc[0].to_dict()
+                        cliente['id'] = int(cliente['id'])
+
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            with st.expander("✏️ Editar Cliente"):
+                                with st.form("form_editar_cliente"):
+                                    n_nome = st.text_input(
+                                        "Nome", value=cliente['nome'], key="edit_nome")
+                                    n_cpf = st.text_input(
+                                        "CPF/CNPJ", value=cliente.get('cpf_cnpj', ''), key="edit_cpf")
+                                    n_tel = st.text_input("Telefone", value=cliente.get(
+                                        'telefone', ''), key="edit_tel")
+                                    n_email = st.text_input("Email", value=cliente.get(
+                                        'email', ''), key="edit_email")
+                                    n_end = st.text_area("Endereço", value=cliente.get(
+                                        'endereco', ''), key="edit_end")
+                                    if st.form_submit_button("Salvar Alterações"):
+                                        with engine.connect() as conn:
+                                            conn.execute(text("""
+                                                UPDATE clientes SET nome = :nome, cpf_cnpj = :cpf, telefone = :tel,
+                                                    email = :email, endereco = :end WHERE id = :id
+                                            """), {"nome": n_nome, "cpf": n_cpf or None, "tel": n_tel or None,
+                                                   "email": n_email or None, "end": n_end or None, "id": cliente['id']})
+                                            conn.commit()
+                                        st.success(
+                                            "Cliente atualizado com sucesso!")
+                                        st.rerun()
+
+                        with col2:
+                            with st.expander("🗑️ Excluir Cliente"):
+                                st.warning(
+                                    "⚠️ Esta ação não pode ser desfeita!")
+                                if st.button("Excluir Cliente", type="primary", key="btn_excluir_cliente"):
+                                    with engine.connect() as conn:
+                                        conn.execute(text("DELETE FROM clientes WHERE id = :id"), {
+                                                     "id": cliente['id']})
+                                        conn.commit()
+                                    st.success("Cliente excluído com sucesso!")
+                                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao carregar clientes: {e}")
+
+            # --- 2. PRODUTOS & PREÇOS ---
+            with cadastros_tabs[1]:
+                st.markdown("#### 📦 Produtos & Preços")
+
+                with st.expander("➕ Cadastrar Novo Produto", expanded=False):
+                    with st.form("form_novo_produto", clear_on_submit=True):
+                        col1, col2 = st.columns([2, 1])
+                        with col1:
+                            nome_prod = st.text_input(
+                                "Nome do Produto *", key="prod_nome_novo")
+                            descricao = st.text_area(
+                                "Descrição", key="prod_desc_novo")
+                        with col2:
+                            unidade = st.text_input(
+                                "Unidade de Medida", value="unidade", key="prod_un_novo")
+                            preco = st.number_input(
+                                "Preço Atual (R$)", min_value=0.0, step=0.01, format="%.2f", key="prod_preco_novo")
+                        if st.form_submit_button("Cadastrar Produto"):
+                            if nome_prod:
                                 try:
                                     with engine.connect() as conn:
                                         conn.execute(text("""
-                                            UPDATE vendas 
-                                            SET quantidade = :qtd, desconto = :desconto, 
-                                                valor_total = :total, observacoes = :obs
-                                            WHERE id = :id
-                                        """), {
-                                            "qtd": nova_qtd, "desconto": novo_desconto,
-                                            "total": novo_valor_total, "obs": novas_obs, "id": venda_id
-                                        })
+                                            INSERT INTO produtos (username, nome, descricao, unidade, preco_atual)
+                                            VALUES (:u, :nome, :desc, :un, :preco)
+                                        """), {"u": st.session_state.username, "nome": nome_prod,
+                                               "desc": descricao or None, "un": unidade, "preco": preco})
                                         conn.commit()
-                                    st.success("Venda atualizada com sucesso!")
+                                    st.success(
+                                        "✅ Produto cadastrado com sucesso!")
                                     st.rerun()
                                 except Exception as e:
-                                    st.error(f"Erro ao editar venda: {e}")
+                                    st.error(f"Erro ao cadastrar produto: {e}")
+                            else:
+                                st.error("Nome do produto é obrigatório.")
 
-                    # --- 3. EXCLUIR VENDA ---
-                    with tab_excluir:
-                        if valor_pago_atual > 0:
-                            st.warning(
-                                f"⚠️ Esta venda já possui R$ {valor_pago_atual:,.2f} em pagamentos registrados.")
-                        else:
-                            st.info(
-                                "Esta venda ainda não possui pagamentos registrados.")
-
-                        st.markdown(
-                            "**Tem certeza que deseja excluir esta venda?**")
-                        st.error("Esta ação não pode ser desfeita.")
-
-                        confirmacao = st.checkbox(
-                            "Entendo que esta ação é irreversível", key=f"confirm_delete_{venda_id}")
-
-                        if st.button("🗑️ Excluir Venda Permanentemente", type="primary", disabled=not confirmacao):
-                            try:
-                                with engine.connect() as conn:
-                                    conn.execute(text("DELETE FROM vendas WHERE id = :id"), {
-                                                 "id": venda_id})
-                                    conn.commit()
-                                st.success("Venda excluída com sucesso!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Erro ao excluir venda: {e}")
-
-            except Exception as e:
-                st.error(f"Erro ao carregar vendas: {e}")
-                print(e)  # Log no terminal para debug
-
-        # ============================================
-        # ABA 3 → REGISTROS DE VENDAS
-        # ============================================
-        with fat_tabs[3]:
-            st.subheader("📋 Registros de Vendas")
-
-            # ==================== FILTROS ====================
-            st.markdown("#### Filtros")
-
-            col1, col2, col3, col4 = st.columns(4)
-
-            with col1:
-                data_inicio = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=30),
-                                            format="DD/MM/YYYY", key="reg_data_inicio")
-            with col2:
-                data_fim = st.date_input("Data Final", value=datetime.now().date(),
-                                         format="DD/MM/YYYY", key="reg_data_fim")
-            with col3:
+                st.divider()
+                st.markdown("**Produtos Cadastrados**")
                 try:
-                    df_clientes_reg = pd.read_sql(text("""
-                        SELECT DISTINCT c.nome FROM vendas v
-                        JOIN clientes c ON v.cliente_id = c.id
-                        WHERE v.username = :u
+                    df_produtos = pd.read_sql(text("""
+                        SELECT id, nome, descricao, unidade, preco_atual FROM produtos
+                        WHERE username = :u ORDER BY data_cadastro DESC
                     """), engine, params={"u": st.session_state.username})
-                    clientes_lista = ["Todos"] + \
-                        df_clientes_reg['nome'].tolist()
-                except:
-                    clientes_lista = ["Todos"]
 
-                cliente_filtro = st.selectbox(
-                    "Cliente", clientes_lista, key="reg_cliente")
+                    if df_produtos.empty:
+                        st.info("Nenhum produto cadastrado ainda.")
+                    else:
+                        df_display = df_produtos.copy()
+                        df_display = df_display.rename(
+                            columns={"nome": "Produto", "unidade": "Unidade", "preco_atual": "Preço Atual (R$)"})
+                        st.dataframe(df_display[["Produto", "Unidade", "Preço Atual (R$)"]], width='stretch', hide_index=True,
+                                     column_config={"Preço Atual (R$)": st.column_config.NumberColumn(format="R$ %.2f")})
 
-            with col4:
-                status_filtro = st.selectbox(
-                    "Status", ["Todas", "Quitadas", "Com Pendência"], key="reg_status")
+                        st.markdown("---")
+                        st.markdown("**Atualizar Preço de um Produto**")
+                        col_sel, col_preco, col_btn = st.columns([2, 1.2, 1])
+                        with col_sel:
+                            prod_nome = st.selectbox("Selecione o produto", df_produtos['nome'].tolist(
+                            ), key="faturamento_select_produto")
+                            produto_selecionado = df_produtos[df_produtos['nome']
+                                                              == prod_nome].iloc[0]
+                        with col_preco:
+                            novo_preco = st.number_input("Novo Preço (R$)", value=float(produto_selecionado['preco_atual']),
+                                                         step=0.01, format="%.2f", key="faturamento_novo_preco")
+                        with col_btn:
+                            if st.button("Atualizar Preço", width='stretch', key="btn_atualizar_preco"):
+                                try:
+                                    with engine.connect() as conn:
+                                        conn.execute(text("UPDATE produtos SET preco_atual = :preco WHERE id = :id"),
+                                                     {"preco": novo_preco, "id": int(produto_selecionado['id'])})
+                                        conn.commit()
+                                    st.success(
+                                        f"Preço de '{prod_nome}' atualizado para R$ {novo_preco:.2f}!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao atualizar preço: {e}")
+                except Exception as e:
+                    st.error(f"Erro ao carregar produtos: {e}")
 
-            # Busca por texto
-            busca = st.text_input(
-                "Buscar por nome do cliente ou produto", key="reg_busca")
+            # --- 3. FORMAS DE PAGAMENTO ---
+            with cadastros_tabs[2]:
+                st.markdown("#### 💳 Formas de Pagamento Aceitas")
 
-            # ==================== RESUMO ====================
-            st.markdown("#### Resumo do Período")
+                with st.expander("➕ Adicionar Nova Forma de Pagamento", expanded=False):
+                    with st.form("form_nova_forma", clear_on_submit=True):
+                        nome_forma = st.text_input(
+                            "Nome da Forma de Pagamento *", key="forma_nome_novo")
+                        if st.form_submit_button("Adicionar Forma de Pagamento"):
+                            if nome_forma:
+                                try:
+                                    with engine.connect() as conn:
+                                        conn.execute(text("INSERT INTO formas_pagamento (username, nome, ativo) VALUES (:u, :nome, TRUE)"),
+                                                     {"u": st.session_state.username, "nome": nome_forma})
+                                        conn.commit()
+                                    st.success(
+                                        "Forma de pagamento adicionada com sucesso!")
+                                    st.rerun()
+                                except Exception:
+                                    st.warning(
+                                        "Essa forma de pagamento já existe para você.")
+                            else:
+                                st.error(
+                                    "O nome da forma de pagamento é obrigatório.")
 
-            try:
-                with engine.connect() as conn:
-                    resumo = conn.execute(text("""
-                        SELECT 
-                            COUNT(*) as total_vendas,
-                            COALESCE(SUM(valor_total), 0) as valor_total,
-                            COALESCE(SUM(valor_pago), 0) as valor_recebido,
-                            COALESCE(SUM(valor_total - valor_pago), 0) as valor_pendente
-                        FROM vendas 
-                        WHERE username = :u 
-                        AND data_venda BETWEEN :inicio AND :fim
-                    """), {
-                        "u": st.session_state.username,
-                        "inicio": data_inicio,
-                        "fim": data_fim
-                    }).fetchone()
+                st.divider()
+                st.markdown("**Formas de Pagamento Cadastradas**")
+                try:
+                    df_formas = pd.read_sql(text("""
+                        SELECT id, nome, ativo, username FROM formas_pagamento
+                        WHERE username = :u OR username IS NULL
+                        ORDER BY CASE WHEN username IS NULL THEN 0 ELSE 1 END, nome
+                    """), engine, params={"u": st.session_state.username})
 
-                col_r1, col_r2, col_r3, col_r4 = st.columns(4)
-                with col_r1:
-                    st.metric("Total de Vendas", resumo[0])
-                with col_r2:
-                    st.metric("Valor Total", f"R$ {resumo[1]:,.2f}")
-                with col_r3:
-                    st.metric("Valor Recebido", f"R$ {resumo[2]:,.2f}")
-                with col_r4:
-                    st.metric("Valor Pendente",
-                              f"R$ {resumo[3]:,.2f}", delta_color="inverse")
-
-            except Exception as e:
-                st.error(f"Erro ao carregar resumo: {e}")
-
-            st.divider()
-
-            # ==================== TABELA DE VENDAS ====================
-            st.markdown("#### Lista de Vendas")
-
-            try:
-                query = """
-                    SELECT 
-                        v.id,
-                        v.data_venda,
-                        c.nome as cliente,
-                        p.nome as produto,
-                        v.quantidade,
-                        v.valor_total,
-                        v.valor_pago,
-                        (v.valor_total - v.valor_pago) as valor_devendo,
-                        v.observacoes
-                    FROM vendas v
-                    JOIN clientes c ON v.cliente_id = c.id
-                    JOIN produtos p ON v.produto_id = p.id
-                    WHERE v.username = :u
-                    AND v.data_venda BETWEEN :inicio AND :fim
-                """
-                params = {"u": st.session_state.username,
-                          "inicio": data_inicio, "fim": data_fim}
-
-                if cliente_filtro != "Todos":
-                    query += " AND c.nome = :cliente"
-                    params["cliente"] = cliente_filtro
-
-                if status_filtro == "Quitadas":
-                    query += " AND (v.valor_total - v.valor_pago) <= 0"
-                elif status_filtro == "Com Pendência":
-                    query += " AND (v.valor_total - v.valor_pago) > 0"
-
-                if busca:
-                    query += " AND (c.nome ILIKE :busca OR p.nome ILIKE :busca)"
-                    params["busca"] = f"%{busca}%"
-
-                query += " ORDER BY v.data_venda DESC"
-
-                df_vendas = pd.read_sql(text(query), engine, params=params)
-
-                if df_vendas.empty:
-                    st.info("Nenhuma venda encontrada com os filtros selecionados.")
-                else:
-                    # Formatação
-                    df_display = df_vendas.copy()
-                    df_display['data_venda'] = pd.to_datetime(
-                        df_display['data_venda']).dt.strftime('%d/%m/%Y')
-                    df_display['valor_total'] = df_display['valor_total'].apply(
-                        lambda x: f"R$ {x:,.2f}")
-                    df_display['valor_pago'] = df_display['valor_pago'].apply(
-                        lambda x: f"R$ {x:,.2f}")
-                    df_display['valor_devendo'] = df_display['valor_devendo'].apply(
-                        lambda x: f"R$ {x:,.2f}")
-
-                    st.dataframe(
-                        df_display[["data_venda", "cliente", "produto", "quantidade",
-                                    "valor_total", "valor_pago", "valor_devendo"]],
-                        width='stretch',
-                        hide_index=True
-                    )
-
-                    # Total no final
-                    st.caption(f"Mostrando {len(df_vendas)} vendas")
-
-            except Exception as e:
-                st.error(f"Erro ao carregar vendas: {e}")
+                    if df_formas.empty:
+                        st.info("Nenhuma forma de pagamento cadastrada.")
+                    else:
+                        for _, row in df_formas.iterrows():
+                            col1, col2, col3 = st.columns([3, 1.5, 1])
+                            with col1:
+                                if row['username'] is None:
+                                    st.markdown(
+                                        f"**{row['nome']}** <small>(Padrão)</small>", unsafe_allow_html=True)
+                                else:
+                                    st.write(f"**{row['nome']}**")
+                            with col2:
+                                if row['username'] is not None:
+                                    ativo = st.checkbox("Ativa", value=bool(
+                                        row['ativo']), key=f"forma_ativa_{row['id']}")
+                                else:
+                                    st.write("✅ Ativa (Padrão)")
+                            with col3:
+                                if row['username'] is not None:
+                                    if st.button("Salvar", key=f"btn_salvar_forma_{row['id']}"):
+                                        with engine.connect() as conn:
+                                            conn.execute(text("UPDATE formas_pagamento SET ativo = :ativo WHERE id = :id"),
+                                                         {"ativo": ativo, "id": row['id']})
+                                            conn.commit()
+                                        st.success("Atualizado!")
+                                        st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao carregar formas de pagamento: {e}")
