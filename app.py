@@ -660,13 +660,35 @@ else:
                                                         (df_pivot != 0).any(axis=0)]
 
                                 if not df_pivot.empty:
-                                    fig = px.bar(df_pivot, x=df_pivot.index, y=df_pivot.columns,
-                                                 title=f"Produção - {galpao}",
-                                                 labels={
-                                                     'x': 'Data', 'value': 'Quantidade', 'variable': 'Tipo'},
-                                                 text_auto=True, barmode='group')
-                                    fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
-                                                      font=dict(color="black", size=12), xaxis=dict(tickformat='%d/%m'))
+                                    fig = px.bar(
+                                        df_pivot,
+                                        x=df_pivot.index,
+                                        y=df_pivot.columns,
+                                        title=f"Produção - {galpao}",
+                                        labels={
+                                            'x': 'Data',
+                                            'value': 'Quantidade',
+                                            'variable': 'Tipo'
+                                        },
+                                        text_auto=True,
+                                        barmode='group'
+                                    )
+
+                                    # === ESTILO ATUALIZADO ===
+                                    fig.update_layout(
+                                        plot_bgcolor='#ffffff',
+                                        paper_bgcolor='#ffffff',
+                                        font=dict(color="#000000", size=12),
+                                        title_font=dict(color="#000000"),
+                                        xaxis=dict(
+                                            tickformat='%d/%m',
+                                            color="#000000"
+                                        ),
+                                        yaxis=dict(
+                                            color="#000000"
+                                        )
+                                    )
+
                                     st.plotly_chart(fig, width='stretch')
                                 st.divider()
 
