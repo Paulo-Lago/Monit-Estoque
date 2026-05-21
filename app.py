@@ -984,7 +984,7 @@ else:
             # --- 1. NOVA VENDA (VERSÃO PROFISSIONAL) ---
             with vendas_tabs[0]:
                 st.markdown("### 🛒 Registrar Nova Venda")
-                st.caption("Preencha os dados da venda abaixo")
+                st.caption("Preencha os dados abaixo para registrar a venda")
 
                 if "venda_dados" not in st.session_state:
                     st.session_state.venda_dados = None
@@ -1008,56 +1008,58 @@ else:
 
                     if df_clientes.empty or df_produtos.empty or df_formas.empty:
                         st.warning(
-                            "⚠️ Cadastre pelo menos 1 Cliente, 1 Produto e 1 Forma de Pagamento ativa antes de registrar uma venda.")
+                            "⚠️ Cadastre pelo menos 1 Cliente, 1 Produto e 1 Forma de Pagamento ativa.")
                     else:
 
                         # ==================== MODO CONFIRMAÇÃO ====================
                         if st.session_state.mostrar_confirmacao and st.session_state.venda_dados:
                             dados = st.session_state.venda_dados
 
-                            st.markdown("### ✅ Confirmação da Venda")
-                            st.markdown("---")
+                            st.markdown("### ✅ Confirmação Final")
+                            st.success("Revise os dados antes de confirmar")
 
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.markdown(
-                                    f"**Cliente:** {dados['cliente_nome']}")
-                                st.markdown(
-                                    f"**Produto:** {dados['produto_nome']}")
-                                st.markdown(
-                                    f"**Quantidade:** {dados['quantidade']}")
-                            with col2:
-                                st.markdown(
-                                    f"**Forma de Pagamento:** {dados['forma_nome']}")
-                                st.markdown(
-                                    f"**Preço Unitário:** R$ {dados['preco_unit']:.2f}")
-                                st.markdown(
-                                    f"**Desconto:** R$ {dados['desconto']:.2f}")
+                            with st.container(border=True):
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.markdown(
+                                        f"**Cliente:** {dados['cliente_nome']}")
+                                    st.markdown(
+                                        f"**Produto:** {dados['produto_nome']}")
+                                    st.markdown(
+                                        f"**Quantidade:** {dados['quantidade']}")
+                                with col2:
+                                    st.markdown(
+                                        f"**Forma de Pagamento:** {dados['forma_nome']}")
+                                    st.markdown(
+                                        f"**Preço Unitário:** R$ {dados['preco_unit']:.2f}")
+                                    st.markdown(
+                                        f"**Desconto:** R$ {dados['desconto']:.2f}")
 
-                            st.markdown("---")
+                                st.divider()
 
-                            col_r1, col_r2, col_r3 = st.columns(3)
-                            with col_r1:
-                                st.metric("Valor Total",
-                                          f"R$ {dados['valor_total']:.2f}")
-                            with col_r2:
-                                st.metric("Valor Pago",
-                                          f"R$ {dados['valor_pago']:.2f}")
-                            with col_r3:
-                                st.metric("Ficará Devendo",
-                                          f"R$ {dados['valor_devendo']:.2f}")
+                                col_r1, col_r2, col_r3 = st.columns(3)
+                                with col_r1:
+                                    st.metric("Valor Total",
+                                              f"R$ {dados['valor_total']:.2f}")
+                                with col_r2:
+                                    st.metric("Valor Pago",
+                                              f"R$ {dados['valor_pago']:.2f}")
+                                with col_r3:
+                                    st.metric("Ficará Devendo",
+                                              f"R$ {dados['valor_devendo']:.2f}")
 
-                            if dados.get('observacoes'):
-                                st.info(
-                                    f"**Observações:** {dados['observacoes']}")
+                                if dados.get('observacoes'):
+                                    st.info(
+                                        f"**Observações:** {dados['observacoes']}")
 
                             st.markdown("---")
                             st.warning(
-                                "Deseja confirmar o registro desta venda?")
+                                "Tem certeza que deseja registrar esta venda?")
 
                             col_btn1, col_btn2 = st.columns(2)
                             with col_btn1:
                                 if st.button("✅ Confirmar e Registrar Venda", type="primary", width='stretch'):
+                                    # (código de inserção permanece o mesmo)
                                     try:
                                         with engine.connect() as conn:
                                             conn.execute(text("""
@@ -1093,10 +1095,10 @@ else:
                                     st.session_state.mostrar_confirmacao = False
                                     st.rerun()
 
-                        # ==================== MODO FORMULÁRIO ====================
+                        # ==================== MODO FORMULÁRIO (MELHORADO) ====================
                         else:
-                            with st.form("form_nova_venda", clear_on_submit=True):
-                                st.markdown("#### Dados da Venda")
+                            with st.container(border=True):
+                                st.markdown("#### 📋 Dados da Venda")
 
                                 col1, col2 = st.columns(2)
                                 with col1:
@@ -1113,6 +1115,10 @@ else:
                                     preco_unit = float(
                                         produto_row['preco_atual'])
 
+                                    # Preço unitário dentro do card
+                                    st.info(
+                                        f"**Preço unitário:** R$ {preco_unit:.2f}")
+
                                 with col2:
                                     quantidade = st.number_input(
                                         "Quantidade *", min_value=1, step=1, value=1, key="venda_qtd")
@@ -1125,8 +1131,8 @@ else:
                                     desconto = st.number_input(
                                         "Desconto (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_desconto")
 
-                                st.markdown("---")
-                                st.markdown("#### Resumo da Venda")
+                                st.divider()
+                                st.markdown("#### 📊 Resumo da Venda")
 
                                 valor_bruto = quantidade * preco_unit
                                 valor_total = max(0, valor_bruto - desconto)
@@ -1144,16 +1150,13 @@ else:
                                     st.metric("Ficará Devendo",
                                               f"R$ {valor_devendo:.2f}")
 
-                                st.markdown("---")
+                                st.divider()
                                 observacoes = st.text_area(
                                     "Observações (opcional)", key="venda_obs")
 
+                                st.markdown("---")
                                 submitted = st.form_submit_button(
                                     "✅ Registrar Venda", type="primary", width='stretch')
-
-                            # Mostra preço unitário fora do formulário
-                            st.info(
-                                f"**Preço unitário do produto selecionado:** R$ {preco_unit:.2f}")
 
                             if submitted:
                                 st.session_state.venda_dados = {
