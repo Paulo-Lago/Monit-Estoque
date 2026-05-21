@@ -1138,6 +1138,7 @@ else:
             with inner_tabs[3]:
                 st.markdown("#### 🛒 Registrar Nova Venda")
 
+                # Inicializa session_state se não existir
                 if "venda_dados" not in st.session_state:
                     st.session_state.venda_dados = None
                 if "mostrar_confirmacao" not in st.session_state:
@@ -1153,7 +1154,7 @@ else:
                     """), engine, params={"u": st.session_state.username})
 
                     df_formas = pd.read_sql(text("""
-                        SELECT id, nome FROM formas_pagamento 
+                        SELECT id, nome FROM formas_pagamento
                         WHERE (username = :u OR username IS NULL) AND ativo = TRUE
                         ORDER BY nome
                     """), engine, params={"u": st.session_state.username})
@@ -1165,11 +1166,90 @@ else:
 
                         # ==================== MODO CONFIRMAÇÃO ====================
                         if st.session_state.mostrar_confirmacao and st.session_state.venda_dados:
-                            # (código de confirmação permanece igual - omitido para economizar espaço)
+
                             dados = st.session_state.venda_dados
+
                             st.markdown("### Confirmação da Venda")
-                            # ... (mantive o mesmo código de confirmação)
-                            # [código de confirmação omitido aqui para focar na correção]
+                            st.markdown("---")
+
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.write(
+                                    f"**Cliente:** {dados['cliente_nome']}")
+                                st.write(
+                                    f"**Produto:** {dados['produto_nome']}")
+                                st.write(
+                                    f"**Quantidade:** {dados['quantidade']}")
+                            with col2:
+                                st.write(
+                                    f"**Forma de Pagamento:** {dados['forma_nome']}")
+                                st.write(
+                                    f"**Preço Unitário:** R$ {dados['preco_unit']:.2f}")
+                                st.write(
+                                    f"**Desconto:** R$ {dados['desconto']:.2f}")
+
+                            st.markdown("---")
+                            col_r1, col_r2, col_r3 = st.columns(3)
+                            with col_r1:
+                                st.metric("Valor Total",
+                                          f"R$ {dados['valor_total']:.2f}")
+                            with col_r2:
+                                st.metric("Valor Pago",
+                                          f"R$ {dados['valor_pago']:.2f}")
+                            with col_r3:
+                                st.metric("Ficará Devendo",
+                                          f"R$ {dados['valor_devendo']:.2f}")
+
+                            if dados.get('observacoes'):
+                                st.write(
+                                    f"**Observações:** {dados['observacoes']}")
+
+                            st.markdown("---")
+                            st.warning("Confirma o registro desta venda?")
+
+                            col_btn1, col_btn2 = st.columns(2)
+                            with col_btn1:
+                                if st.button("✅ Confirmar e Registrar Venda", type="primary", width='stretch'):
+                                    try:
+                                        with engine.connect() as conn:
+                                            conn.execute(text("""
+                                                INSERT INTO vendas
+                                                (username, cliente_id, data_venda, produto_id, quantidade,
+                                                 preco_unitario, forma_pagamento_id, desconto, valor_total,
+                                                 valor_pago, observacoes)
+                                                VALUES (:u, :cliente_id, CURRENT_DATE, :produto_id, :qtd,
+                                                        :preco, :forma_id, :desconto, :total, :valor_pago, :obs)
+                                            """), {
+                                                "u": st.session_state.username,
+                                                "cliente_id": dados['cliente_id'],
+                                                "produto_id": dados['produto_id'],
+                                                "qtd": dados['quantidade'],
+                                                "preco": dados['preco_unit'],
+                                                "forma_id": dados['forma_id'],
+                                                "desconto": dados['desconto'],
+                                                "total": dados['valor_total'],
+                                                "valor_pago": dados['valor_pago'],
+                                                "obs": dados.get('observacoes')
+                                            })
+                                            conn.commit()
+
+                                        st.balloons()
+                                        st.success(
+                                            "✅ Venda registrada com sucesso!")
+
+                                        # Limpa os dados e volta para o formulário limpo
+                                        st.session_state.venda_dados = None
+                                        st.session_state.mostrar_confirmacao = False
+                                        st.rerun()
+
+                                    except Exception as e:
+                                        st.error(
+                                            f"Erro ao registrar venda: {e}")
+
+                            with col_btn2:
+                                if st.button("← Voltar para Editar", width='stretch'):
+                                    st.session_state.mostrar_confirmacao = False
+                                    st.rerun()
 
                         # ==================== MODO FORMULÁRIO ====================
                         else:
@@ -1190,6 +1270,9 @@ else:
                                     preco_unit = float(
                                         produto_row['preco_atual'])
 
+                                    st.info(
+                                        f"**Preço unitário:** R$ {preco_unit:.2f}")
+
                                 with col2:
                                     quantidade = st.number_input(
                                         "Quantidade *", min_value=1, step=1, value=1, key="venda_qtd")
@@ -1203,18 +1286,23 @@ else:
                                     desconto = st.number_input(
                                         "Desconto (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_desconto")
 
+                                valor_bruto = quantidade * preco_unit
+                                valor_total = max(0, valor_bruto - desconto)
+                                valor_devendo = max(
+                                    0, valor_total - valor_pago)
+
                                 st.markdown("---")
                                 st.caption("Resumo da venda")
                                 col_r1, col_r2, col_r3 = st.columns(3)
                                 with col_r1:
-                                    st.metric(
-                                        "Valor Total", f"R$ {(quantidade * preco_unit) - desconto:.2f}")
+                                    st.metric("Valor Total",
+                                              f"R$ {valor_total:.2f}")
                                 with col_r2:
                                     st.metric("Valor Pago",
                                               f"R$ {valor_pago:.2f}")
                                 with col_r3:
-                                    st.metric(
-                                        "Ficará Devendo", f"R$ {max(0, (quantidade * preco_unit) - desconto - valor_pago):.2f}")
+                                    st.metric("Ficará Devendo",
+                                              f"R$ {valor_devendo:.2f}")
 
                                 observacoes = st.text_area(
                                     "Observações (opcional)", key="venda_obs")
@@ -1222,10 +1310,7 @@ else:
                                 submitted = st.form_submit_button(
                                     "✅ Registrar Venda", type="primary")
 
-                            # Mostra o preço unitário FORA do formulário (atualiza em tempo real)
-                            st.info(
-                                f"**Preço unitário do produto selecionado:** R$ {preco_unit:.2f}")
-
+                            # Quando clicar em Registrar Venda, guarda os dados e vai para confirmação
                             if submitted:
                                 st.session_state.venda_dados = {
                                     "cliente_id": cliente_id,
@@ -1238,8 +1323,8 @@ else:
                                     "forma_nome": forma_nome,
                                     "valor_pago": valor_pago,
                                     "desconto": desconto,
-                                    "valor_total": (quantidade * preco_unit) - desconto,
-                                    "valor_devendo": max(0, (quantidade * preco_unit) - desconto - valor_pago),
+                                    "valor_total": valor_total,
+                                    "valor_devendo": valor_devendo,
                                     "observacoes": observacoes
                                 }
                                 st.session_state.mostrar_confirmacao = True
