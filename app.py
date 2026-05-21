@@ -161,96 +161,13 @@ else:
             st.rerun()
 
         tabs = st.tabs([
-            "📊 Dashboard",
             "📝 Nova Colheita",
-            "🔍 Histórico & Edição",
-            "📊 Monitoramento",
+            "📋 Produção & Histórico",
             "🐔 Registrar Aves",
             "📈 Gráficos",
             "🔨 Ovos Quebrados",
             "⚙️ Configurações"
         ])
-
-        # ======================== ABA 0: DASHBOARD ========================
-        with tabs[0]:
-            st.markdown("### 📊 Dashboard Geral")
-
-            st.markdown("#### 📅 Selecione o Período")
-            col_f1, col_f2 = st.columns(2)
-            with col_f1:
-                data_inicio = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=29),
-                                            format="DD/MM/YYYY", key="dash_data_inicio")
-            with col_f2:
-                data_fim = st.date_input("Data Final", value=datetime.now().date(),
-                                         format="DD/MM/YYYY", key="dash_data_fim")
-
-            try:
-                st.markdown("#### 📈 Resumo do Período")
-                col1, col2, col3, col4 = st.columns(4)
-
-                with engine.connect() as conn:
-                    total_ovos = conn.execute(text("""
-                        SELECT COALESCE(SUM(quantidade), 0) FROM producao
-                        WHERE username = :u AND data BETWEEN :inicio AND :fim
-                    """), {"u": st.session_state.username, "inicio": data_inicio, "fim": data_fim}).scalar()
-
-                    aves_reg_periodo = conn.execute(text("""
-                        SELECT COALESCE(SUM(quantidade_total), 0) FROM aves
-                        WHERE username = :u AND data_registro BETWEEN :inicio AND :fim
-                    """), {"u": st.session_state.username, "inicio": data_inicio, "fim": data_fim}).scalar()
-
-                    aves_mortas_periodo = conn.execute(text("""
-                        SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas
-                        WHERE username = :u AND data BETWEEN :inicio AND :fim
-                    """), {"u": st.session_state.username, "inicio": data_inicio, "fim": data_fim}).scalar()
-
-                    ovos_quebrados_periodo = conn.execute(text("""
-                        SELECT COALESCE(SUM(quantidade), 0) FROM ovos_quebrados
-                        WHERE username = :u AND data BETWEEN :inicio AND :fim
-                    """), {"u": st.session_state.username, "inicio": data_inicio, "fim": data_fim}).scalar()
-
-                with col1:
-                    st.metric("🥚 Ovos Produzidos", f"{total_ovos:,}")
-                with col2:
-                    st.metric("🐔 Aves Registradas", f"{aves_reg_periodo:,}")
-                with col3:
-                    st.metric("🔨 Ovos Quebrados",
-                              f"{ovos_quebrados_periodo:,}")
-                with col4:
-                    st.metric("🪦 Aves Mortas", f"{aves_mortas_periodo:,}")
-
-                st.divider()
-                st.markdown("#### 🏠 Resumo por Galpão (no período)")
-
-                for galpao in GALPOES:
-                    with engine.connect() as conn:
-                        ovos_galpao = conn.execute(text("""
-                            SELECT COALESCE(SUM(quantidade), 0) FROM producao
-                            WHERE username = :u AND galpao = :g AND data BETWEEN :inicio AND :fim
-                        """), {"u": st.session_state.username, "g": galpao, "inicio": data_inicio, "fim": data_fim}).scalar()
-
-                        reg = conn.execute(text("""
-                            SELECT COALESCE(SUM(quantidade_total), 0) FROM aves
-                            WHERE username = :u AND galpao = :g AND data_registro BETWEEN :inicio AND :fim
-                        """), {"u": st.session_state.username, "g": galpao, "inicio": data_inicio, "fim": data_fim}).scalar()
-
-                        mortas = conn.execute(text("""
-                            SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas
-                            WHERE username = :u AND galpao = :g AND data BETWEEN :inicio AND :fim
-                        """), {"u": st.session_state.username, "g": galpao, "inicio": data_inicio, "fim": data_fim}).scalar()
-
-                    st.markdown(f"**{galpao}**")
-                    c1, c2, c3 = st.columns(3)
-                    with c1:
-                        st.metric("Ovos Produzidos", f"{ovos_galpao:,}")
-                    with c2:
-                        st.metric("Aves Registradas", f"{reg:,}")
-                    with c3:
-                        st.metric("Aves Mortas", f"{mortas:,}")
-                    st.divider()
-
-            except Exception as e:
-                st.error(f"Erro ao carregar Dashboard: {e}")
 
         # ======================== ABA 1: NOVA COLHEITA ========================
         with tabs[1]:
@@ -294,179 +211,191 @@ else:
                 else:
                     st.error("Quantidade deve ser maior que zero.")
 
-        # ======================== ABA 2: HISTÓRICO ========================
+        # ======================== ABA 2: PRODUÇÃO & HISTÓRICO ========================
         with tabs[2]:
-            st.markdown("### 🔍 Gerenciar Histórico")
+            st.markdown("### 📋 Produção & Histórico")
 
-            try:
-                df_edit = pd.read_sql(text("""
-                    SELECT id, data, quantidade, tipo, galpao, cor
-                    FROM producao
-                    WHERE username = :username
-                    ORDER BY id DESC
-                """), engine, params={"username": st.session_state.username})
+            prod_tabs = st.tabs(["📊 Monitoramento", "🔍 Histórico & Edição"])
 
-                if not df_edit.empty:
-                    df_edit['data_fmt'] = pd.to_datetime(
-                        df_edit['data']).dt.strftime('%d/%m/%Y')
+            # ==================== SUB-ABA 1: MONITORAMENTO ====================
+            with prod_tabs[0]:
+                st.markdown("### 📊 Monitoramento de Produção")
 
-                    opcoes = {
-                        row['id']: f"📅 {row['data_fmt']} | {row['quantidade']} ovos | {row['tipo']} | {row['cor']} | {row['galpao']}"
-                        for _, row in df_edit.iterrows()
-                    }
+                try:
+                    df_producao = pd.read_sql(text("""
+                        SELECT data, quantidade, tipo, galpao, cor
+                        FROM producao
+                        WHERE username = :username
+                        ORDER BY data DESC
+                    """), engine, params={"username": st.session_state.username})
 
-                    selecao = st.selectbox(
-                        "Escolha um registro para corrigir:", list(opcoes.values()))
-                    selected_id = [
-                        k for k, v in opcoes.items() if v == selecao][0]
-
-                    registro = df_edit[df_edit['id'] == selected_id].iloc[0]
-
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        novo_val = st.number_input(
-                            "Corrigir quantidade:", min_value=0, step=1, value=int(registro['quantidade']))
-                        novo_tipo = st.selectbox(
-                            "Corrigir tipo:", TIPOS_OVO, index=TIPOS_OVO.index(registro['tipo']))
-                    with col2:
-                        novo_galpao = st.selectbox(
-                            "Corrigir galpão:", GALPOES, index=GALPOES.index(registro['galpao']))
-                        nova_cor = st.selectbox(
-                            "Corrigir cor:", CORES, index=CORES.index(registro['cor']))
-
-                    if st.button("✅ Confirmar Alteração", width='stretch'):
-                        try:
-                            with engine.connect() as conn:
-                                conn.execute(text("""
-                                    UPDATE producao
-                                    SET quantidade = :qtd, tipo = :tipo, galpao = :galpao, cor = :cor
-                                    WHERE id = :id AND username = :username
-                                """), {
-                                    "qtd": novo_val, "tipo": novo_tipo,
-                                    "galpao": novo_galpao, "cor": nova_cor,
-                                    "id": selected_id, "username": st.session_state.username
-                                })
-                                conn.commit()
-                            st.success("✅ Registro atualizado!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro ao atualizar: {e}")
-                else:
-                    st.info("📭 Nenhum registro de colheita encontrado.")
-            except Exception as e:
-                st.error(f"Erro ao carregar histórico: {e}")
-
-        # ======================== ABA 3: MONITORAMENTO ========================
-        with tabs[3]:
-            st.markdown("### 📊 Monitoramento de Produção")
-
-            try:
-                df_producao = pd.read_sql(text("""
-                    SELECT data, quantidade, tipo, galpao, cor
-                    FROM producao
-                    WHERE username = :username
-                    ORDER BY data DESC
-                """), engine, params={"username": st.session_state.username})
-
-                if df_producao.empty:
-                    st.info("📭 Nenhum registro de colheita encontrado.")
-                else:
-                    df_producao['data'] = pd.to_datetime(df_producao['data'])
-
-                    st.markdown("#### 📅 Selecione o Período para Análise")
-                    col_f1, col_f2 = st.columns(2)
-                    with col_f1:
-                        data_inicio = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=6),
-                                                    format="DD/MM/YYYY", key="data_inicio_monitor")
-                    with col_f2:
-                        data_fim = st.date_input("Data Final", value=datetime.now().date(),
-                                                 format="DD/MM/YYYY", key="data_fim_monitor")
-
-                    df_filtrado = df_producao[
-                        (df_producao['data'].dt.date >= data_inicio) &
-                        (df_producao['data'].dt.date <= data_fim)
-                    ].copy()
-
-                    titulo_periodo = f"Período: {data_inicio.strftime('%d/%m/%Y')} até {data_fim.strftime('%d/%m/%Y')}"
-                    st.markdown(f"**{titulo_periodo}**")
-                    st.divider()
-
-                    if df_filtrado.empty:
-                        st.warning(
-                            "Nenhum registro encontrado para o período selecionado.")
+                    if df_producao.empty:
+                        st.info("📭 Nenhum registro de colheita encontrado.")
                     else:
-                        sub_tabs = st.tabs(
-                            ["📋 Detalhes por Galpão e Tipo", "📦 Caixas de Ovos"])
+                        df_producao['data'] = pd.to_datetime(
+                            df_producao['data'])
 
-                        with sub_tabs[0]:
-                            st.markdown("#### 📋 Detalhes por Galpão e Tipo")
-                            df_temp = df_filtrado.copy()
-                            df_temp['galpao_norm'] = df_temp['galpao'].astype(
-                                str).str.strip()
+                        st.markdown("#### 📅 Selecione o Período para Análise")
+                        col_f1, col_f2 = st.columns(2)
+                        with col_f1:
+                            data_inicio = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=6),
+                                                        format="DD/MM/YYYY", key="data_inicio_monitor")
+                        with col_f2:
+                            data_fim = st.date_input("Data Final", value=datetime.now().date(),
+                                                     format="DD/MM/YYYY", key="data_fim_monitor")
 
-                            for galpao in sorted(df_temp['galpao_norm'].unique()):
-                                st.markdown(f"**{galpao}**")
-                                df_g = df_temp[df_temp['galpao_norm']
-                                               == galpao]
-                                total_galpao = df_g['quantidade'].sum()
-                                st.info(
-                                    f"**Total de Ovos:** {total_galpao} ovos")
+                        df_filtrado = df_producao[
+                            (df_producao['data'].dt.date >= data_inicio) &
+                            (df_producao['data'].dt.date <= data_fim)
+                        ].copy()
 
-                                tipos_para_mostrar = [t for t in TIPOS_OVO]
-                                if galpao == "Galpão 2":
-                                    tipos_para_mostrar = [
-                                        t for t in TIPOS_OVO if t != "B"]
-                                elif galpao == "Galpão 3":
-                                    tipos_para_mostrar = [
-                                        t for t in TIPOS_OVO if t != "Jumbo"]
+                        titulo_periodo = f"Período: {data_inicio.strftime('%d/%m/%Y')} até {data_fim.strftime('%d/%m/%Y')}"
+                        st.markdown(f"**{titulo_periodo}**")
+                        st.divider()
 
-                                tipo_cols = st.columns(len(tipos_para_mostrar))
-                                for idx, tipo in enumerate(tipos_para_mostrar):
-                                    with tipo_cols[idx]:
-                                        total_tipo = df_g[df_g['tipo']
-                                                          == tipo]['quantidade'].sum()
+                        if df_filtrado.empty:
+                            st.warning(
+                                "Nenhum registro encontrado para o período selecionado.")
+                        else:
+                            sub_tabs = st.tabs(
+                                ["📋 Detalhes por Galpão e Tipo", "📦 Caixas de Ovos"])
+
+                            with sub_tabs[0]:
+                                st.markdown(
+                                    "#### 📋 Detalhes por Galpão e Tipo")
+                                df_temp = df_filtrado.copy()
+                                df_temp['galpao_norm'] = df_temp['galpao'].astype(
+                                    str).str.strip()
+
+                                for galpao in sorted(df_temp['galpao_norm'].unique()):
+                                    st.markdown(f"**{galpao}**")
+                                    df_g = df_temp[df_temp['galpao_norm']
+                                                   == galpao]
+                                    total_galpao = df_g['quantidade'].sum()
+                                    st.info(
+                                        f"**Total de Ovos:** {total_galpao} ovos")
+
+                                    tipos_para_mostrar = [t for t in TIPOS_OVO]
+                                    if galpao == "Galpão 2":
+                                        tipos_para_mostrar = [
+                                            t for t in TIPOS_OVO if t != "B"]
+                                    elif galpao == "Galpão 3":
+                                        tipos_para_mostrar = [
+                                            t for t in TIPOS_OVO if t != "Jumbo"]
+
+                                    tipo_cols = st.columns(
+                                        len(tipos_para_mostrar))
+                                    for idx, tipo in enumerate(tipos_para_mostrar):
+                                        with tipo_cols[idx]:
+                                            total_tipo = df_g[df_g['tipo']
+                                                              == tipo]['quantidade'].sum()
+                                            st.info(
+                                                f"**{tipo}**: {total_tipo} ovos")
+
+                                    cor_cols = st.columns(len(CORES))
+                                    for idx, cor in enumerate(CORES):
+                                        with cor_cols[idx]:
+                                            total_cor = df_g[df_g['cor']
+                                                             == cor]['quantidade'].sum()
+                                            st.warning(
+                                                f"**{cor}**: {total_cor} ovos")
+                                    st.divider()
+
+                            with sub_tabs[1]:
+                                st.markdown("#### 📦 Caixas de Ovos Fechadas")
+                                st.caption("Cada caixa comporta **360 ovos**")
+
+                                df_caixas = df_filtrado.copy()
+                                df_caixas['galpao_norm'] = df_caixas['galpao'].astype(
+                                    str).str.strip()
+
+                                resumo = df_caixas.groupby(['galpao_norm', 'tipo', 'cor'])[
+                                    'quantidade'].sum().reset_index()
+                                resumo['caixas'] = resumo['quantidade'] // 360
+                                resumo['ovos_restantes'] = resumo['quantidade'] % 360
+
+                                for galpao in sorted(resumo['galpao_norm'].unique()):
+                                    st.markdown(f"**{galpao}**")
+                                    df_g = resumo[resumo['galpao_norm']
+                                                  == galpao]
+                                    if not df_g.empty:
+                                        st.dataframe(
+                                            df_g[['tipo', 'cor', 'quantidade', 'caixas', 'ovos_restantes']].rename(columns={
+                                                'tipo': 'Tipo', 'cor': 'Cor', 'quantidade': 'Total de Ovos',
+                                                'caixas': 'Caixas Completas (360)', 'ovos_restantes': 'Ovos Restantes'
+                                            }),
+                                            width='stretch', hide_index=True
+                                        )
+                                    else:
                                         st.info(
-                                            f"**{tipo}**: {total_tipo} ovos")
+                                            "Nenhum registro neste galpão.")
+                                    st.divider()
 
-                                cor_cols = st.columns(len(CORES))
-                                for idx, cor in enumerate(CORES):
-                                    with cor_cols[idx]:
-                                        total_cor = df_g[df_g['cor']
-                                                         == cor]['quantidade'].sum()
-                                        st.warning(
-                                            f"**{cor}**: {total_cor} ovos")
-                                st.divider()
+                except Exception as e:
+                    st.error(f"Erro ao carregar monitoramento: {e}")
 
-                        with sub_tabs[1]:
-                            st.markdown("#### 📦 Caixas de Ovos Fechadas")
-                            st.caption("Cada caixa comporta **360 ovos**")
+            # ==================== SUB-ABA 2: HISTÓRICO & EDIÇÃO ====================
+            with prod_tabs[1]:
+                st.markdown("### 🔍 Gerenciar Histórico")
 
-                            df_caixas = df_filtrado.copy()
-                            df_caixas['galpao_norm'] = df_caixas['galpao'].astype(
-                                str).str.strip()
+                try:
+                    df_edit = pd.read_sql(text("""
+                        SELECT id, data, quantidade, tipo, galpao, cor
+                        FROM producao
+                        WHERE username = :username
+                        ORDER BY id DESC
+                    """), engine, params={"username": st.session_state.username})
 
-                            resumo = df_caixas.groupby(['galpao_norm', 'tipo', 'cor'])[
-                                'quantidade'].sum().reset_index()
-                            resumo['caixas'] = resumo['quantidade'] // 360
-                            resumo['ovos_restantes'] = resumo['quantidade'] % 360
+                    if not df_edit.empty:
+                        df_edit['data_fmt'] = pd.to_datetime(
+                            df_edit['data']).dt.strftime('%d/%m/%Y')
 
-                            for galpao in sorted(resumo['galpao_norm'].unique()):
-                                st.markdown(f"**{galpao}**")
-                                df_g = resumo[resumo['galpao_norm'] == galpao]
-                                if not df_g.empty:
-                                    st.dataframe(
-                                        df_g[['tipo', 'cor', 'quantidade', 'caixas', 'ovos_restantes']].rename(columns={
-                                            'tipo': 'Tipo', 'cor': 'Cor', 'quantidade': 'Total de Ovos',
-                                            'caixas': 'Caixas Completas (360)', 'ovos_restantes': 'Ovos Restantes'
-                                        }),
-                                        width='stretch', hide_index=True
-                                    )
-                                else:
-                                    st.info("Nenhum registro neste galpão.")
-                                st.divider()
+                        opcoes = {
+                            row['id']: f"📅 {row['data_fmt']} | {row['quantidade']} ovos | {row['tipo']} | {row['cor']} | {row['galpao']}"
+                            for _, row in df_edit.iterrows()
+                        }
 
-            except Exception as e:
-                st.error(f"Erro ao carregar monitoramento: {e}")
+                        selecao = st.selectbox(
+                            "Escolha um registro para corrigir:", list(opcoes.values()))
+                        selected_id = [
+                            k for k, v in opcoes.items() if v == selecao][0]
+
+                        registro = df_edit[df_edit['id']
+                                           == selected_id].iloc[0]
+
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            novo_val = st.number_input(
+                                "Corrigir quantidade:", min_value=0, step=1, value=int(registro['quantidade']))
+                            novo_tipo = st.selectbox(
+                                "Corrigir tipo:", TIPOS_OVO, index=TIPOS_OVO.index(registro['tipo']))
+                        with col2:
+                            novo_galpao = st.selectbox(
+                                "Corrigir galpão:", GALPOES, index=GALPOES.index(registro['galpao']))
+                            nova_cor = st.selectbox(
+                                "Corrigir cor:", CORES, index=CORES.index(registro['cor']))
+
+                        if st.button("✅ Confirmar Alteração", width='stretch'):
+                            try:
+                                with engine.connect() as conn:
+                                    conn.execute(text("""
+                                        UPDATE producao
+                                        SET quantidade = :qtd, tipo = :tipo, galpao = :galpao, cor = :cor
+                                        WHERE id = :id AND username = :username
+                                    """), {
+                                        "qtd": novo_val, "tipo": novo_tipo,
+                                        "galpao": novo_galpao, "cor": nova_cor,
+                                        "id": selected_id, "username": st.session_state.username
+                                    })
+                                    conn.commit()
+                                st.success("✅ Registro atualizado!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao atualizar: {e}")
+                    else:
+                        st.info("📭 Nenhum registro de colheita encontrado.")
+                except Exception as e:
+                    st.error(f"Erro ao carregar histórico: {e}")
 
         # ======================== ABA 4: REGISTRAR AVES ========================
         with tabs[4]:
