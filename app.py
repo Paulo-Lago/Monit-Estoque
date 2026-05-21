@@ -475,26 +475,32 @@ else:
             tab_reg_aves, tab_mortas, tab_historico = st.tabs(
                 ["➕ Registrar Aves", "⚠️ Aves Mortas", "📋 Histórico"])
 
+            # ==================== REGISTRAR NOVAS AVES ====================
             with tab_reg_aves:
                 st.markdown("#### ➕ Adicionar Novas Aves")
                 col1, col2 = st.columns(2)
                 with col1:
-                    data_aves = st.date_input("📅 Data", value=datetime.now(
-                    ).date(), format="DD/MM/YYYY", key="data_aves_reg_v2")
+                    data_aves = st.date_input("📅 Data", value=datetime.now().date(),
+                                              format="DD/MM/YYYY", key="data_aves_reg")
                     galpao_aves = st.selectbox(
-                        "🏠 Galpão", GALPOES, key="galpao_aves_reg_v2")
+                        "🏠 Galpão", GALPOES, key="galpao_aves_reg")
                 with col2:
-                    qtd_aves = st.number_input(
-                        "🐔 Quantidade de Aves", min_value=1, step=1, format="%d", key="qtd_aves_reg_v2")
+                    qtd_aves = st.number_input("🐔 Quantidade de Aves", min_value=1, step=1,
+                                               format="%d", key="qtd_aves_reg")
 
-                if st.button("✅ Registrar Aves", width='stretch', type="primary", key="btn_reg_aves_v2"):
+                if st.button("✅ Registrar Aves", width='stretch', type="primary"):
                     if qtd_aves > 0:
                         try:
                             with engine.connect() as conn:
                                 conn.execute(text("""
                                     INSERT INTO aves (username, galpao, quantidade_total, data_registro)
                                     VALUES (:username, :galpao, :qtd, :data)
-                                """), {"username": st.session_state.username, "galpao": galpao_aves, "qtd": qtd_aves, "data": data_aves})
+                                """), {
+                                    "username": st.session_state.username,
+                                    "galpao": galpao_aves,
+                                    "qtd": qtd_aves,
+                                    "data": data_aves
+                                })
                                 conn.commit()
                             st.success(
                                 f"✅ {qtd_aves} aves registradas no {galpao_aves}!")
@@ -502,70 +508,114 @@ else:
                         except Exception as e:
                             st.error(f"Erro ao registrar aves: {e}")
 
+            # ==================== AVES MORTAS ====================
             with tab_mortas:
                 st.markdown("#### ⚠️ Registrar Aves Mortas")
                 col1, col2 = st.columns(2)
                 with col1:
-                    data_morta = st.date_input("📅 Data", value=datetime.now(
-                    ).date(), format="DD/MM/YYYY", key="data_morta_v2")
+                    data_morta = st.date_input("📅 Data", value=datetime.now().date(),
+                                               format="DD/MM/YYYY", key="data_morta")
                     galpao_morta = st.selectbox(
-                        "🏠 Galpão", GALPOES, key="galpao_morta_v2")
+                        "🏠 Galpão", GALPOES, key="galpao_morta")
                 with col2:
-                    qtd_morta = st.number_input(
-                        "🪦 Quantidade de Aves Mortas", min_value=1, step=1, format="%d", key="qtd_morta_v2")
+                    qtd_morta = st.number_input("🪦 Quantidade de Aves Mortas", min_value=1, step=1,
+                                                format="%d", key="qtd_morta")
 
-                if st.button("✅ Registrar Morte", width='stretch', type="primary", key="btn_morta_v2"):
+                if st.button("✅ Registrar Morte", width='stretch', type="primary"):
                     try:
                         with engine.connect() as conn:
                             conn.execute(text("""
                                 INSERT INTO aves_mortas (username, galpao, quantidade, data)
                                 VALUES (:username, :galpao, :qtd, :data)
-                            """), {"username": st.session_state.username, "galpao": galpao_morta, "qtd": qtd_morta, "data": data_morta})
+                            """), {
+                                "username": st.session_state.username,
+                                "galpao": galpao_morta,
+                                "qtd": qtd_morta,
+                                "data": data_morta
+                            })
                             conn.commit()
                         st.success(f"✅ {qtd_morta} aves mortas registradas!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Erro ao registrar morte: {e}")
 
+            # ==================== HISTÓRICO + EDIÇÃO ====================
             with tab_historico:
-                st.markdown("#### 📋 Histórico de Aves")
-                col_h1, col_h2 = st.columns(2)
-                with col_h1:
-                    st.markdown("**Aves Registradas**")
-                    try:
-                        df_aves = pd.read_sql(text("""
-                            SELECT data_registro as Data, galpao as Galpão, quantidade_total as 'Registradas'
-                            FROM aves WHERE username = :username ORDER BY data_registro DESC
-                        """), engine, params={"username": st.session_state.username})
-                        if not df_aves.empty:
-                            df_aves['Data'] = pd.to_datetime(
-                                df_aves['Data']).dt.strftime('%d/%m/%Y')
-                            st.dataframe(df_aves, width='stretch',
-                                         hide_index=True)
-                        else:
-                            st.info("Nenhum registro encontrado.")
-                    except Exception as e:
-                        st.error(f"Erro: {e}")
+                st.markdown("#### 📋 Histórico de Aves Registradas")
 
-                with col_h2:
-                    st.markdown("**Aves Mortas**")
-                    try:
-                        df_mortas = pd.read_sql(text("""
-                            SELECT data as Data, galpao as Galpão, quantidade as 'Mortas'
-                            FROM aves_mortas WHERE username = :username ORDER BY data DESC
-                        """), engine, params={"username": st.session_state.username})
-                        if not df_mortas.empty:
-                            df_mortas['Data'] = pd.to_datetime(
-                                df_mortas['Data']).dt.strftime('%d/%m/%Y')
-                            st.dataframe(
-                                df_mortas, width='stretch', hide_index=True)
-                        else:
-                            st.info("Nenhum registro encontrado.")
-                    except Exception as e:
-                        st.error(f"Erro: {e}")
+                try:
+                    df_aves = pd.read_sql(text("""
+                        SELECT id, data_registro as Data, galpao as Galpão, quantidade_total as Quantidade
+                        FROM aves 
+                        WHERE username = :username 
+                        ORDER BY data_registro DESC
+                    """), engine, params={"username": st.session_state.username})
 
+                    if df_aves.empty:
+                        st.info("Nenhum registro de aves encontrado.")
+                    else:
+                        df_aves['Data'] = pd.to_datetime(
+                            df_aves['Data']).dt.strftime('%d/%m/%Y')
+
+                        # Select para editar
+                        opcoes = {
+                            row['id']: f"📅 {row['Data']} | {row['Galpão']} | {row['Quantidade']} aves"
+                            for _, row in df_aves.iterrows()
+                        }
+
+                        selecao = st.selectbox(
+                            "Selecione um registro para editar:", list(opcoes.values()))
+                        selected_id = [
+                            k for k, v in opcoes.items() if v == selecao][0]
+
+                        registro = df_aves[df_aves['id']
+                                           == selected_id].iloc[0]
+
+                        st.markdown("---")
+                        st.markdown("**Editar Registro**")
+
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            novo_galpao = st.selectbox("Galpão", GALPOES,
+                                                       index=GALPOES.index(registro['Galpão']))
+                            nova_qtd = st.number_input("Quantidade", min_value=1, step=1,
+                                                       value=int(registro['Quantidade']))
+                        with col2:
+                            nova_data = st.date_input("Data", value=pd.to_datetime(registro['Data']).date(),
+                                                      format="DD/MM/YYYY")
+
+                        if st.button("✅ Salvar Alterações", width='stretch', type="primary"):
+                            try:
+                                with engine.connect() as conn:
+                                    conn.execute(text("""
+                                        UPDATE aves 
+                                        SET galpao = :galpao, quantidade_total = :qtd, data_registro = :data
+                                        WHERE id = :id AND username = :username
+                                    """), {
+                                        "galpao": novo_galpao,
+                                        "qtd": nova_qtd,
+                                        "data": nova_data,
+                                        "id": selected_id,
+                                        "username": st.session_state.username
+                                    })
+                                    conn.commit()
+                                st.success(
+                                    "✅ Registro atualizado com sucesso!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao atualizar: {e}")
+
+                        st.divider()
+                        st.markdown("**Histórico Completo**")
+                        st.dataframe(df_aves, width='stretch', hide_index=True)
+
+                except Exception as e:
+                    st.error(f"Erro ao carregar histórico: {e}")
+
+            # ==================== RESUMO ATUAL ====================
             st.divider()
             st.markdown("#### 📊 Resumo Atual de Aves por Galpão")
+
             for galpao in GALPOES:
                 try:
                     with engine.connect() as conn:
@@ -573,10 +623,12 @@ else:
                             SELECT COALESCE(SUM(quantidade_total), 0) FROM aves
                             WHERE username = :u AND galpao = :g
                         """), {"u": st.session_state.username, "g": galpao}).scalar()
+
                         total_morto = conn.execute(text("""
                             SELECT COALESCE(SUM(quantidade), 0) FROM aves_mortas
                             WHERE username = :u AND galpao = :g
                         """), {"u": st.session_state.username, "g": galpao}).scalar()
+
                     total_vivo = max(0, total_reg - total_morto)
 
                     col1, col2, col3 = st.columns(3)
@@ -587,6 +639,7 @@ else:
                         st.metric(f"{galpao} - Mortas", f"{total_morto} aves")
                     with col3:
                         st.metric(f"{galpao} - Vivas", f"{total_vivo} aves")
+
                 except Exception as e:
                     st.error(f"Erro ao calcular resumo: {e}")
 
