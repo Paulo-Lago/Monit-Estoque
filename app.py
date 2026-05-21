@@ -936,7 +936,7 @@ else:
 
                 try:
                     df_quebrados_hist = pd.read_sql(text("""
-                        SELECT id, data, galpao as Galpão, quantidade as Quantidade
+                        SELECT id, data, galpao, quantidade
                         FROM ovos_quebrados 
                         WHERE username = :username 
                         ORDER BY data DESC
@@ -945,11 +945,23 @@ else:
                     if df_quebrados_hist.empty:
                         st.info("Nenhum registro de ovos quebrados encontrado.")
                     else:
+                        # Renomeia primeiro
+                        df_quebrados_hist = df_quebrados_hist.rename(columns={
+                            "galpao": "Galpão",
+                            "quantidade": "Quantidade"
+                        })
+
+                        # Depois formata a data e exibe
                         df_quebrados_hist['data'] = pd.to_datetime(
                             df_quebrados_hist['data']).dt.strftime('%d/%m/%Y')
 
-                        st.dataframe(df_quebrados_hist[["data", "Galpão", "Quantidade"]].rename(
-                            columns={"data": "Data"}), width='stretch', hide_index=True)
+                        st.dataframe(
+                            df_quebrados_hist[["data", "Galpão", "Quantidade"]].rename(
+                                columns={"data": "Data"}
+                            ),
+                            width='stretch',
+                            hide_index=True
+                        )
 
                 except Exception as e:
                     st.error(f"Erro ao carregar histórico: {e}")
