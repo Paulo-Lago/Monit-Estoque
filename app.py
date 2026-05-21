@@ -982,10 +982,10 @@ with fat_tabs[0]:
     ])
 
     # ==================== SUBABA 0: NOVA VENDA ====================
-with vendas_tabs[0]:
-    st.markdown("""
-    <style>
-    .card-form {
+    with vendas_tabs[0]:
+        st.markdown("""
+         <style>
+         .card-form {
         background-color: #f9f9fb;
         border-radius: 20px;
         padding: 1.5rem;
