@@ -543,74 +543,81 @@ else:
             with tab_historico:
                 st.markdown("#### 📋 Histórico de Aves Registradas")
 
-                try:
-                    df_aves = pd.read_sql(text("""
-                        SELECT id, data_registro as Data, galpao as Galpão, quantidade_total as Quantidade
+            try:
+                df_aves = pd.read_sql(text("""
+                        SELECT id, data_registro, galpao, quantidade_total
                         FROM aves 
                         WHERE username = :username 
                         ORDER BY data_registro DESC
                     """), engine, params={"username": st.session_state.username})
 
-                    if df_aves.empty:
-                        st.info("Nenhum registro de aves encontrado.")
-                    else:
-                        df_aves['Data'] = pd.to_datetime(
-                            df_aves['Data']).dt.strftime('%d/%m/%Y')
+                if df_aves.empty:
+                    st.info("Nenhum registro de aves encontrado.")
+                else:
+                    # Renomeia de forma segura
+                    df_aves = df_aves.rename(columns={
+                        "data_registro": "Data",
+                        "galpao": "Galpão",
+                        "quantidade_total": "Quantidade"
+                    })
 
-                        # Select para editar
-                        opcoes = {
-                            row['id']: f"📅 {row['Data']} | {row['Galpão']} | {row['Quantidade']} aves"
-                            for _, row in df_aves.iterrows()
-                        }
+                    df_aves['Data'] = pd.to_datetime(
+                        df_aves['Data']).dt.strftime('%d/%m/%Y')
 
-                        selecao = st.selectbox(
-                            "Selecione um registro para editar:", list(opcoes.values()))
-                        selected_id = [
-                            k for k, v in opcoes.items() if v == selecao][0]
+                    # Select para editar
+                    opcoes = {
+                        row['id']: f"📅 {row['Data']} | {row['Galpão']} | {row['Quantidade']} aves"
+                        for _, row in df_aves.iterrows()
+                    }
 
-                        registro = df_aves[df_aves['id']
-                                           == selected_id].iloc[0]
+                    selecao = st.selectbox(
+                        "Selecione um registro para editar:", list(opcoes.values()))
+                    selected_id = [
+                        k for k, v in opcoes.items() if v == selecao][0]
 
-                        st.markdown("---")
-                        st.markdown("**Editar Registro**")
+                    registro = df_aves[df_aves['id']
+                                       == selected_id].iloc[0]
 
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            novo_galpao = st.selectbox("Galpão", GALPOES,
-                                                       index=GALPOES.index(registro['Galpão']))
-                            nova_qtd = st.number_input("Quantidade", min_value=1, step=1,
-                                                       value=int(registro['Quantidade']))
-                        with col2:
-                            nova_data = st.date_input("Data", value=pd.to_datetime(registro['Data']).date(),
-                                                      format="DD/MM/YYYY")
+                    st.markdown("---")
+                    st.markdown("**Editar Registro**")
 
-                        if st.button("✅ Salvar Alterações", width='stretch', type="primary"):
-                            try:
-                                with engine.connect() as conn:
-                                    conn.execute(text("""
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        novo_galpao = st.selectbox("Galpão", GALPOES,
+                                                   index=GALPOES.index(registro['Galpão']))
+                        nova_qtd = st.number_input("Quantidade", min_value=1, step=1,
+                                                   value=int(registro['Quantidade']))
+                    with col2:
+                        nova_data = st.date_input("Data", value=pd.to_datetime(registro['Data']).date(),
+                                                  format="DD/MM/YYYY")
+
+                    if st.button("✅ Salvar Alterações", width='stretch', type="primary"):
+                        try:
+                            with engine.connect() as conn:
+                                conn.execute(text("""
                                         UPDATE aves 
                                         SET galpao = :galpao, quantidade_total = :qtd, data_registro = :data
                                         WHERE id = :id AND username = :username
                                     """), {
-                                        "galpao": novo_galpao,
-                                        "qtd": nova_qtd,
-                                        "data": nova_data,
-                                        "id": selected_id,
-                                        "username": st.session_state.username
-                                    })
-                                    conn.commit()
-                                st.success(
-                                    "✅ Registro atualizado com sucesso!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Erro ao atualizar: {e}")
+                                    "galpao": novo_galpao,
+                                    "qtd": nova_qtd,
+                                    "data": nova_data,
+                                    "id": selected_id,
+                                    "username": st.session_state.username
+                                })
+                                conn.commit()
+                            st.success(
+                                "✅ Registro atualizado com sucesso!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao atualizar: {e}")
 
-                        st.divider()
-                        st.markdown("**Histórico Completo**")
-                        st.dataframe(df_aves, width='stretch', hide_index=True)
+                    st.divider()
+                    st.markdown("**Histórico Completo**")
+                    st.dataframe(df_aves, width='stretch', hide_index=True)
 
-                except Exception as e:
-                    st.error(f"Erro ao carregar histórico: {e}")
+            except Exception as e:
+                st.error(f"Erro ao carregar histórico: {e}")
 
             # ==================== RESUMO ATUAL ====================
             st.divider()
