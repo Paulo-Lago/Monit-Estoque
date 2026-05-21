@@ -982,9 +982,9 @@ else:
             ])
 
 # --- 1. NOVA VENDA (VERSÃO PROFISSIONAL COM VISUAL MODERNO) ---
-with vendas_tabs[0]:
-    # CSS customizado para cards e botões
-    st.markdown("""
+        with vendas_tabs[0]:
+            # CSS customizado para cards e botões
+            st.markdown("""
         <style>
         .card-form {
             background-color: #f9f9fb;
