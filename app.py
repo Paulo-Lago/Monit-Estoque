@@ -1527,12 +1527,19 @@ else:
                                 value=int(venda_selecionada['quantidade']),
                                 step=1
                             )
-                            novo_desconto = st.number_input("Desconto (R$)", min_value=0.0,
-                                                            value=float(
-                                                                venda_selecionada.get('desconto', 0)),
-                                                            step=0.01, format="%.2f")
+                            novo_desconto = st.number_input(
+                                "Desconto (R$)",
+                                min_value=0.0,
+                                value=float(
+                                    venda_selecionada.get('desconto', 0)),
+                                step=0.01,
+                                format="%.2f"
+                            )
                             novas_obs = st.text_area(
-                                "Observações", value=venda_selecionada.get('observacoes', '') or "")
+                                "Observações",
+                                value=venda_selecionada.get(
+                                    'observacoes', '') or ""
+                            )
 
                             if st.form_submit_button("Salvar Alterações"):
                                 novo_valor_total = (
