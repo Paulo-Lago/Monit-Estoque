@@ -635,7 +635,7 @@ else:
         with tabs[3]:
             st.markdown("### 📈 Gráficos e Análises")
 
-            tab_prod, tab_quebrados, tab_mortas, tab_caixas = st.tabs([
+            tab_prod, tab_quebrados, tab_mortas = st.tabs([
                 "🥚 Produção de Ovos", "🔨 Ovos Quebrados", "🐔 Aves Mortas"
             ])
 
