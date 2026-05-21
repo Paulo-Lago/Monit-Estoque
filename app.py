@@ -1217,7 +1217,7 @@ with vendas_tabs[0]:
 
         # --- 2. REGISTROS DE VENDAS ---
         with vendas_tabs[1]:
-            st.markdown("#### 📋 Registros de Vendas")
+            st.markdown("#### 📋 Histórico de Vendas")
 
             # ==================== FILTROS ====================
             st.markdown("#### Filtros")
