@@ -985,27 +985,27 @@ else:
         with vendas_tabs[0]:
             # CSS customizado para cards e botões
             st.markdown("""
-        <style>
-        .card-form {
+            <style>
+            .card-form {
             background-color: #f9f9fb;
             border-radius: 20px;
             padding: 1.5rem;
             border: 1px solid #e0e4e8;
             box-shadow: 0 2px 8px rgba(0,0,0,0.02);
             margin-bottom: 1rem;
-        }
-        .card-resumo {
+            }
+            .card-resumo {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border-radius: 24px;
             padding: 1.2rem;
             color: white;
-        }
-        .card-resumo .stMetric {
+            }
+            .card-resumo .stMetric {
             background: rgba(255,255,255,0.15);
             border-radius: 16px;
             padding: 0.8rem;
-        }
-        .preco-unitario {
+            }
+         .preco-unitario {
             background-color: #eef2ff;
             border-radius: 40px;
             padding: 0.3rem 0.8rem;
@@ -1013,26 +1013,27 @@ else:
             font-size: 0.85rem;
             color: #1e3a8a;
             font-weight: 500;
-        }
-        div.stButton > button:first-child {
+         }
+         div.stButton > button:first-child {
             border-radius: 40px;
             font-weight: 600;
             transition: all 0.2s ease;
-        }
-        div.stButton > button:first-child:hover {
+         }
+         div.stButton > button:first-child:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 12px rgba(0,0,0,0.1);
-        }
-        </style>
-    """, unsafe_allow_html=True)
+         }
+         </style>
+         """, unsafe_allow_html=True)
 
-    st.markdown("### 🧾 Registrar Nova Venda")
-    st.caption("Preencha os dados abaixo — a venda será revisada antes de salvar")
+        st.markdown("### 🧾 Registrar Nova Venda")
+        st.caption(
+            "Preencha os dados abaixo — a venda será revisada antes de salvar")
 
-    if "venda_dados" not in st.session_state:
-        st.session_state.venda_dados = None
-    if "mostrar_confirmacao" not in st.session_state:
-        st.session_state.mostrar_confirmacao = False
+        if "venda_dados" not in st.session_state:
+            st.session_state.venda_dados = None
+        if "mostrar_confirmacao" not in st.session_state:
+            st.session_state.mostrar_confirmacao = False
 
     try:
         df_clientes = pd.read_sql(text("""
