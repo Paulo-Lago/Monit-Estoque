@@ -981,11 +981,11 @@ else:
         "💰 Financeiro"
     ])
 
-    # ==================== SUBABA 0: NOVA VENDA ====================
+# ==================== SUBABA 0: NOVA VENDA ====================
     with vendas_tabs[0]:
         st.markdown("""
-         <style>
-         .card-form {
+    <style>
+    .card-form {
         background-color: #f9f9fb;
         border-radius: 20px;
         padding: 1.5rem;
@@ -1001,7 +1001,7 @@ else:
         font-size: 0.85rem;
         color: #1e3a8a;
         font-weight: 500;
-        margin-top: 1.8rem; /* alinha verticalmente com o selectbox */
+        margin-top: 1.8rem;
     }
     div.stButton > button:first-child {
         border-radius: 40px;
@@ -1035,7 +1035,7 @@ else:
             st.warning(
                 "⚠️ Cadastre pelo menos 1 Cliente, 1 Produto e 1 Forma de Pagamento ativa antes de registrar uma venda.")
         else:
-            # MODO CONFIRMAÇÃO (igual ao anterior, não precisa mudar)
+            # MODO CONFIRMAÇÃO (mantido)
             if st.session_state.mostrar_confirmacao and st.session_state.venda_dados:
                 dados = st.session_state.venda_dados
                 with st.container():
@@ -1106,10 +1106,10 @@ else:
                             st.session_state.mostrar_confirmacao = False
                             st.rerun()
             else:
-                # ==================== MODO FORMULÁRIO COM PRODUTO FORA (MAS VISUALMENTE INTEGRADO) ====================
+                # ==================== MODO FORMULÁRIO (SEM RESUMO VISUAL) ====================
                 st.markdown('<div class="card-form">', unsafe_allow_html=True)
 
-                # Primeira linha: produto (fora do form) + chip de preço
+                # Produto fora do formulário (para reatividade do preço)
                 col_prod, col_preco_chip = st.columns([2, 1])
                 with col_prod:
                     produto_nome = st.selectbox(
@@ -1118,14 +1118,13 @@ else:
                         key="produto_select_fora"
                     )
                 with col_preco_chip:
-                    # Obtém o preço atualizado instantaneamente
                     produto_row = df_produtos[df_produtos['nome']
                                               == produto_nome].iloc[0]
                     preco_unit = float(produto_row['preco_atual'])
                     st.markdown(
                         f'<div class="preco-unitario">💰 Preço unitário: R$ {preco_unit:.2f}</div>', unsafe_allow_html=True)
 
-                # Agora o formulário com os demais campos
+                # Formulário com os demais campos
                 with st.form("form_nova_venda", clear_on_submit=True):
                     col1, col2 = st.columns(2, gap="medium")
                     with col1:
@@ -1145,24 +1144,6 @@ else:
                         desconto = st.number_input(
                             "🎁 Desconto (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_desconto")
 
-                    st.divider()
-                    st.markdown("#### 📊 Resumo da Venda")
-
-                    valor_bruto = quantidade * preco_unit
-                    valor_total = max(0, valor_bruto - desconto)
-                    valor_devendo = max(0, valor_total - valor_pago)
-
-                    col_r1, col_r2, col_r3 = st.columns(3)
-                    with col_r1:
-                        st.metric(
-                            "💵 Valor Total", f"R$ {valor_total:.2f}", help="Total após desconto")
-                    with col_r2:
-                        st.metric("✅ Valor Pago", f"R$ {valor_pago:.2f}")
-                    with col_r3:
-                        st.metric("⚠️ Ficará Devendo",
-                                  f"R$ {valor_devendo:.2f}")
-
-                    st.divider()
                     observacoes = st.text_area(
                         "📝 Observações (opcional)", key="venda_obs", placeholder="Ex: Entrega agendada, troco, etc.")
                     submitted = st.form_submit_button(
@@ -1171,7 +1152,11 @@ else:
                 st.markdown('</div>', unsafe_allow_html=True)
 
                 if submitted:
-                    # Recupera o produto_id (precisa ser obtido novamente, pois está fora do form)
+                    # Cálculos internos (não exibidos)
+                    valor_bruto = quantidade * preco_unit
+                    valor_total = max(0, valor_bruto - desconto)
+                    valor_devendo = max(0, valor_total - valor_pago)
+
                     produto_row_final = df_produtos[df_produtos['nome']
                                                     == produto_nome].iloc[0]
                     produto_id_final = int(produto_row_final['id'])
