@@ -1424,7 +1424,13 @@ else:
                         with tab_pag:
                             with st.form("form_receber_pagamento"):
                                 valor_recebido = st.number_input(
-                                    "Valor Recebido agora (R$)", min_value=0.0, max_value=valor_devendo_atual, step=0.01, format="%.2f", value=min(50.0, valor_devendo_atual))
+                                    "Valor Recebido agora (R$)",
+                                    min_value=0.0,
+                                    max_value=float(valor_devendo_atual),
+                                    step=0.01,
+                                    format="%.2f",
+                                    value=min(50.0, float(valor_devendo_atual))
+                                )
                                 if st.form_submit_button("Confirmar Recebimento"):
                                     novo_pago = valor_pago_atual + valor_recebido
                                     with engine.connect() as conn:
