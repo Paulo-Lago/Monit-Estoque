@@ -53,12 +53,17 @@ st.set_page_config(page_title="Estoque Ovos Pro", layout="wide")
 aplicar_estilo_customizado()
 
 # ==================== SESSION STATE ====================
+# Tenta restaurar sessão a partir da URL
 if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-if 'username' not in st.session_state:
-    st.session_state.username = ""
-if "modulo_atual" not in st.session_state:
-    st.session_state.modulo_atual = None
+    user_from_url = st.query_params.get("user")
+    if user_from_url:
+        st.session_state.logged_in = True
+        st.session_state.username = user_from_url
+        st.session_state.modulo_atual = None
+    else:
+        st.session_state.logged_in = False
+        st.session_state.username = ""
+        st.session_state.modulo_atual = None
 
 # ==================== CONSTANTES ====================
 TIPOS_OVO = ["A", "B", "Jumbo", "Extra"]
@@ -90,6 +95,7 @@ if not st.session_state.logged_in:
                     if result and result[0] == pw:
                         st.session_state.logged_in = True
                         st.session_state.username = user
+                        st.query_params["user"] = user
                         st.rerun()
                     else:
                         st.error("Login ou senha inválidos.")
@@ -158,6 +164,7 @@ else:
         if st.sidebar.button("🚪 Sair / Logout"):
             st.session_state.logged_in = False
             st.session_state.modulo_atual = None
+            st.query_params.clear()
             st.rerun()
 
         tabs = st.tabs([
