@@ -1220,7 +1220,7 @@ else:
                                     valor_pago = st.number_input(
                                         "💰 Valor Pago agora (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_valor_pago")
                                     desconto = st.number_input(
-                                        "🎁 Desconto (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_desconto")
+                                        "🎁 Desconto por unidade (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_desconto")
                                 observacoes = st.text_area(
                                     "📝 Observações (opcional)", key="venda_obs", placeholder="Ex: Entrega agendada, troco, etc.")
                                 submitted = st.form_submit_button(
