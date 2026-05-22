@@ -1823,9 +1823,11 @@ else:
                 except Exception as e:
                     st.error(f"Erro: {e}")
 
-            # --- PRODUTOS & PREÇOS ---
+                    # --- PRODUTOS & PREÇOS (COM EDIÇÃO E EXCLUSÃO) ---
             with cadastros_tabs[1]:
                 st.markdown("#### 📦 Produtos & Preços")
+
+                # Expansor para cadastrar novo produto
                 with st.expander("➕ Cadastrar Novo Produto", expanded=False):
                     with st.form("form_novo_produto", clear_on_submit=True):
                         col1, col2 = st.columns([2, 1])
@@ -1841,41 +1843,142 @@ else:
                                 "Preço Atual (R$)", min_value=0.0, step=0.01, format="%.2f", key="prod_preco_novo")
                         if st.form_submit_button("Cadastrar Produto"):
                             if nome_prod:
-                                with engine.connect() as conn:
-                                    conn.execute(text("INSERT INTO produtos (username, nome, descricao, unidade, preco_atual) VALUES (:u, :nome, :desc, :un, :preco)"),
-                                                 {"u": st.session_state.username, "nome": nome_prod, "desc": descricao or None, "un": unidade, "preco": preco})
-                                    conn.commit()
-                                st.success("Produto cadastrado!")
-                                st.rerun()
+                                try:
+                                    with engine.connect() as conn:
+                                        conn.execute(text("""
+                                            INSERT INTO produtos (username, nome, descricao, unidade, preco_atual)
+                                            VALUES (:u, :nome, :desc, :un, :preco)
+                                        """), {"u": st.session_state.username, "nome": nome_prod,
+                                               "desc": descricao or None, "un": unidade, "preco": preco})
+                                        conn.commit()
+                                    st.success(
+                                        "✅ Produto cadastrado com sucesso!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao cadastrar: {e}")
+                            else:
+                                st.error("Nome do produto é obrigatório.")
+
+                st.divider()
+
+                # Listagem de produtos cadastrados
                 st.markdown("**Produtos Cadastrados**")
                 try:
-                    df_prod = pd.read_sql(text("SELECT id, nome, unidade, preco_atual FROM produtos WHERE username = :u ORDER BY data_cadastro DESC"),
-                                          engine, params={"u": st.session_state.username})
-                    if df_prod.empty:
-                        st.info("Nenhum produto.")
+                    df_produtos_lista = pd.read_sql(text("""
+                        SELECT id, nome, descricao, unidade, preco_atual 
+                        FROM produtos 
+                        WHERE username = :u 
+                        ORDER BY data_cadastro DESC
+                    """), engine, params={"u": st.session_state.username})
+
+                    if df_produtos_lista.empty:
+                        st.info("Nenhum produto cadastrado ainda.")
                     else:
-                        st.dataframe(df_prod[['nome', 'unidade', 'preco_atual']].rename(columns={
-                                     'nome': 'Produto', 'preco_atual': 'Preço (R$)'}), width='stretch', hide_index=True)
-                        st.markdown("**Atualizar Preço**")
-                        col_sel, col_preco, col_btn = st.columns([2, 1.2, 1])
-                        with col_sel:
-                            prod_sel = st.selectbox(
-                                "Selecione o produto", df_prod['nome'].tolist(), key="sel_produto")
-                            prod_row = df_prod[df_prod['nome']
-                                               == prod_sel].iloc[0]
-                        with col_preco:
-                            novo_preco = st.number_input("Novo Preço (R$)", value=float(
-                                prod_row['preco_atual']), step=0.01, format="%.2f", key="novo_preco")
-                        with col_btn:
-                            if st.button("Atualizar Preço"):
-                                with engine.connect() as conn:
-                                    conn.execute(text("UPDATE produtos SET preco_atual = :preco WHERE id = :id"), {
-                                                 "preco": novo_preco, "id": int(prod_row['id'])})
-                                    conn.commit()
-                                st.success("Preço atualizado!")
-                                st.rerun()
+                        # Tabela de produtos
+                        df_display = df_produtos_lista.copy()
+                        df_display['preco_atual'] = df_display['preco_atual'].apply(
+                            lambda x: f"R$ {x:.2f}")
+                        st.dataframe(
+                            df_display[['nome', 'unidade', 'preco_atual']].rename(
+                                columns={
+                                    'nome': 'Produto', 'unidade': 'Unidade', 'preco_atual': 'Preço Atual'}
+                            ),
+                            width='stretch',
+                            hide_index=True
+                        )
+
+                        st.divider()
+                        st.markdown("### ✏️ Editar ou 🗑️ Excluir Produto")
+                        st.caption(
+                            "Selecione um produto abaixo para editar seus dados ou excluí-lo permanentemente.")
+
+                        # Select para escolher o produto
+                        produto_selecionado = st.selectbox(
+                            "Selecione o produto",
+                            df_produtos_lista['nome'].tolist(),
+                            key="select_produto_edit"
+                        )
+                        produto_row = df_produtos_lista[df_produtos_lista['nome']
+                                                        == produto_selecionado].iloc[0]
+                        produto_id = int(produto_row['id'])
+
+                        col_edit, col_del = st.columns(2)
+
+                        # --- Editar produto ---
+                        with col_edit:
+                            with st.expander("✏️ Editar Produto", expanded=False):
+                                with st.form("form_editar_produto"):
+                                    novo_nome = st.text_input(
+                                        "Nome do Produto", value=produto_row['nome'], key="edit_prod_nome")
+                                    nova_desc = st.text_area("Descrição", value=produto_row.get(
+                                        'descricao', '') or '', key="edit_prod_desc")
+                                    nova_unidade = st.text_input(
+                                        "Unidade de Medida", value=produto_row['unidade'], key="edit_prod_un")
+                                    novo_preco = st.number_input("Preço (R$)", value=float(
+                                        produto_row['preco_atual']), step=0.01, format="%.2f", key="edit_prod_preco")
+
+                                    if st.form_submit_button("✅ Salvar Alterações"):
+                                        if novo_nome:
+                                            try:
+                                                with engine.connect() as conn:
+                                                    conn.execute(text("""
+                                                        UPDATE produtos 
+                                                        SET nome = :nome, descricao = :desc, unidade = :un, preco_atual = :preco
+                                                        WHERE id = :id AND username = :u
+                                                    """), {
+                                                        "nome": novo_nome,
+                                                        "desc": nova_desc or None,
+                                                        "un": nova_unidade,
+                                                        "preco": novo_preco,
+                                                        "id": produto_id,
+                                                        "u": st.session_state.username
+                                                    })
+                                                    conn.commit()
+                                                st.success(
+                                                    "✅ Produto atualizado com sucesso!")
+                                                st.rerun()
+                                            except Exception as e:
+                                                st.error(
+                                                    f"Erro ao atualizar: {e}")
+                                        else:
+                                            st.error(
+                                                "O nome do produto é obrigatório.")
+
+                        # --- Excluir produto ---
+                        with col_del:
+                            with st.expander("🗑️ Excluir Produto", expanded=False):
+                                st.warning(
+                                    f"⚠️ Tem certeza que deseja excluir o produto **'{produto_selecionado}'**?")
+                                st.caption(
+                                    "Esta ação **não pode ser desfeita** e também afetará:\n- Registros de vendas (tornará o produto inválido)\n- Registros de estoque (serão removidos)")
+
+                                confirm_excluir = st.checkbox(
+                                    "Sim, entendo que esta ação é irreversível", key="confirm_excluir_produto")
+                                if st.button("🗑️ Excluir Permanentemente", type="primary", disabled=not confirm_excluir):
+                                    try:
+                                        with engine.connect() as conn:
+                                            # Inicia transação para garantir consistência
+                                            with conn.begin():
+                                                # Remove registros de estoque relacionados
+                                                conn.execute(text("DELETE FROM estoque WHERE username = :u AND produto_id = :p"),
+                                                             {"u": st.session_state.username, "p": produto_id})
+                                                # Remove o produto (cascade para vendas se configurado, senão pode dar erro)
+                                                # Se a tabela vendas tiver ON DELETE RESTRICT, será impedido.
+                                                # Tentamos excluir o produto; se houver vendas, o banco pode barrar.
+                                                conn.execute(text("DELETE FROM produtos WHERE id = :id AND username = :u"),
+                                                             {"id": produto_id, "u": st.session_state.username})
+                                        st.success(
+                                            f"✅ Produto '{produto_selecionado}' e seus registros de estoque foram removidos.")
+                                        st.rerun()
+                                    except Exception as e:
+                                        if "foreign key constraint" in str(e).lower():
+                                            st.error(
+                                                "❌ Não é possível excluir o produto porque existem vendas associadas a ele. Primeiro exclua as vendas ou cancele essa operação.")
+                                        else:
+                                            st.error(f"Erro ao excluir: {e}")
+
                 except Exception as e:
-                    st.error(f"Erro: {e}")
+                    st.error(f"Erro ao carregar produtos: {e}")
 
             # --- FORMAS DE PAGAMENTO ---
             with cadastros_tabs[2]:
