@@ -1008,16 +1008,16 @@ else:
             return qtd_atual >= quantidade_necessaria
 
         fat_tabs = st.tabs([
-            "Vendas",
-            "Estoque",
-            "Cadastros"
+            "🛒 Vendas",
+            "📦 Estoque",
+            "📝 Cadastros"
         ])
 
         # ============================================
         # ABA 0 → VENDAS
         # ============================================
         with fat_tabs[0]:
-            st.subheader("Vendas")
+            st.subheader("🛒 Vendas")
 
             vendas_tabs = st.tabs([
                 "🛒 Nova Venda",
@@ -1792,7 +1792,7 @@ else:
         # ABA 2 → CADASTROS
         # ============================================
         with fat_tabs[2]:
-            st.subheader("Cadastros")
+            st.subheader("📝 Cadastros")
             cadastros_tabs = st.tabs(
                 ["👥 Clientes", "📦 Produtos & Preços", "💳 Formas de Pagamento"])
 
