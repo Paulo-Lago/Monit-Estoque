@@ -1411,7 +1411,11 @@ else:
 
                         def fmt_venda(x):
                             row = df_vendas[df_vendas['id'] == x].iloc[0]
-                            return f"Venda #{x}  •  {row['cliente']}  •  Devendo: R$ {max(0,row['valor_devendo']):,.2f}"
+                            data_str = pd.to_datetime(
+                                row['data_venda']).strftime('%d/%m/%Y')
+                            valor_total = row['valor_total']
+                            valor_devendo = max(0, row['valor_devendo'])
+                            return f"#{x} | {data_str} | {row['cliente']} | Total: R$ {valor_total:,.2f} | Devendo: R$ {valor_devendo:,.2f}"
                         venda_id = st.selectbox("Escolha uma venda:", options=df_vendas['id'].tolist(
                         ), format_func=fmt_venda, key="fin_select_venda")
                         venda = df_vendas[df_vendas['id'] == venda_id].iloc[0]
