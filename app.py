@@ -1401,8 +1401,212 @@ else:
         # ABA 1 → ESTOQUE
         # ============================================
         with fat_tabs[1]:
-            st.subheader("Estoque")
-            st.info("Em desenvolvimento...")
+            st.subheader("📦 Gestão de Estoque")
+
+            # ----- Criar tabela de estoque se não existir -----
+            with engine.connect() as conn:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS estoque (
+                        id SERIAL PRIMARY KEY,
+                        username TEXT NOT NULL,
+                        produto_id INTEGER NOT NULL REFERENCES produtos(id) ON DELETE CASCADE,
+                        quantidade INTEGER NOT NULL DEFAULT 0,
+                        data_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(username, produto_id)
+                    )
+                """))
+                conn.commit()
+
+            # ----- Funções auxiliares (banco) -----
+            def obter_estoque():
+                query = """
+                    SELECT p.id, p.nome, p.unidade, p.preco_atual, 
+                           COALESCE(e.quantidade, 0) as quantidade
+                    FROM produtos p
+                    LEFT JOIN estoque e ON p.id = e.produto_id AND e.username = :username
+                    WHERE p.username = :username
+                    ORDER BY p.nome
+                """
+                return pd.read_sql(text(query), engine, params={"username": st.session_state.username})
+
+            def salvar_estoque(produto_id, quantidade):
+                with engine.connect() as conn:
+                    # Verifica se já existe
+                    existe = conn.execute(text("""
+                        SELECT 1 FROM estoque WHERE username = :u AND produto_id = :p
+                    """), {"u": st.session_state.username, "p": produto_id}).fetchone()
+
+                    if existe:
+                        conn.execute(text("""
+                            UPDATE estoque SET quantidade = :qtd, data_atualizacao = CURRENT_TIMESTAMP
+                            WHERE username = :u AND produto_id = :p
+                        """), {"u": st.session_state.username, "p": produto_id, "qtd": quantidade})
+                    else:
+                        conn.execute(text("""
+                            INSERT INTO estoque (username, produto_id, quantidade)
+                            VALUES (:u, :p, :qtd)
+                        """), {"u": st.session_state.username, "p": produto_id, "qtd": quantidade})
+                    conn.commit()
+
+            def excluir_estoque(produto_id):
+                with engine.connect() as conn:
+                    conn.execute(text("""
+                        DELETE FROM estoque WHERE username = :u AND produto_id = :p
+                    """), {"u": st.session_state.username, "p": produto_id})
+                    conn.commit()
+
+            # ----- Formulário para adicionar/atualizar estoque -----
+            with st.expander("➕ Adicionar / Atualizar Estoque", expanded=True):
+                st.markdown(
+                    "Selecione o produto e informe a **quantidade atual** no estoque.")
+
+                # Carregar produtos do usuário
+                df_produtos_estoque = pd.read_sql(
+                    text(
+                        "SELECT id, nome, preco_atual FROM produtos WHERE username = :u ORDER BY nome"),
+                    engine, params={"u": st.session_state.username}
+                )
+
+                if df_produtos_estoque.empty:
+                    st.warning(
+                        "⚠️ Nenhum produto cadastrado. Cadastre produtos na aba 'Cadastros' primeiro.")
+                else:
+                    col1, col2 = st.columns([2, 1])
+                    with col1:
+                        produto_selecionado = st.selectbox(
+                            "📦 Produto",
+                            df_produtos_estoque['nome'].tolist(),
+                            key="estoque_produto"
+                        )
+                        produto_id = df_produtos_estoque[df_produtos_estoque['nome']
+                                                         == produto_selecionado].iloc[0]['id']
+                        preco_produto = df_produtos_estoque[df_produtos_estoque['nome']
+                                                            == produto_selecionado].iloc[0]['preco_atual']
+
+                    with col2:
+                        # Buscar quantidade atual se já existir no estoque
+                        with engine.connect() as conn:
+                            qtd_atual = conn.execute(text("""
+                                SELECT quantidade FROM estoque WHERE username = :u AND produto_id = :p
+                            """), {"u": st.session_state.username, "p": produto_id}).scalar() or 0
+
+                        nova_quantidade = st.number_input(
+                            "📊 Quantidade Atual",
+                            min_value=0, step=1, value=int(qtd_atual),
+                            key="estoque_qtd"
+                        )
+
+                    if st.button("💾 Salvar Estoque", type="primary", use_container_width=True):
+                        salvar_estoque(produto_id, nova_quantidade)
+                        st.success(
+                            f"✅ Estoque do produto '{produto_selecionado}' atualizado para {nova_quantidade} unidades.")
+                        st.rerun()
+
+            st.divider()
+
+            # ----- Visualização do Estoque Atual -----
+            st.markdown("### 📋 Estoque Atual")
+            df_estoque = obter_estoque()
+
+            if df_estoque.empty:
+                st.info(
+                    "Nenhum produto cadastrado. Cadastre produtos na aba 'Cadastros'.")
+            else:
+                # Calcular valor total do estoque
+                df_estoque['valor_total'] = df_estoque['quantidade'] * \
+                    df_estoque['preco_atual']
+                total_produtos = df_estoque['quantidade'].sum()
+                valor_total_estoque = df_estoque['valor_total'].sum()
+
+                col_res1, col_res2 = st.columns(2)
+                with col_res1:
+                    st.metric("📦 Total de Unidades em Estoque",
+                              f"{total_produtos:,}")
+                with col_res2:
+                    st.metric("💰 Valor Total do Estoque",
+                              f"R$ {valor_total_estoque:,.2f}")
+
+                st.divider()
+
+                # Tabela de estoque
+                st.markdown("**Produtos em Estoque**")
+
+                # Preparar dados para exibição
+                df_display = df_estoque.copy()
+                df_display = df_display.rename(columns={
+                    "nome": "Produto",
+                    "unidade": "Unidade",
+                    "preco_atual": "Preço Unitário",
+                    "quantidade": "Quantidade",
+                    "valor_total": "Valor Total"
+                })
+                df_display["Preço Unitário"] = df_display["Preço Unitário"].apply(
+                    lambda x: f"R$ {x:.2f}")
+                df_display["Valor Total"] = df_display["Valor Total"].apply(
+                    lambda x: f"R$ {x:,.2f}")
+
+                # Exibir tabela
+                st.dataframe(
+                    df_display[["Produto", "Unidade",
+                                "Preço Unitário", "Quantidade", "Valor Total"]],
+                    width='stretch',
+                    hide_index=True,
+                    column_config={
+                        "Quantidade": st.column_config.NumberColumn(step=1)
+                    }
+                )
+
+                st.divider()
+
+                # ----- Editar e Excluir Estoque -----
+                st.markdown("### ✏️ Editar ou 🗑️ Excluir Estoque")
+                st.caption(
+                    "Selecione um produto abaixo para editar a quantidade ou remover o registro do estoque.")
+
+                # Lista de produtos com estoque (apenas os que já têm registro)
+                produtos_com_estoque = df_estoque[df_estoque['quantidade'] > 0]['nome'].tolist(
+                )
+                if not produtos_com_estoque:
+                    st.info(
+                        "Nenhum produto com estoque positivo. Adicione estoque para algum produto primeiro.")
+                else:
+                    produto_editar = st.selectbox(
+                        "Selecione o produto",
+                        produtos_com_estoque,
+                        key="estoque_editar_produto"
+                    )
+
+                    linha = df_estoque[df_estoque['nome']
+                                       == produto_editar].iloc[0]
+                    produto_id_edit = linha['id']
+                    qtd_atual_edit = int(linha['quantidade'])
+
+                    col_edit1, col_edit2, col_edit3 = st.columns([2, 1, 1])
+                    with col_edit1:
+                        nova_qtd_edit = st.number_input(
+                            "Nova quantidade",
+                            min_value=0,
+                            step=1,
+                            value=qtd_atual_edit,
+                            key="estoque_nova_qtd"
+                        )
+                    with col_edit2:
+                        if st.button("✅ Atualizar", use_container_width=True, key="btn_atualizar_estoque"):
+                            salvar_estoque(produto_id_edit, nova_qtd_edit)
+                            st.success(
+                                f"Quantidade do produto '{produto_editar}' atualizada para {nova_qtd_edit}.")
+                            st.rerun()
+                    with col_edit3:
+                        with st.popover("🗑️ Excluir", use_container_width=True):
+                            st.warning(
+                                f"Tem certeza que deseja remover o produto '{produto_editar}' do estoque?")
+                            st.caption(
+                                "Isso não exclui o produto cadastrado, apenas remove sua contagem do estoque.")
+                            if st.button("Sim, excluir permanentemente", type="primary", key="btn_excluir_estoque"):
+                                excluir_estoque(produto_id_edit)
+                                st.success(
+                                    f"Registro de estoque para '{produto_editar}' removido.")
+                                st.rerun()
 
         # ============================================
         # ABA 2 → CADASTROS
