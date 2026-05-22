@@ -1431,22 +1431,22 @@ else:
 
             def salvar_estoque(produto_id, quantidade):
                 with engine.connect() as conn:
-                    # Verifica se já existe
+                    produto_id_int = int(produto_id)  # converte uma vez
                     existe = conn.execute(text("""
-                        SELECT 1 FROM estoque WHERE username = :u AND produto_id = :p
-                    """), {"u": st.session_state.username, "p": produto_id}).fetchone()
+                     SELECT 1 FROM estoque WHERE username = :u AND produto_id = :p
+                     """), {"u": st.session_state.username, "p": produto_id_int}).fetchone()
 
                     if existe:
                         conn.execute(text("""
-                            UPDATE estoque SET quantidade = :qtd, data_atualizacao = CURRENT_TIMESTAMP
-                            WHERE username = :u AND produto_id = :p
-                        """), {"u": st.session_state.username, "p": produto_id, "qtd": quantidade})
+                     UPDATE estoque SET quantidade = :qtd, data_atualizacao = CURRENT_TIMESTAMP
+                     WHERE username = :u AND produto_id = :p
+                     """), {"u": st.session_state.username, "p": produto_id_int, "qtd": quantidade})
                     else:
                         conn.execute(text("""
-                            INSERT INTO estoque (username, produto_id, quantidade)
-                            VALUES (:u, :p, :qtd)
-                        """), {"u": st.session_state.username, "p": produto_id, "qtd": quantidade})
-                    conn.commit()
+                     INSERT INTO estoque (username, produto_id, quantidade)
+                     VALUES (:u, :p, :qtd)
+                     """), {"u": st.session_state.username, "p": produto_id_int, "qtd": quantidade})
+                conn.commit()
 
             def excluir_estoque(produto_id):
                 with engine.connect() as conn:
@@ -1487,8 +1487,8 @@ else:
                         # Buscar quantidade atual se já existir no estoque
                         with engine.connect() as conn:
                             qtd_atual = conn.execute(text("""
-                                SELECT quantidade FROM estoque WHERE username = :u AND produto_id = :p
-                            """), {"u": st.session_state.username, "p": produto_id}).scalar() or 0
+                           SELECT quantidade FROM estoque WHERE username = :u AND produto_id = :p
+                         """), {"u": st.session_state.username, "p": int(produto_id)}).scalar() or 0
 
                         nova_quantidade = st.number_input(
                             "📊 Quantidade Atual",
