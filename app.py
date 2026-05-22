@@ -1323,15 +1323,44 @@ else:
                     if df_vendas.empty:
                         st.info("Nenhuma venda encontrada.")
                     else:
+                        # Exibição da tabela com gramática melhorada
                         df_display = df_vendas.copy()
-                        df_display['data_venda'] = pd.to_datetime(
-                            df_display['data_venda']).dt.strftime('%d/%m/%Y')
-                        for col in ['valor_total', 'valor_pago', 'valor_devendo']:
-                            df_display[col] = df_display[col].apply(
-                                lambda x: f"R$ {max(0,x):,.2f}")
-                        st.dataframe(df_display[['data_venda', 'cliente', 'produto', 'quantidade', 'valor_total', 'valor_pago', 'valor_devendo']],
-                                     width='stretch', hide_index=True)
-                        st.caption(f"Mostrando {len(df_vendas)} vendas")
+                        df_display = df_display.rename(columns={
+                            "data_venda": "📅 Data",
+                            "cliente": "👤 Cliente",
+                            "produto": "📦 Produto",
+                            "quantidade": "🔢 Quantidade",
+                            "valor_total": "💰 Valor Total",
+                            "valor_pago": "💵 Valor Pago",
+                            "valor_devendo": "⚠️ Saldo Devedor",
+                            "observacoes": "📝 Observações"
+                        })
+
+                        # Formatar datas e valores
+                        df_display['Data'] = pd.to_datetime(
+                            df_display['Data']).dt.strftime('%d/%m/%Y')
+                        df_display['Valor Total'] = df_display['Valor Total'].apply(
+                            lambda x: f"R$ {x:,.2f}")
+                        df_display['Valor Pago'] = df_display['Valor Pago'].apply(
+                            lambda x: f"R$ {x:,.2f}")
+                        df_display['Saldo Devedor'] = df_display['Saldo Devedor'].apply(
+                            lambda x: f"R$ {max(0, x):,.2f}")
+
+                        st.dataframe(
+                            df_display[["Data", "Cliente", "Produto", "Quantidade",
+                                        "Valor Total", "Valor Pago", "Saldo Devedor"]],
+                            width='stretch',
+                            hide_index=True,
+                            column_config={
+                                "Data": st.column_config.TextColumn("📅 Data", width="small"),
+                                "Cliente": st.column_config.TextColumn("👤 Cliente", width="medium"),
+                                "Produto": st.column_config.TextColumn("📦 Produto", width="medium"),
+                                "Quantidade": st.column_config.NumberColumn("🔢 Quantidade", width="small"),
+                                "Valor Total": st.column_config.TextColumn("💰 Valor Total", width="small"),
+                                "Valor Pago": st.column_config.TextColumn("💵 Valor Pago", width="small"),
+                                "Saldo Devedor": st.column_config.TextColumn("⚠️ Saldo Devedor", width="small")
+                            }
+                        )
                 except Exception as e:
                     st.error(f"Erro: {e}")
 
@@ -1394,13 +1423,39 @@ else:
                         st.info("Nenhuma venda no período.")
                     else:
                         df_display = df_vendas.copy()
-                        df_display['data_venda'] = pd.to_datetime(
-                            df_display['data_venda']).dt.strftime('%d/%m/%Y')
-                        for col in ['valor_total', 'valor_pago', 'valor_devendo']:
-                            df_display[col] = df_display[col].apply(
-                                lambda x: f"R$ {max(0,x):,.2f}")
-                        st.dataframe(df_display[['data_venda', 'cliente', 'produto', 'quantidade', 'valor_total', 'valor_pago', 'valor_devendo']],
-                                     width='stretch', hide_index=True)
+                        df_display = df_display.rename(columns={
+                            "data_venda": "📅 Data",
+                            "cliente": "👤 Cliente",
+                            "produto": "📦 Produto",
+                            "quantidade": "🔢 Quantidade",
+                            "valor_total": "💰 Valor Total",
+                            "valor_pago": "💵 Valor Pago",
+                            "valor_devendo": "⚠️ Saldo Pendente"
+                        })
+                        df_display['Data'] = pd.to_datetime(
+                            df_display['Data']).dt.strftime('%d/%m/%Y')
+                        df_display['Valor Total'] = df_display['Valor Total'].apply(
+                            lambda x: f"R$ {x:,.2f}")
+                        df_display['Valor Pago'] = df_display['Valor Pago'].apply(
+                            lambda x: f"R$ {x:,.2f}")
+                        df_display['Saldo Pendente'] = df_display['Saldo Pendente'].apply(
+                            lambda x: f"R$ {max(0, x):,.2f}")
+
+                        st.dataframe(
+                            df_display[["Data", "Cliente", "Produto", "Quantidade",
+                                        "Valor Total", "Valor Pago", "Saldo Pendente"]],
+                            width='stretch',
+                            hide_index=True,
+                            column_config={
+                                "Data": st.column_config.TextColumn("📅 Data", width="small"),
+                                "Cliente": st.column_config.TextColumn("👤 Cliente", width="medium"),
+                                "Produto": st.column_config.TextColumn("📦 Produto", width="medium"),
+                                "Quantidade": st.column_config.NumberColumn("🔢 Quantidade", width="small"),
+                                "Valor Total": st.column_config.TextColumn("💰 Valor Total", width="small"),
+                                "Valor Pago": st.column_config.TextColumn("💵 Valor Pago", width="small"),
+                                "Saldo Pendente": st.column_config.TextColumn("⚠️ Saldo Pendente", width="small")
+                            }
+                        )
 
                         st.markdown("---")
                         st.markdown("**Selecionar Venda para Gerenciar**")
