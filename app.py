@@ -515,8 +515,8 @@ else:
                 try:
                     df_aves = pd.read_sql(text("""
                         SELECT id, data_registro, galpao, quantidade_total
-                        FROM aves 
-                        WHERE username = :username 
+                        FROM aves
+                        WHERE username = :username
                         ORDER BY data_registro DESC
                     """), engine, params={"username": st.session_state.username})
 
@@ -564,7 +564,7 @@ else:
                                 try:
                                     with engine.connect() as conn:
                                         conn.execute(text("""
-                                            UPDATE aves 
+                                            UPDATE aves
                                             SET galpao = :galpao, quantidade_total = :qtd, data_registro = :data
                                             WHERE id = :id AND username = :username
                                         """), {
@@ -587,7 +587,7 @@ else:
                                 try:
                                     with engine.connect() as conn:
                                         conn.execute(text("""
-                                            DELETE FROM aves 
+                                            DELETE FROM aves
                                             WHERE id = :id AND username = :username
                                         """), {
                                             "id": selected_id,
@@ -875,8 +875,8 @@ else:
                 try:
                     df_quebrados_hist = pd.read_sql(text("""
                         SELECT id, data, galpao, quantidade
-                        FROM ovos_quebrados 
-                        WHERE username = :username 
+                        FROM ovos_quebrados
+                        WHERE username = :username
                         ORDER BY data DESC
                     """), engine, params={"username": st.session_state.username})
 
@@ -982,7 +982,7 @@ else:
 
                 if existe:
                     conn.execute(text("""
-                        UPDATE estoque 
+                        UPDATE estoque
                         SET quantidade = quantidade + :delta, data_atualizacao = CURRENT_TIMESTAMP
                         WHERE username = :u AND produto_id = :p
                     """), {"u": st.session_state.username, "p": produto_id_int, "delta": delta})
@@ -1001,7 +1001,7 @@ else:
             """Retorna True se há estoque suficiente."""
             with engine.connect() as conn:
                 qtd_atual = conn.execute(text("""
-                    SELECT COALESCE(quantidade, 0) FROM estoque 
+                    SELECT COALESCE(quantidade, 0) FROM estoque
                     WHERE username = :u AND produto_id = :p
                 """), {"u": st.session_state.username, "p": int(produto_id)}).scalar()
             return qtd_atual >= quantidade_necessaria
@@ -1024,7 +1024,7 @@ else:
                 "💰 Financeiro"
             ])
 
-            # -------------------- NOVA VENDA --------------------
+            # -------------------- NOVA VENDA (DESCONTO UNITÁRIO) --------------------
             with vendas_tabs[0]:
                 st.markdown("""
                 <style>
@@ -1079,6 +1079,7 @@ else:
                         st.warning(
                             "⚠️ Cadastre pelo menos 1 Cliente, 1 Produto e 1 Forma de Pagamento ativa antes de registrar uma venda.")
                     else:
+                        # ==================== MODO CONFIRMAÇÃO ====================
                         if st.session_state.mostrar_confirmacao and st.session_state.venda_dados:
                             dados = st.session_state.venda_dados
                             with st.container():
@@ -1091,21 +1092,30 @@ else:
                                     st.markdown(
                                         f"**👤 Cliente**  \n{dados['cliente_nome']}")
                                     st.markdown(
-                                        f"**📦 Produto**  \n{dados['produto_nome']} (x{dados['quantidade']})")
+                                        f"**📦 Produto**  \n{dados['produto_nome']}")
                                     st.markdown(
-                                        f"**💰 Preço unitário**  \nR$ {dados['preco_unit']:.2f}")
+                                        f"**🔢 Quantidade**  \n{dados['quantidade']}")
+                                    preco_original = dados['preco_unit']
+                                    desconto_unit = dados['desconto_unit']
+                                    preco_final = preco_original - desconto_unit
+                                    st.markdown(
+                                        f"**💰 Preço unitário original**  \nR$ {preco_original:.2f}")
+                                    st.markdown(
+                                        f"**🎁 Desconto por unidade**  \nR$ {desconto_unit:.2f}")
+                                    st.markdown(
+                                        f"**💵 Preço unitário com desconto**  \nR$ {preco_final:.2f}")
                                 with col2:
                                     st.markdown(
                                         f"**💳 Pagamento**  \n{dados['forma_nome']}")
                                     st.markdown(
-                                        f"**🎁 Desconto**  \nR$ {dados['desconto']:.2f}")
+                                        f"**💰 Valor Pago agora**  \nR$ {dados['valor_pago']:.2f}")
                                     if dados.get('observacoes'):
                                         st.markdown(
                                             f"**📝 Observações**  \n{dados['observacoes']}")
                                 st.divider()
                                 col_r1, col_r2, col_r3 = st.columns(3)
                                 with col_r1:
-                                    st.metric("💰 Valor Total",
+                                    st.metric("💰 Valor Total (com desconto)",
                                               f"R$ {dados['valor_total']:.2f}")
                                 with col_r2:
                                     st.metric("💵 Valor Pago",
@@ -1121,7 +1131,7 @@ else:
                                         # Verificar estoque antes de vender
                                         if not verificar_estoque(dados['produto_id'], dados['quantidade']):
                                             st.error(
-                                                f"❌ Estoque insuficiente para o produto '{dados['produto_nome']}'. Disponível: ? (consulte a aba Estoque)")
+                                                f"❌ Estoque insuficiente para o produto '{dados['produto_nome']}'. Consulte a aba Estoque.")
                                         else:
                                             try:
                                                 with engine.connect() as conn:
@@ -1137,17 +1147,16 @@ else:
                                                         "qtd": dados['quantidade'],
                                                         "preco": dados['preco_unit'],
                                                         "forma_id": dados['forma_id'],
-                                                        "desconto": dados['desconto'],
+                                                        # desconto unitário
+                                                        "desconto": dados['desconto_unit'],
                                                         "total": dados['valor_total'],
                                                         "valor_pago": dados['valor_pago'],
                                                         "obs": dados.get('observacoes')
                                                     })
                                                     conn.commit()
-
-                                                # Atualizar estoque (subtrair a quantidade vendida)
+                                                # Atualizar estoque (subtrair quantidade vendida)
                                                 atualizar_estoque(
                                                     dados['produto_id'], -dados['quantidade'])
-
                                                 st.balloons()
                                                 st.success(
                                                     "✅ Venda registrada com sucesso e estoque atualizado!")
@@ -1157,38 +1166,12 @@ else:
                                             except Exception as e:
                                                 st.error(
                                                     f"Erro ao registrar venda: {e}")
-                                        try:
-                                            with engine.connect() as conn:
-                                                conn.execute(text("""
-                                                    INSERT INTO vendas (username, cliente_id, data_venda, produto_id, quantidade,
-                                                     preco_unitario, forma_pagamento_id, desconto, valor_total, valor_pago, observacoes)
-                                                    VALUES (:u, :cliente_id, CURRENT_DATE, :produto_id, :qtd, :preco, :forma_id,
-                                                            :desconto, :total, :valor_pago, :obs)
-                                                """), {
-                                                    "u": st.session_state.username,
-                                                    "cliente_id": dados['cliente_id'],
-                                                    "produto_id": dados['produto_id'],
-                                                    "qtd": dados['quantidade'],
-                                                    "preco": dados['preco_unit'],
-                                                    "forma_id": dados['forma_id'],
-                                                    "desconto": dados['desconto'],
-                                                    "total": dados['valor_total'],
-                                                    "valor_pago": dados['valor_pago'],
-                                                    "obs": dados.get('observacoes')
-                                                })
-                                                conn.commit()
-                                            st.balloons()
-                                            st.success(
-                                                "✅ Venda registrada com sucesso!")
-                                            st.session_state.venda_dados = None
-                                            st.session_state.mostrar_confirmacao = False
-                                            st.rerun()
-                                        except Exception as e:
-                                            st.error(f"Erro ao registrar: {e}")
                                 with col_btn2:
                                     if st.button("✏️ Voltar e editar", use_container_width=True):
                                         st.session_state.mostrar_confirmacao = False
                                         st.rerun()
+
+                        # ==================== MODO FORMULÁRIO ====================
                         else:
                             st.markdown('<div class="card-form">',
                                         unsafe_allow_html=True)
@@ -1219,8 +1202,8 @@ else:
                                         "🔢 Quantidade *", min_value=1, step=1, value=1, key="venda_qtd")
                                     valor_pago = st.number_input(
                                         "💰 Valor Pago agora (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_valor_pago")
-                                    desconto = st.number_input(
-                                        "🎁 Desconto por unidade (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_desconto")
+                                    desconto_unit = st.number_input(
+                                        "🎁 Desconto por unidade (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_desconto_unit")
                                 observacoes = st.text_area(
                                     "📝 Observações (opcional)", key="venda_obs", placeholder="Ex: Entrega agendada, troco, etc.")
                                 submitted = st.form_submit_button(
@@ -1228,15 +1211,19 @@ else:
                             st.markdown('</div>', unsafe_allow_html=True)
 
                             if submitted:
-                                valor_bruto = quantidade * preco_unit
-                                valor_total = max(0, valor_bruto - desconto)
+                                # Cálculo correto com desconto unitário
+                                preco_com_desconto = max(
+                                    0, preco_unit - desconto_unit)
+                                valor_total = quantidade * preco_com_desconto
                                 valor_devendo = max(
                                     0, valor_total - valor_pago)
+
                                 produto_row_final = df_produtos[df_produtos['nome']
                                                                 == produto_nome].iloc[0]
                                 produto_id_final = int(produto_row_final['id'])
                                 preco_unit_final = float(
                                     produto_row_final['preco_atual'])
+
                                 st.session_state.venda_dados = {
                                     "cliente_id": cliente_id,
                                     "cliente_nome": cliente_nome,
@@ -1244,20 +1231,21 @@ else:
                                     "produto_nome": produto_nome,
                                     "quantidade": quantidade,
                                     "preco_unit": preco_unit_final,
+                                    "desconto_unit": desconto_unit,      # guarda desconto unitário
                                     "forma_id": forma_id,
                                     "forma_nome": forma_nome,
                                     "valor_pago": valor_pago,
-                                    "desconto": desconto,
                                     "valor_total": valor_total,
                                     "valor_devendo": valor_devendo,
                                     "observacoes": observacoes
                                 }
                                 st.session_state.mostrar_confirmacao = True
                                 st.rerun()
+
                 except Exception as e:
                     st.error(f"Erro ao carregar dados: {e}")
 
-            # -------------------- REGISTROS DE VENDAS --------------------
+           # -------------------- REGISTROS DE VENDAS --------------------
             with vendas_tabs[1]:
                 st.markdown("#### 📋 Histórico de Vendas")
                 # Filtros
