@@ -1326,7 +1326,7 @@ else:
                         # Exibição da tabela com gramática melhorada
                         df_display = df_vendas.copy()
                         df_display = df_display.rename(columns={
-                            "data_venda": "📅 Data",
+                            "data_venda": "Data",
                             "cliente": "👤 Cliente",
                             "produto": "📦 Produto",
                             "quantidade": "🔢 Quantidade",
