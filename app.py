@@ -709,12 +709,12 @@ else:
                                                         (df_pivot != 0).any(axis=0)]
 
                                 if not df_pivot.empty:
-                                    fig = px.bar(
+                                    fig = px.line(
                                         df_pivot, x=df_pivot.index, y=df_pivot.columns,
                                         title=f"Produção - {galpao}",
                                         labels={
                                             'x': 'Data', 'value': 'Quantidade', 'variable': 'Tipo'},
-                                        text_auto=True, barmode='group'
+                                        markers=True
                                     )
                                     fig.update_layout(
                                         plot_bgcolor='#ffffff',
@@ -725,7 +725,8 @@ else:
                                             tickformat='%d/%m', color="#000000"),
                                         yaxis=dict(color="#000000")
                                     )
-                                    st.plotly_chart(fig, width='stretch')
+                                    st.plotly_chart(
+                                        fig, use_container_width=True)
                                 st.divider()
 
                 # ==================== OVOS QUEBRADOS ====================
@@ -757,12 +758,12 @@ else:
                                 df_agg = df_g.groupby(
                                     'data')['quantidade'].sum().reset_index()
 
-                                fig = px.bar(
+                                fig = px.line(
                                     df_agg, x='data', y='quantidade',
                                     title=f"Ovos Quebrados - {galpao}",
                                     labels={'data': 'Data',
                                             'quantidade': 'Quantidade'},
-                                    text_auto=True
+                                    markers=True
                                 )
                                 fig.update_layout(
                                     plot_bgcolor='#ffffff',
@@ -773,7 +774,7 @@ else:
                                                color="#000000"),
                                     yaxis=dict(color="#000000")
                                 )
-                                st.plotly_chart(fig, width='stretch')
+                                st.plotly_chart(fig, use_container_width=True)
                                 st.divider()
 
                 # ==================== AVES MORTAS ====================
@@ -805,12 +806,12 @@ else:
                                 df_agg = df_g.groupby(
                                     'data')['quantidade'].sum().reset_index()
 
-                                fig = px.bar(
+                                fig = px.line(
                                     df_agg, x='data', y='quantidade',
                                     title=f"Aves Mortas - {galpao}",
                                     labels={'data': 'Data',
                                             'quantidade': 'Quantidade'},
-                                    text_auto=True
+                                    markers=True
                                 )
                                 fig.update_layout(
                                     plot_bgcolor='#ffffff',
@@ -821,7 +822,7 @@ else:
                                                color="#000000"),
                                     yaxis=dict(color="#000000")
                                 )
-                                st.plotly_chart(fig, width='stretch')
+                                st.plotly_chart(fig, use_container_width=True)
                                 st.divider()
 
             except Exception as e:
