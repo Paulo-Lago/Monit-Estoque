@@ -963,6 +963,42 @@ else:
     else:
         st.header("💰 Faturamento & Controle de Estoque")
 
+        # ----- FUNÇÃO AUXILIAR PARA ATUALIZAR ESTOQUE -----
+        def atualizar_estoque(produto_id, delta):
+            """Atualiza a quantidade em estoque (soma delta). delta pode ser negativo (venda) ou positivo (devolução)."""
+            with engine.connect() as conn:
+                produto_id_int = int(produto_id)
+                # Verifica se já existe registro de estoque
+                existe = conn.execute(text("""
+                    SELECT 1 FROM estoque WHERE username = :u AND produto_id = :p
+                """), {"u": st.session_state.username, "p": produto_id_int}).fetchone()
+
+                if existe:
+                    conn.execute(text("""
+                        UPDATE estoque 
+                        SET quantidade = quantidade + :delta, data_atualizacao = CURRENT_TIMESTAMP
+                        WHERE username = :u AND produto_id = :p
+                    """), {"u": st.session_state.username, "p": produto_id_int, "delta": delta})
+                else:
+                    # Se não existe, cria com delta (se delta for positivo, senão lança erro)
+                    if delta < 0:
+                        raise Exception(
+                            "Estoque insuficiente e sem registro inicial.")
+                    conn.execute(text("""
+                        INSERT INTO estoque (username, produto_id, quantidade)
+                        VALUES (:u, :p, :qtd)
+                    """), {"u": st.session_state.username, "p": produto_id_int, "qtd": delta})
+                conn.commit()
+
+        def verificar_estoque(produto_id, quantidade_necessaria):
+            """Retorna True se há estoque suficiente."""
+            with engine.connect() as conn:
+                qtd_atual = conn.execute(text("""
+                    SELECT COALESCE(quantidade, 0) FROM estoque 
+                    WHERE username = :u AND produto_id = :p
+                """), {"u": st.session_state.username, "p": int(produto_id)}).scalar()
+            return qtd_atual >= quantidade_necessaria
+
         fat_tabs = st.tabs([
             "Vendas",
             "Estoque",
@@ -1075,6 +1111,45 @@ else:
                                 col_btn1, col_btn2 = st.columns(2)
                                 with col_btn1:
                                     if st.button("✅ Confirmar e Registrar", type="primary", use_container_width=True):
+                                        # Verificar estoque antes de vender
+                                        if not verificar_estoque(dados['produto_id'], dados['quantidade']):
+                                            st.error(
+                                                f"❌ Estoque insuficiente para o produto '{dados['produto_nome']}'. Disponível: ? (consulte a aba Estoque)")
+                                        else:
+                                            try:
+                                                with engine.connect() as conn:
+                                                    conn.execute(text("""
+                                                        INSERT INTO vendas (username, cliente_id, data_venda, produto_id, quantidade,
+                                                        preco_unitario, forma_pagamento_id, desconto, valor_total, valor_pago, observacoes)
+                                                        VALUES (:u, :cliente_id, CURRENT_DATE, :produto_id, :qtd, :preco, :forma_id,
+                                                                :desconto, :total, :valor_pago, :obs)
+                                                    """), {
+                                                        "u": st.session_state.username,
+                                                        "cliente_id": dados['cliente_id'],
+                                                        "produto_id": dados['produto_id'],
+                                                        "qtd": dados['quantidade'],
+                                                        "preco": dados['preco_unit'],
+                                                        "forma_id": dados['forma_id'],
+                                                        "desconto": dados['desconto'],
+                                                        "total": dados['valor_total'],
+                                                        "valor_pago": dados['valor_pago'],
+                                                        "obs": dados.get('observacoes')
+                                                    })
+                                                    conn.commit()
+
+                                                # Atualizar estoque (subtrair a quantidade vendida)
+                                                atualizar_estoque(
+                                                    dados['produto_id'], -dados['quantidade'])
+
+                                                st.balloons()
+                                                st.success(
+                                                    "✅ Venda registrada com sucesso e estoque atualizado!")
+                                                st.session_state.venda_dados = None
+                                                st.session_state.mostrar_confirmacao = False
+                                                st.rerun()
+                                            except Exception as e:
+                                                st.error(
+                                                    f"Erro ao registrar venda: {e}")
                                         try:
                                             with engine.connect() as conn:
                                                 conn.execute(text("""
@@ -1228,7 +1303,7 @@ else:
                 try:
                     query = """
                         SELECT v.id, v.data_venda, c.nome as cliente, p.nome as produto, v.quantidade,
-                               v.valor_total, v.valor_pago, (v.valor_total - v.valor_pago) as valor_devendo
+                               v.valor_total, v.valor_pago, v.produto_id, (v.valor_total - v.valor_pago) as valor_devendo, v.observacoes
                         FROM vendas v
                         JOIN clientes c ON v.cliente_id = c.id
                         JOIN produtos p ON v.produto_id = p.id
@@ -1361,7 +1436,7 @@ else:
                                     st.rerun()
                         with tab_edit:
                             st.warning(
-                                "Atenção: editar pode afetar o controle financeiro.")
+                                "Atenção: Editar a quantidade afetará o estoque. O valor do desconto e observações não alteram o estoque.")
                             with st.form("form_editar_venda"):
                                 nova_qtd = st.number_input(
                                     "Quantidade", min_value=1, value=int(venda['quantidade']), step=1)
@@ -1370,14 +1445,40 @@ else:
                                 novas_obs = st.text_area(
                                     "Observações", value=venda.get('observacoes', '') or "")
                                 if st.form_submit_button("Salvar Alterações"):
-                                    novo_total = (
+                                    # Calcular diferença na quantidade
+                                    quantidade_original = int(
+                                        venda['quantidade'])
+                                    diferenca = nova_qtd - quantidade_original
+
+                                    # Verificar estoque se for aumentar a quantidade (diferenca > 0)
+                                    if diferenca > 0:
+                                        if not verificar_estoque(venda['produto_id'], diferenca):
+                                            st.error(
+                                                f"Estoque insuficiente para aumentar a quantidade em {diferenca}. Disponível? Consulte a aba Estoque.")
+                                            st.stop()
+
+                                    # Atualizar a venda
+                                    novo_valor_total = (
                                         nova_qtd * float(venda['preco_unitario'])) - novo_desconto
-                                    with engine.connect() as conn:
-                                        conn.execute(text("UPDATE vendas SET quantidade=:qtd, desconto=:desc, valor_total=:total, observacoes=:obs WHERE id=:id"),
-                                                     {"qtd": nova_qtd, "desc": novo_desconto, "total": novo_total, "obs": novas_obs, "id": venda_id})
-                                        conn.commit()
-                                    st.success("Venda atualizada!")
-                                    st.rerun()
+                                    try:
+                                        with engine.connect() as conn:
+                                            conn.execute(text("""
+                                                UPDATE vendas 
+                                                SET quantidade = :qtd, desconto = :desc, valor_total = :total, observacoes = :obs 
+                                                WHERE id = :id
+                                            """), {"qtd": nova_qtd, "desc": novo_desconto, "total": novo_valor_total, "obs": novas_obs, "id": venda_id})
+                                            conn.commit()
+
+                                        # Atualizar estoque: subtrair a diferença (se positiva) ou somar (se negativa)
+                                        # Ajuste: delta = -diferenca (porque se aumentou a venda, estoque diminui; se diminuiu, estoque aumenta)
+                                        atualizar_estoque(
+                                            venda['produto_id'], -diferenca)
+
+                                        st.success(
+                                            "Venda atualizada e estoque ajustado com sucesso!")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Erro ao editar venda: {e}")
                         with tab_del:
                             if valor_pago_atual > 0:
                                 st.warning(
@@ -1388,12 +1489,27 @@ else:
                             confirm = st.checkbox(
                                 "Entendo que é irreversível", key=f"confirm_del_{venda_id}")
                             if st.button("🗑️ Excluir Venda Permanentemente", type="primary", disabled=not confirm):
-                                with engine.connect() as conn:
-                                    conn.execute(text("DELETE FROM vendas WHERE id = :id"), {
-                                                 "id": venda_id})
-                                    conn.commit()
-                                st.success("Venda excluída!")
-                                st.rerun()
+                                try:
+                                    # Obter produto_id e quantidade da venda antes de excluir
+                                    with engine.connect() as conn:
+                                        venda_dados = conn.execute(text("""
+                                            SELECT produto_id, quantidade FROM vendas WHERE id = :id
+                                        """), {"id": venda_id}).fetchone()
+                                        if venda_dados:
+                                            produto_id_excluir = venda_dados[0]
+                                            qtd_excluir = venda_dados[1]
+                                            # Devolver ao estoque
+                                            atualizar_estoque(
+                                                produto_id_excluir, qtd_excluir)
+                                            # Excluir a venda
+                                            conn.execute(text("DELETE FROM vendas WHERE id = :id"), {
+                                                         "id": venda_id})
+                                            conn.commit()
+                                    st.success(
+                                        "Venda excluída e estoque restaurado com sucesso!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao excluir venda: {e}")
                 except Exception as e:
                     st.error(f"Erro: {e}")
 
