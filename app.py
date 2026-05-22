@@ -1424,13 +1424,13 @@ else:
                     else:
                         df_display = df_vendas.copy()
                         df_display = df_display.rename(columns={
-                            "data_venda": "📅 Data",
-                            "cliente": "👤 Cliente",
-                            "produto": "📦 Produto",
-                            "quantidade": "🔢 Quantidade",
-                            "valor_total": "💰 Valor Total",
-                            "valor_pago": "💵 Valor Pago",
-                            "valor_devendo": "⚠️ Saldo Pendente"
+                            "data_venda": "Data",
+                            "cliente": "Cliente",
+                            "produto": "Produto",
+                            "quantidade": "Quantidade",
+                            "valor_total": "Valor Total",
+                            "valor_pago": "Valor Pago",
+                            "valor_devendo": "Saldo Pendente"
                         })
                         df_display['Data'] = pd.to_datetime(
                             df_display['Data']).dt.strftime('%d/%m/%Y')
