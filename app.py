@@ -1327,13 +1327,13 @@ else:
                         df_display = df_vendas.copy()
                         df_display = df_display.rename(columns={
                             "data_venda": "Data",
-                            "cliente": "👤 Cliente",
-                            "produto": "📦 Produto",
-                            "quantidade": "🔢 Quantidade",
-                            "valor_total": "💰 Valor Total",
-                            "valor_pago": "💵 Valor Pago",
-                            "valor_devendo": "⚠️ Saldo Devedor",
-                            "observacoes": "📝 Observações"
+                            "cliente": "Cliente",
+                            "produto": "Produto",
+                            "quantidade": "Quantidade",
+                            "valor_total": "Valor Total",
+                            "valor_pago": "Valor Pago",
+                            "valor_devendo": "Saldo Devedor",
+                            "observacoes": "Observações"
                         })
 
                         # Formatar datas e valores
