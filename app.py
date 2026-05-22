@@ -972,8 +972,8 @@ else:
 # ============================================
 # ABA 0 → VENDAS
 # ============================================
-with fat_tabs[0]:
-    st.subheader("Vendas")
+    with fat_tabs[0]:
+        st.subheader("Vendas")
 
     vendas_tabs = st.tabs([
         "🛒 Nova Venda",
