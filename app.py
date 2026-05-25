@@ -364,13 +364,15 @@ else:
                         }
 
                         selecao = st.selectbox(
-                            "Escolha um registro para corrigir:", list(opcoes.values()))
+                            "Escolha um registro para corrigir ou excluir:", list(opcoes.values()))
                         selected_id = [
                             k for k, v in opcoes.items() if v == selecao][0]
 
                         registro = df_edit[df_edit['id']
                                            == selected_id].iloc[0]
 
+                        # --- Edição ---
+                        st.markdown("#### ✏️ Editar Registro")
                         col1, col2 = st.columns(2)
                         with col1:
                             novo_val = st.number_input(
@@ -400,6 +402,31 @@ else:
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Erro ao atualizar: {e}")
+
+                        st.divider()
+
+                        # --- Exclusão ---
+                        st.markdown("#### 🗑️ Excluir Registro")
+                        st.caption("Esta ação é irreversível e removerá permanentemente o registro do histórico.")
+                        with st.popover("🗑️ Excluir este registro", use_container_width=True):
+                            st.warning(f"Tem certeza que deseja excluir o registro de {registro['quantidade']} ovos ({registro['tipo']}, {registro['cor']}) do {registro['galpao']}?")
+                            confirmar = st.checkbox("Sim, quero excluir permanentemente este registro.")
+                            if st.button("Excluir agora", type="primary", disabled=not confirmar):
+                                try:
+                                    with engine.connect() as conn:
+                                        conn.execute(text("""
+                                            DELETE FROM producao
+                                            WHERE id = :id AND username = :username
+                                        """), {
+                                            "id": selected_id,
+                                            "username": st.session_state.username
+                                        })
+                                        conn.commit()
+                                    st.success("✅ Registro excluído com sucesso!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao excluir: {e}")
+
                     else:
                         st.info("📭 Nenhum registro de colheita encontrado.")
 
