@@ -1052,7 +1052,7 @@ else:
                 "💰 Financeiro"
             ])
 
-           # -------------------- NOVA VENDA (COM DATA) --------------------
+           # -------------------- NOVA VENDA (COM DATA E TRATAMENTO DE NONE) --------------------
             with vendas_tabs[0]:
                 st.markdown("""
                 <style>
@@ -1094,7 +1094,7 @@ else:
                 if "mostrar_confirmacao" not in st.session_state:
                     st.session_state.mostrar_confirmacao = False
 
-                # Limpa dados antigos com formato incompatível (caso tenha vindo de versão anterior)
+                # Limpa dados antigos com formato incompatível
                 if st.session_state.venda_dados and 'data_venda' not in st.session_state.venda_dados:
                     st.session_state.venda_dados = None
                     st.session_state.mostrar_confirmacao = False
@@ -1123,30 +1123,29 @@ else:
                                     st.markdown(f"**👤 Cliente**  \n{dados['cliente_nome']}")
                                     st.markdown(f"**📦 Produto**  \n{dados['produto_nome']}")
                                     st.markdown(f"**🔢 Quantidade**  \n{dados['quantidade']}")
-                                    preco_original = dados['preco_unit']
-                                    desconto_unit = dados['desconto_unit']
-                                    preco_final = preco_original - desconto_unit
+                                    preco_original = dados.get('preco_unit', 0.0)
+                                    desconto_unit = dados.get('desconto_unit', 0.0)
+                                    preco_final = max(0.0, preco_original - desconto_unit)
                                     st.markdown(f"**💰 Preço unitário original**  \nR$ {preco_original:.2f}")
                                     st.markdown(f"**🎁 Desconto por unidade**  \nR$ {desconto_unit:.2f}")
                                     st.markdown(f"**💵 Preço unitário com desconto**  \nR$ {preco_final:.2f}")
                                 with col2:
                                     st.markdown(f"**💳 Pagamento**  \n{dados['forma_nome']}")
-                                    st.markdown(f"**💰 Valor Pago agora**  \nR$ {dados['valor_pago']:.2f}")
+                                    st.markdown(f"**💰 Valor Pago agora**  \nR$ {dados.get('valor_pago', 0.0):.2f}")
                                     if dados.get('observacoes'):
                                         st.markdown(f"**📝 Observações**  \n{dados['observacoes']}")
                                 st.divider()
                                 col_r1, col_r2, col_r3 = st.columns(3)
                                 with col_r1:
-                                    st.metric("💰 Valor Total (com desconto)", f"R$ {dados['valor_total']:.2f}")
+                                    st.metric("💰 Valor Total (com desconto)", f"R$ {dados.get('valor_total', 0.0):.2f}")
                                 with col_r2:
-                                    st.metric("💵 Valor Pago", f"R$ {dados['valor_pago']:.2f}")
+                                    st.metric("💵 Valor Pago", f"R$ {dados.get('valor_pago', 0.0):.2f}")
                                 with col_r3:
-                                    st.metric("🔻 Ficará Devendo", f"R$ {dados['valor_devendo']:.2f}")
+                                    st.metric("🔻 Ficará Devendo", f"R$ {dados.get('valor_devendo', 0.0):.2f}")
                                 st.warning("⚠️ Confirme os dados. Após salvar, não será possível editar diretamente.")
                                 col_btn1, col_btn2 = st.columns(2)
                                 with col_btn1:
                                     if st.button("✅ Confirmar e Registrar", type="primary", use_container_width=True):
-                                        # Verificar estoque antes de vender
                                         if not verificar_estoque(dados['produto_id'], dados['quantidade']):
                                             st.error(f"❌ Estoque insuficiente para o produto '{dados['produto_nome']}'. Consulte a aba Estoque.")
                                         else:
@@ -1171,7 +1170,6 @@ else:
                                                         "obs": dados.get('observacoes')
                                                     })
                                                     conn.commit()
-                                                # Atualizar estoque (subtrair quantidade vendida)
                                                 atualizar_estoque(dados['produto_id'], -dados['quantidade'])
                                                 st.balloons()
                                                 st.success("✅ Venda registrada com sucesso e estoque atualizado!")
@@ -1193,7 +1191,7 @@ else:
                                 produto_nome = st.selectbox("📦 Produto *", df_produtos['nome'].tolist(), key="produto_select_fora")
                             with col_preco_chip:
                                 produto_row = df_produtos[df_produtos['nome'] == produto_nome].iloc[0]
-                                preco_unit = float(produto_row['preco_atual'])
+                                preco_unit = float(produto_row['preco_atual']) if produto_row['preco_atual'] is not None else 0.0
                                 st.markdown(f'<div class="preco-unitario">💰 Preço unitário: R$ {preco_unit:.2f}</div>', unsafe_allow_html=True)
 
                             with st.form("form_nova_venda", clear_on_submit=True):
@@ -1213,13 +1211,18 @@ else:
                             st.markdown('</div>', unsafe_allow_html=True)
 
                             if submitted:
-                                preco_com_desconto = max(0, preco_unit - desconto_unit)
+                                # Garantir que valores não sejam None
+                                preco_unit_safe = float(preco_unit) if preco_unit is not None else 0.0
+                                desconto_unit_safe = float(desconto_unit) if desconto_unit is not None else 0.0
+                                valor_pago_safe = float(valor_pago) if valor_pago is not None else 0.0
+                                
+                                preco_com_desconto = max(0.0, preco_unit_safe - desconto_unit_safe)
                                 valor_total = quantidade * preco_com_desconto
-                                valor_devendo = max(0, valor_total - valor_pago)
+                                valor_devendo = max(0.0, valor_total - valor_pago_safe)
 
                                 produto_row_final = df_produtos[df_produtos['nome'] == produto_nome].iloc[0]
                                 produto_id_final = int(produto_row_final['id'])
-                                preco_unit_final = float(produto_row_final['preco_atual'])
+                                preco_unit_final = float(produto_row_final['preco_atual']) if produto_row_final['preco_atual'] is not None else 0.0
 
                                 st.session_state.venda_dados = {
                                     "cliente_id": cliente_id,
@@ -1228,10 +1231,10 @@ else:
                                     "produto_nome": produto_nome,
                                     "quantidade": quantidade,
                                     "preco_unit": preco_unit_final,
-                                    "desconto_unit": desconto_unit,
+                                    "desconto_unit": desconto_unit_safe,
                                     "forma_id": forma_id,
                                     "forma_nome": forma_nome,
-                                    "valor_pago": valor_pago,
+                                    "valor_pago": valor_pago_safe,
                                     "valor_total": valor_total,
                                     "valor_devendo": valor_devendo,
                                     "observacoes": observacoes,
