@@ -998,11 +998,13 @@ else:
     else:
         st.header("💰 Faturamento & Controle de Estoque")
 
-        # ----- FUNÇÃO AUXILIAR PARA ATUALIZAR ESTOQUE -----
+        # ----- FUNÇÃO AUXILIAR PARA ATUALIZAR ESTOQUE (com tratamento None) -----
         def atualizar_estoque(produto_id, delta):
             """Atualiza a quantidade em estoque (soma delta). delta pode ser negativo (venda) ou positivo (devolução)."""
             with engine.connect() as conn:
                 produto_id_int = int(produto_id)
+                delta_int = int(delta) if delta is not None else 0
+                
                 # Verifica se já existe registro de estoque
                 existe = conn.execute(text("""
                     SELECT 1 FROM estoque WHERE username = :u AND produto_id = :p
@@ -1010,29 +1012,36 @@ else:
 
                 if existe:
                     conn.execute(text("""
-                        UPDATE estoque
+                        UPDATE estoque 
                         SET quantidade = quantidade + :delta, data_atualizacao = CURRENT_TIMESTAMP
                         WHERE username = :u AND produto_id = :p
-                    """), {"u": st.session_state.username, "p": produto_id_int, "delta": delta})
+                    """), {"u": st.session_state.username, "p": produto_id_int, "delta": delta_int})
                 else:
                     # Se não existe, cria com delta (se delta for positivo, senão lança erro)
-                    if delta < 0:
-                        raise Exception(
-                            "Estoque insuficiente e sem registro inicial.")
+                    if delta_int < 0:
+                        raise Exception("Estoque insuficiente e sem registro inicial.")
                     conn.execute(text("""
                         INSERT INTO estoque (username, produto_id, quantidade)
                         VALUES (:u, :p, :qtd)
-                    """), {"u": st.session_state.username, "p": produto_id_int, "qtd": delta})
+                    """), {"u": st.session_state.username, "p": produto_id_int, "qtd": delta_int})
                 conn.commit()
 
+        # ----- FUNÇÃO AUXILIAR PARA VERIFICAR ESTOQUE (com tratamento None) -----
         def verificar_estoque(produto_id, quantidade_necessaria):
-            """Retorna True se há estoque suficiente."""
-            with engine.connect() as conn:
-                qtd_atual = conn.execute(text("""
-                    SELECT COALESCE(quantidade, 0) FROM estoque
-                    WHERE username = :u AND produto_id = :p
-                """), {"u": st.session_state.username, "p": int(produto_id)}).scalar()
-            return qtd_atual >= quantidade_necessaria
+            """Retorna True se há estoque suficiente (trata None como 0)."""
+            try:
+                with engine.connect() as conn:
+                    qtd_atual = conn.execute(text("""
+                        SELECT COALESCE(quantidade, 0) FROM estoque 
+                        WHERE username = :u AND produto_id = :p
+                    """), {"u": st.session_state.username, "p": int(produto_id)}).scalar()
+                    # Garante que qtd_atual seja int
+                    qtd_atual = int(qtd_atual) if qtd_atual is not None else 0
+                    quantidade_necessaria = int(quantidade_necessaria) if quantidade_necessaria is not None else 0
+                    return qtd_atual >= quantidade_necessaria
+            except Exception as e:
+                st.error(f"Erro ao verificar estoque: {e}")
+                return False
 
         fat_tabs = st.tabs([
             "🛒 Vendas",
@@ -1098,6 +1107,8 @@ else:
                 if st.session_state.venda_dados and 'data_venda' not in st.session_state.venda_dados:
                     st.session_state.venda_dados = None
                     st.session_state.mostrar_confirmacao = False
+
+                import traceback
 
                 try:
                     df_clientes = pd.read_sql(text("SELECT id, nome FROM clientes WHERE username = :u ORDER BY nome"), engine,
@@ -1244,7 +1255,9 @@ else:
                                 st.rerun()
 
                 except Exception as e:
+                    import traceback
                     st.error(f"Erro ao carregar dados: {e}")
+                    st.code(traceback.format_exc())
 
            # -------------------- REGISTROS DE VENDAS --------------------
             with vendas_tabs[1]:
