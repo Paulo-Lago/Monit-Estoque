@@ -1528,10 +1528,10 @@ else:
                             else:
                                 with st.form("form_editar_venda_completa"):
                                     # Dados originais da venda
-                                    venda_id_edit = venda['id']
+                                    venda_id_edit = int(venda['id'])  # 👈 linha já corrigida 
                                     produto_antigo_id = int(venda['produto_id'])
                                     quantidade_antiga = int(venda['quantidade'])
-                                    valor_pago_antigo = float(venda['valor_pago'])
+                                    valor_pago_antigo = float(venda['valor_pago']) 
                                     desconto_antigo = float(venda.get('desconto', 0))  # campo desconto no banco é por unidade? Conforme nova lógica, sim.
                                     forma_pagamento_antiga_id = int(venda['forma_pagamento_id'])  # Precisa ter esse campo na query? Verificar. Na query da aba Financeiro, não incluímos forma_pagamento_id. Vamos adicionar.
                                     # Para evitar erro, vamos buscar o forma_pagamento_id da venda atual. Vou adicionar na query principal mais adiante.
@@ -1540,7 +1540,7 @@ else:
                                     # Buscar dados completos da venda (incluindo forma_pagamento_id)
                                     venda_completa = pd.read_sql(
                                         text("SELECT forma_pagamento_id, data_venda, observacoes FROM vendas WHERE id = :id"),
-                                        engine, params={"id": venda_id_edit}
+                                        engine, params={"id": int(venda_id_edit)}
                                     ).iloc[0]
                                     forma_pagamento_antiga_id = int(venda_completa['forma_pagamento_id'])
                                     data_venda_antiga = venda_completa['data_venda']
