@@ -1402,13 +1402,14 @@ with vendas_tabs[0]:
                 st.markdown("#### Todas as Vendas do Período")
                 try:
                     query = """
-                        SELECT v.id, v.data_venda, c.nome as cliente, p.nome as produto, v.quantidade,
-                               v.preco_unitario, v.valor_total, v.valor_pago, (v.valor_total - v.valor_pago) as valor_devendo
-                        FROM vendas v
-                        JOIN clientes c ON v.cliente_id = c.id
-                        JOIN produtos p ON v.produto_id = p.id
-                        WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
-                    """
+                          SELECT v.id, v.data_venda, c.nome as cliente, p.nome as produto, v.quantidade,
+                                 v.preco_unitario, v.valor_total, v.valor_pago, v.produto_id,
+                                 (v.valor_total - v.valor_pago) as valor_devendo, v.observacoes
+                          FROM vendas v
+                          JOIN clientes c ON v.cliente_id = c.id
+                          JOIN produtos p ON v.produto_id = p.id
+                          WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
+                      """
                     params = {"u": st.session_state.username,
                               "inicio": data_inicio, "fim": data_fim}
                     if cliente_filtro != "Todos":
