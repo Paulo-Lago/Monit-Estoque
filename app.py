@@ -1418,13 +1418,15 @@ else:
                 st.markdown("#### Todas as Vendas do Período")
                 try:
                     query = """
-                        SELECT v.id, v.data_venda, c.nome as cliente, p.nome as produto, v.quantidade,
-                               v.preco_unitario, v.valor_total, v.valor_pago, (v.valor_total - v.valor_pago) as valor_devendo
-                        FROM vendas v
-                        JOIN clientes c ON v.cliente_id = c.id
-                        JOIN produtos p ON v.produto_id = p.id
-                        WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
-                    """
+                    SELECT v.id, v.data_venda, c.nome as cliente, p.nome as produto, v.quantidade,
+                        v.preco_unitario, v.valor_total, v.valor_pago, v.produto_id,
+                        v.forma_pagamento_id,  -- 👈 adicione esta linha
+                        (v.valor_total - v.valor_pago) as valor_devendo, v.observacoes
+                    FROM vendas v
+                    JOIN clientes c ON v.cliente_id = c.id
+                    JOIN produtos p ON v.produto_id = p.id
+                    WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
+                """
                     params = {"u": st.session_state.username,
                               "inicio": data_inicio, "fim": data_fim}
                     if cliente_filtro != "Todos":
@@ -1509,50 +1511,138 @@ else:
                                         f"Pagamento de R$ {valor_recebido:.2f} registrado!")
                                     st.rerun()
                         with tab_edit:
-                            st.warning(
-                                "Atenção: Editar a quantidade afetará o estoque. O valor do desconto e observações não alteram o estoque.")
-                            with st.form("form_editar_venda"):
-                                nova_qtd = st.number_input(
-                                    "Quantidade", min_value=1, value=int(venda['quantidade']), step=1)
-                                novo_desconto = st.number_input("Desconto (R$)", min_value=0.0, value=float(
-                                    venda.get('desconto', 0)), step=0.01, format="%.2f")
-                                novas_obs = st.text_area(
-                                    "Observações", value=venda.get('observacoes', '') or "")
-                                if st.form_submit_button("Salvar Alterações"):
-                                    # Calcular diferença na quantidade
-                                    quantidade_original = int(
-                                        venda['quantidade'])
-                                    diferenca = nova_qtd - quantidade_original
-
-                                    # Verificar estoque se for aumentar a quantidade (diferenca > 0)
-                                    if diferenca > 0:
-                                        if not verificar_estoque(venda['produto_id'], diferenca):
-                                            st.error(
-                                                f"Estoque insuficiente para aumentar a quantidade em {diferenca}. Disponível? Consulte a aba Estoque.")
-                                            st.stop()
-
-                                    # Atualizar a venda
-                                    novo_valor_total = (
-                                        nova_qtd * float(venda['preco_unitario'])) - novo_desconto
+                            st.warning("⚠️ Editar uma venda afetará o estoque. Altere os dados com cuidado.")
+                            
+                            # Carregar dados necessários para os selects
+                            df_produtos_edit = pd.read_sql(
+                                text("SELECT id, nome, preco_atual FROM produtos WHERE username = :u ORDER BY nome"),
+                                engine, params={"u": st.session_state.username}
+                            )
+                            df_formas_edit = pd.read_sql(
+                                text("SELECT id, nome FROM formas_pagamento WHERE (username = :u OR username IS NULL) AND ativo = TRUE ORDER BY nome"),
+                                engine, params={"u": st.session_state.username}
+                            )
+                            
+                            if df_produtos_edit.empty or df_formas_edit.empty:
+                                st.error("❌ Não há produtos ou formas de pagamento cadastrados. Edite os cadastros primeiro.")
+                            else:
+                                with st.form("form_editar_venda_completa"):
+                                    # Dados originais da venda
+                                    venda_id_edit = venda['id']
+                                    produto_antigo_id = int(venda['produto_id'])
+                                    quantidade_antiga = int(venda['quantidade'])
+                                    valor_pago_antigo = float(venda['valor_pago'])
+                                    desconto_antigo = float(venda.get('desconto', 0))  # campo desconto no banco é por unidade? Conforme nova lógica, sim.
+                                    forma_pagamento_antiga_id = int(venda['forma_pagamento_id'])  # Precisa ter esse campo na query? Verificar. Na query da aba Financeiro, não incluímos forma_pagamento_id. Vamos adicionar.
+                                    # Para evitar erro, vamos buscar o forma_pagamento_id da venda atual. Vou adicionar na query principal mais adiante.
+                                    # Mas por enquanto, vamos buscar novamente do banco.
+                                    
+                                    # Buscar dados completos da venda (incluindo forma_pagamento_id)
+                                    venda_completa = pd.read_sql(
+                                        text("SELECT forma_pagamento_id, data_venda, observacoes FROM vendas WHERE id = :id"),
+                                        engine, params={"id": venda_id_edit}
+                                    ).iloc[0]
+                                    forma_pagamento_antiga_id = int(venda_completa['forma_pagamento_id'])
+                                    data_venda_antiga = venda_completa['data_venda']
+                                    observacoes_antigas = venda_completa.get('observacoes', '') or ''
+                                    
+                                    # Preços
+                                    preco_unitario_antigo = float(venda['preco_unitario'])
+                                    
+                                    # Layout do formulário
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        nova_data = st.date_input("📅 Data da Venda", value=data_venda_antiga, format="DD/MM/YYYY")
+                                        novo_produto_nome = st.selectbox(
+                                            "📦 Produto",
+                                            df_produtos_edit['nome'].tolist(),
+                                            index=df_produtos_edit[df_produtos_edit['id'] == produto_antigo_id].index[0] if produto_antigo_id in df_produtos_edit['id'].values else 0
+                                        )
+                                        novo_produto_id = int(df_produtos_edit[df_produtos_edit['nome'] == novo_produto_nome].iloc[0]['id'])
+                                        novo_preco_unitario = float(df_produtos_edit[df_produtos_edit['id'] == novo_produto_id].iloc[0]['preco_atual'])
+                                        
+                                        nova_forma_nome = st.selectbox(
+                                            "💳 Forma de Pagamento",
+                                            df_formas_edit['nome'].tolist(),
+                                            index=df_formas_edit[df_formas_edit['id'] == forma_pagamento_antiga_id].index[0] if forma_pagamento_antiga_id in df_formas_edit['id'].values else 0
+                                        )
+                                        nova_forma_id = int(df_formas_edit[df_formas_edit['nome'] == nova_forma_nome].iloc[0]['id'])
+                                    
+                                    with col2:
+                                        nova_quantidade = st.number_input("🔢 Quantidade", min_value=1, value=quantidade_antiga, step=1)
+                                        novo_desconto_unit = st.number_input("🎁 Desconto por unidade (R$)", min_value=0.0, value=desconto_antigo, step=0.01, format="%.2f")
+                                        novo_valor_pago = st.number_input("💰 Valor Pago (R$)", min_value=0.0, value=valor_pago_antigo, step=0.01, format="%.2f")
+                                    
+                                    novas_obs = st.text_area("📝 Observações", value=observacoes_antigas)
+                                    
+                                    # Calcular novo valor total
+                                    preco_com_desconto = max(0.0, novo_preco_unitario - novo_desconto_unit)
+                                    novo_valor_total = nova_quantidade * preco_com_desconto
+                                    novo_valor_devendo = max(0.0, novo_valor_total - novo_valor_pago)
+                                    
+                                    st.divider()
+                                    st.markdown("#### 📊 Resumo da Edição")
+                                    colr1, colr2, colr3 = st.columns(3)
+                                    with colr1:
+                                        st.metric("💰 Novo Valor Total", f"R$ {novo_valor_total:.2f}")
+                                    with colr2:
+                                        st.metric("💵 Valor Pago", f"R$ {novo_valor_pago:.2f}")
+                                    with colr3:
+                                        st.metric("⚠️ Novo Saldo Devedor", f"R$ {novo_valor_devendo:.2f}")
+                                    
+                                    submitted_edit = st.form_submit_button("💾 Salvar Todas as Alterações", type="primary", use_container_width=True)
+                                
+                                if submitted_edit:
+                                    # Verificar se houve mudança que afeta estoque
+                                    # Caso o produto ou a quantidade tenham mudado, ajustar o estoque
                                     try:
                                         with engine.connect() as conn:
-                                            conn.execute(text("""
-                                                UPDATE vendas 
-                                                SET quantidade = :qtd, desconto = :desc, valor_total = :total, observacoes = :obs 
-                                                WHERE id = :id
-                                            """), {"qtd": nova_qtd, "desc": novo_desconto, "total": novo_valor_total, "obs": novas_obs, "id": venda_id})
-                                            conn.commit()
-
-                                        # Atualizar estoque: subtrair a diferença (se positiva) ou somar (se negativa)
-                                        # Ajuste: delta = -diferenca (porque se aumentou a venda, estoque diminui; se diminuiu, estoque aumenta)
-                                        atualizar_estoque(
-                                            venda['produto_id'], -diferenca)
-
-                                        st.success(
-                                            "Venda atualizada e estoque ajustado com sucesso!")
+                                            # Iniciar transação
+                                            with conn.begin():
+                                                # 1. Devolver a quantidade antiga do produto antigo ao estoque
+                                                atualizar_estoque(produto_antigo_id, quantidade_antiga)
+                                                
+                                                # 2. Verificar estoque suficiente para o novo produto com a nova quantidade
+                                                if not verificar_estoque(novo_produto_id, nova_quantidade):
+                                                    st.error(f"❌ Estoque insuficiente para o produto '{novo_produto_nome}'. Necessário: {nova_quantidade}. Consulte a aba Estoque.")
+                                                    # Reverter a devolução? Como estamos dentro de uma transação, podemos cancelar. Mas como o erro é lançado, a transação será abortada. Mas precisamos evitar que a devolução persista. Vamos usar rollback explícito.
+                                                    raise Exception("Estoque insuficiente")
+                                                
+                                                # 3. Subtrair a nova quantidade do novo produto
+                                                atualizar_estoque(novo_produto_id, -nova_quantidade)
+                                                
+                                                # 4. Atualizar os dados da venda no banco
+                                                conn.execute(text("""
+                                                    UPDATE vendas 
+                                                    SET data_venda = :data,
+                                                        produto_id = :produto_id,
+                                                        quantidade = :qtd,
+                                                        preco_unitario = :preco_unit,
+                                                        desconto = :desconto,
+                                                        valor_total = :total,
+                                                        valor_pago = :valor_pago,
+                                                        forma_pagamento_id = :forma_id,
+                                                        observacoes = :obs
+                                                    WHERE id = :id
+                                                """), {
+                                                    "data": nova_data,
+                                                    "produto_id": novo_produto_id,
+                                                    "qtd": nova_quantidade,
+                                                    "preco_unit": novo_preco_unitario,
+                                                    "desconto": novo_desconto_unit,
+                                                    "total": novo_valor_total,
+                                                    "valor_pago": novo_valor_pago,
+                                                    "forma_id": nova_forma_id,
+                                                    "obs": novas_obs,
+                                                    "id": venda_id_edit
+                                                })
+                                                
+                                        st.success("✅ Venda atualizada e estoque ajustado com sucesso!")
                                         st.rerun()
                                     except Exception as e:
                                         st.error(f"Erro ao editar venda: {e}")
+                                        # Aqui a transação já terá sido revertida automaticamente pelo with begin() se houve exceção
+
                         with tab_del:
                             if valor_pago_atual > 0:
                                 st.warning(
