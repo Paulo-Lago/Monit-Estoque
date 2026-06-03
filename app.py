@@ -1052,7 +1052,8 @@ else:
         fat_tabs = st.tabs([
             "🛒 Vendas",
             "📦 Estoque",
-            "📝 Cadastros"
+            "📝 Cadastros",
+            "💰 Faturamento"
         ])
 
         # ============================================
@@ -1064,8 +1065,7 @@ else:
             vendas_tabs = st.tabs([
                 "🛒 Nova Venda",
                 "📋 Registros de Vendas",
-                "💰 Financeiro",
-                "💰 Faturamento"
+                "💰 Financeiro"
             ])
 
           # -------------------- NOVA VENDA COM CARRINHO --------------------
