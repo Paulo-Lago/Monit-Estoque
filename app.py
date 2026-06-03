@@ -1444,9 +1444,8 @@ else:
                         query += " AND (v.valor_total - v.valor_pago) > 0"
 
                     if busca:
-                        query += " AND (c.nome ILIKE :busca OR p.nome ILIKE :busca)"
+                        query += " AND c.nome ILIKE :busca"
                         params["busca"] = f"%{busca}%"
-
                     query += """
                         GROUP BY
                             v.id,
