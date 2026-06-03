@@ -1408,12 +1408,22 @@ else:
                 st.markdown("#### Histórico de Vendas")
                 try:
                     query = """
-                        SELECT v.id, v.data_venda, c.nome as cliente, p.nome as produto, v.quantidade,
-                               v.valor_total, v.valor_pago, v.produto_id, (v.valor_total - v.valor_pago) as valor_devendo, v.observacoes
+                        SELECT
+                            v.id,
+                            v.data_venda,
+                            c.nome as cliente,
+                            STRING_AGG(CONCAT(p.nome, ' (', vi.quantidade, ' un)'), ', ' ORDER BY p.nome) as produtos,
+                            v.valor_total,
+                            v.valor_pago,
+                            (v.valor_total - v.valor_pago) as valor_devendo,
+                            v.observacoes
                         FROM vendas v
                         JOIN clientes c ON v.cliente_id = c.id
-                        JOIN produtos p ON v.produto_id = p.id
+                        JOIN venda_itens vi ON v.id = vi.venda_id
+                        JOIN produtos p ON vi.produto_id = p.id
                         WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
+                        GROUP BY v.id, v.data_venda, c.nome, v.valor_total, v.valor_pago, v.observacoes
+                        ORDER BY v.data_venda DESC
                     """
                     params = {"u": st.session_state.username,
                               "inicio": data_inicio, "fim": data_fim}
