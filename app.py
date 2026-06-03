@@ -1064,7 +1064,8 @@ else:
             vendas_tabs = st.tabs([
                 "🛒 Nova Venda",
                 "📋 Registros de Vendas",
-                "💰 Financeiro"
+                "💰 Financeiro",
+                "💰 Faturamento"
             ])
 
           # -------------------- NOVA VENDA COM CARRINHO --------------------
@@ -2447,3 +2448,220 @@ else:
                                         st.rerun()
                 except Exception as e:
                     st.error(f"Erro: {e}")
+
+                # ============================================
+
+        # ABA 3 → FATURAMENTO (COM DESPESAS)
+        # ============================================
+        with fat_tabs[3]:
+            st.subheader("💰 Gestão de Faturamento")
+
+            # Subabas internas
+            fat_interno = st.tabs(["📉 Despesas", "📈 Faturamento"])
+
+            # ---------- SUBABA: DESPESAS ----------
+            with fat_interno[0]:
+                st.markdown("### Controle de Despesas")
+
+                # --- Criar tabelas se não existirem (apenas uma vez) ---
+                with engine.connect() as conn:
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS tipos_despesas (
+                            id SERIAL PRIMARY KEY,
+                            username TEXT NOT NULL,
+                            nome TEXT NOT NULL,
+                            descricao TEXT,
+                            UNIQUE(username, nome)
+                        )
+                    """))
+                    conn.execute(text("""
+                        CREATE TABLE IF NOT EXISTS despesas (
+                            id SERIAL PRIMARY KEY,
+                            username TEXT NOT NULL,
+                            data DATE NOT NULL,
+                            tipo_id INTEGER NOT NULL REFERENCES tipos_despesas(id) ON DELETE RESTRICT,
+                            valor NUMERIC NOT NULL CHECK (valor > 0),
+                            observacao TEXT,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """))
+                    conn.commit()
+
+                # Funções auxiliares (já definidas anteriormente, mas coloco aqui para ficar completo)
+                def obter_tipos_despesas():
+                    return pd.read_sql(text("SELECT id, nome, descricao FROM tipos_despesas WHERE username = :u ORDER BY nome"),
+                                       engine, params={"u": st.session_state.username})
+
+                def adicionar_tipo_despesa(nome, descricao):
+                    with engine.connect() as conn:
+                        conn.execute(text("INSERT INTO tipos_despesas (username, nome, descricao) VALUES (:u, :n, :d)"),
+                                     {"u": st.session_state.username, "n": nome, "d": descricao})
+                        conn.commit()
+
+                def atualizar_tipo_despesa(tipo_id, nome, descricao):
+                    with engine.connect() as conn:
+                        conn.execute(text("UPDATE tipos_despesas SET nome = :n, descricao = :d WHERE id = :id AND username = :u"),
+                                     {"n": nome, "d": descricao, "id": tipo_id, "u": st.session_state.username})
+                        conn.commit()
+
+                def excluir_tipo_despesa(tipo_id):
+                    with engine.connect() as conn:
+                        count = conn.execute(text(
+                            "SELECT COUNT(*) FROM despesas WHERE tipo_id = :tid"), {"tid": tipo_id}).scalar()
+                        if count > 0:
+                            raise Exception(
+                                "Não é possível excluir este tipo, pois existem despesas associadas.")
+                        conn.execute(text("DELETE FROM tipos_despesas WHERE id = :id AND username = :u"),
+                                     {"id": tipo_id, "u": st.session_state.username})
+                        conn.commit()
+
+                def registrar_despesa(data, tipo_id, valor, observacao):
+                    with engine.connect() as conn:
+                        conn.execute(text("""
+                            INSERT INTO despesas (username, data, tipo_id, valor, observacao)
+                            VALUES (:u, :d, :tid, :v, :obs)
+                        """), {"u": st.session_state.username, "d": data, "tid": tipo_id, "v": valor, "obs": observacao})
+                        conn.commit()
+
+                def obter_despesas(data_inicio, data_fim):
+                    query = """
+                        SELECT d.id, d.data, t.nome as tipo, d.valor, d.observacao
+                        FROM despesas d
+                        JOIN tipos_despesas t ON d.tipo_id = t.id
+                        WHERE d.username = :u AND d.data BETWEEN :inicio AND :fim
+                        ORDER BY d.data DESC
+                    """
+                    return pd.read_sql(text(query), engine, params={"u": st.session_state.username,
+                                                                    "inicio": data_inicio,
+                                                                    "fim": data_fim})
+
+                # Organização das despesas com sub-sub-abas (opcional, mas você pediu apenas subabas)
+                desp_tabs = st.tabs(
+                    ["🏷️ Tipos de Despesa", "➕ Nova Despesa", "📋 Histórico"])
+
+                # --- Tipos de Despesa ---
+                with desp_tabs[0]:
+                    st.markdown("#### Tipos de Despesa Cadastrados")
+                    with st.expander("➕ Adicionar novo tipo", expanded=False):
+                        with st.form("form_novo_tipo"):
+                            nome_tipo = st.text_input("Nome *")
+                            desc_tipo = st.text_area("Descrição (opcional)")
+                            if st.form_submit_button("Salvar"):
+                                if nome_tipo:
+                                    try:
+                                        adicionar_tipo_despesa(
+                                            nome_tipo, desc_tipo)
+                                        st.success("Tipo adicionado!")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Erro: {e}")
+                                else:
+                                    st.error("Nome é obrigatório.")
+                    df_tipos = obter_tipos_despesas()
+                    if df_tipos.empty:
+                        st.info("Nenhum tipo cadastrado ainda.")
+                    else:
+                        st.dataframe(
+                            df_tipos[['nome', 'descricao']], use_container_width=True, hide_index=True)
+                        st.markdown("---")
+                        st.markdown("#### ✏️ Editar ou 🗑️ Excluir Tipo")
+                        tipo_selecionado = st.selectbox(
+                            "Selecione um tipo", df_tipos['nome'].tolist(), key="tipo_select")
+                        tipo_row = df_tipos[df_tipos['nome']
+                                            == tipo_selecionado].iloc[0]
+                        tipo_id = int(tipo_row['id'])
+                        col_edit, col_del = st.columns(2)
+                        with col_edit:
+                            with st.expander("✏️ Editar"):
+                                with st.form("form_edit_tipo"):
+                                    novo_nome = st.text_input(
+                                        "Nome", value=tipo_row['nome'])
+                                    nova_desc = st.text_area(
+                                        "Descrição", value=tipo_row.get('descricao', ''))
+                                    if st.form_submit_button("Salvar alterações"):
+                                        atualizar_tipo_despesa(
+                                            tipo_id, novo_nome, nova_desc)
+                                        st.success("Tipo atualizado!")
+                                        st.rerun()
+                        with col_del:
+                            with st.expander("🗑️ Excluir"):
+                                st.warning(
+                                    f"Excluir permanentemente o tipo '{tipo_selecionado}'?")
+                                if st.button("Sim, excluir"):
+                                    try:
+                                        excluir_tipo_despesa(tipo_id)
+                                        st.success("Tipo excluído!")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(str(e))
+
+                # --- Nova Despesa ---
+                with desp_tabs[1]:
+                    st.markdown("#### Registrar Despesa")
+                    df_tipos = obter_tipos_despesas()
+                    if df_tipos.empty:
+                        st.warning(
+                            "Cadastre pelo menos um tipo de despesa antes de registrar.")
+                    else:
+                        with st.form("form_nova_despesa"):
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                data_despesa = st.date_input(
+                                    "Data", value=datetime.now().date(), format="DD/MM/YYYY")
+                                tipo_despesa = st.selectbox(
+                                    "Tipo de despesa", df_tipos['nome'].tolist())
+                                tipo_id = int(
+                                    df_tipos[df_tipos['nome'] == tipo_despesa].iloc[0]['id'])
+                            with col2:
+                                valor_despesa = st.number_input(
+                                    "Valor (R$)", min_value=0.01, step=0.01, format="%.2f")
+                                observacao = st.text_area(
+                                    "Observação (opcional)")
+                            if st.form_submit_button("Registrar Despesa"):
+                                registrar_despesa(
+                                    data_despesa, tipo_id, valor_despesa, observacao)
+                                st.success("Despesa registrada!")
+                                st.rerun()
+
+                # --- Histórico ---
+                with desp_tabs[2]:
+                    st.markdown("#### Histórico de Despesas")
+                    col_f1, col_f2 = st.columns(2)
+                    with col_f1:
+                        data_inicio = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=30),
+                                                    format="DD/MM/YYYY", key="desp_inicio")
+                    with col_f2:
+                        data_fim = st.date_input("Data Final", value=datetime.now().date(),
+                                                 format="DD/MM/YYYY", key="desp_fim")
+                    df_despesas = obter_despesas(data_inicio, data_fim)
+                    if df_despesas.empty:
+                        st.info("Nenhuma despesa encontrada no período.")
+                    else:
+                        total_geral = df_despesas['valor'].sum()
+                        st.metric("💰 Total de Despesas no Período",
+                                  f"R$ {total_geral:,.2f}")
+                        st.divider()
+                        # Totais por tipo
+                        st.markdown("#### Totais por Tipo de Despesa")
+                        df_totais = df_despesas.groupby('tipo')['valor'].sum(
+                        ).reset_index().sort_values('valor', ascending=False)
+                        st.bar_chart(df_totais.set_index('tipo'))
+                        st.dataframe(df_totais.rename(
+                            columns={'valor': 'Total (R$)'}), use_container_width=True, hide_index=True)
+                        st.divider()
+                        # Lista de despesas
+                        st.markdown("#### Lista de Despesas")
+                        df_display = df_despesas.copy()
+                        df_display['data'] = pd.to_datetime(
+                            df_display['data']).dt.strftime('%d/%m/%Y')
+                        df_display['valor'] = df_display['valor'].apply(
+                            lambda x: f"R$ {x:,.2f}")
+                        df_display = df_display.rename(columns={
+                                                       'data': 'Data', 'tipo': 'Tipo', 'valor': 'Valor', 'observacao': 'Observação'})
+                        st.dataframe(df_display[[
+                                     'Data', 'Tipo', 'Valor', 'Observação']], use_container_width=True, hide_index=True)
+
+            # ---------- SUBABA: FATURAMENTO (futuro) ----------
+            with fat_interno[1]:
+                st.info(
+                    "Em breve: gráficos de receitas vs despesas, análise de lucro, etc.")
