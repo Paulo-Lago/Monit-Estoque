@@ -1412,7 +1412,10 @@ else:
                             v.id,
                             v.data_venda,
                             c.nome as cliente,
-                            STRING_AGG(CONCAT(p.nome, ' (', vi.quantidade, ' un)'), ', ' ORDER BY p.nome) as produtos,
+                            STRING_AGG(
+                                CONCAT(p.nome, ' (', vi.quantidade, ' un)'),
+                                ', ' ORDER BY p.nome
+                            ) as produtos,
                             v.valor_total,
                             v.valor_pago,
                             (v.valor_total - v.valor_pago) as valor_devendo,
@@ -1421,24 +1424,39 @@ else:
                         JOIN clientes c ON v.cliente_id = c.id
                         JOIN venda_itens vi ON v.id = vi.venda_id
                         JOIN produtos p ON vi.produto_id = p.id
-                        WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
-                        GROUP BY v.id, v.data_venda, c.nome, v.valor_total, v.valor_pago, v.observacoes
+                        WHERE v.username = :u
+                        AND v.data_venda BETWEEN :inicio AND :fim
                     """
-                    query += " ORDER BY v.data_venda DESC"
 
-                    params = {"u": st.session_state.username,
-                              "inicio": data_inicio, "fim": data_fim}
+                    params = {
+                        "u": st.session_state.username,
+                        "inicio": data_inicio,
+                        "fim": data_fim
+                    }
+
                     if cliente_filtro != "Todos":
                         query += " AND c.nome = :cliente"
                         params["cliente"] = cliente_filtro
+
                     if status_filtro == "Quitadas":
                         query += " AND (v.valor_total - v.valor_pago) <= 0"
                     elif status_filtro == "Com Pendência":
                         query += " AND (v.valor_total - v.valor_pago) > 0"
+
                     if busca:
                         query += " AND (c.nome ILIKE :busca OR p.nome ILIKE :busca)"
                         params["busca"] = f"%{busca}%"
-                    query += " ORDER BY v.data_venda DESC"
+
+                    query += """
+                        GROUP BY
+                            v.id,
+                            v.data_venda,
+                            c.nome,
+                            v.valor_total,
+                            v.valor_pago,
+                            v.observacoes
+                        ORDER BY v.data_venda DESC
+                    """
 
                     df_vendas = pd.read_sql(text(query), engine, params=params)
                     if df_vendas.empty:
