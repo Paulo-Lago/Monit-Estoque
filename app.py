@@ -2926,15 +2926,16 @@ else:
                     with col_left:
                         st.markdown("#### 📈 Evolução Diária")
                         fig_evolucao = px.line(df_combinado, x='data', y=['Receita', 'Despesa'],
+                                               title="Receita vs Despesa (Diário)",
                                                labels={
-                                                   'value': 'Valor (R$)', 'variable': ''},
+                                                   'value': 'Valor (R$)', 'variable': 'Categoria'},
                                                markers=True,
                                                color_discrete_map={'Receita': '#2ecc71', 'Despesa': '#e74c3c'})
                         fig_evolucao.update_layout(
                             plot_bgcolor='#f8f9fa',
                             paper_bgcolor='#ffffff',
                             font=dict(color="#2c3e50", size=12),
-                            title_font=dict(color="#2c3e50"),
+                            title_font=dict(color="#2c3e50", size=14),
                             xaxis=dict(tickformat='%d/%m', color="#2c3e50"),
                             yaxis=dict(color="#2c3e50"),
                             legend=dict(orientation='h', yanchor='bottom',
@@ -2945,6 +2946,7 @@ else:
                     with col_right:
                         st.markdown("#### 📊 Lucro Acumulado")
                         fig_lucro = px.area(df_combinado, x='data', y='Lucro Acumulado',
+                                            title="Lucro Líquido Acumulado",
                                             labels={
                                                 'Lucro Acumulado': 'Lucro (R$)'},
                                             color_discrete_sequence=['#3498db'])
@@ -2952,7 +2954,7 @@ else:
                             plot_bgcolor='#f8f9fa',
                             paper_bgcolor='#ffffff',
                             font=dict(color="#2c3e50", size=12),
-                            title_font=dict(color="#2c3e50"),
+                            title_font=dict(color="#2c3e50", size=14),
                             xaxis=dict(tickformat='%d/%m', color="#2c3e50"),
                             yaxis=dict(color="#2c3e50")
                         )
