@@ -1423,8 +1423,9 @@ else:
                         JOIN produtos p ON vi.produto_id = p.id
                         WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
                         GROUP BY v.id, v.data_venda, c.nome, v.valor_total, v.valor_pago, v.observacoes
-                        ORDER BY v.data_venda DESC
                     """
+                    query += " ORDER BY v.data_venda DESC"
+
                     params = {"u": st.session_state.username,
                               "inicio": data_inicio, "fim": data_fim}
                     if cliente_filtro != "Todos":
