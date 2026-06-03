@@ -1412,20 +1412,22 @@ else:
                             v.id,
                             v.data_venda,
                             c.nome as cliente,
-                            STRING_AGG(
-                                CONCAT(p.nome, ' (', vi.quantidade, ' un)'),
-                                ', ' ORDER BY p.nome
+                            COALESCE(
+                                STRING_AGG(CONCAT(p.nome, ' (', vi.quantidade, ' un)'), ', ' ORDER BY p.nome),
+                                'Sem produtos'
                             ) as produtos,
-                            v.valor_total,
+                            COALESCE(SUM(vi.subtotal), 0) as valor_total,
                             v.valor_pago,
-                            (v.valor_total - v.valor_pago) as valor_devendo,
+                            (COALESCE(SUM(vi.subtotal), 0) - v.valor_pago) as valor_devendo,
                             v.observacoes
                         FROM vendas v
                         JOIN clientes c ON v.cliente_id = c.id
-                        JOIN venda_itens vi ON v.id = vi.venda_id
-                        JOIN produtos p ON vi.produto_id = p.id
+                        LEFT JOIN venda_itens vi ON v.id = vi.venda_id
+                        LEFT JOIN produtos p ON vi.produto_id = p.id
                         WHERE v.username = :u
-                        AND v.data_venda BETWEEN :inicio AND :fim
+                            AND v.data_venda BETWEEN :inicio AND :fim
+                        GROUP BY v.id, v.data_venda, c.nome, v.valor_pago, v.observacoes
+                        ORDER BY v.data_venda DESC
                     """
 
                     params = {
@@ -1466,8 +1468,7 @@ else:
                         df_display = df_display.rename(columns={
                             "data_venda": "Data",
                             "cliente": "Cliente",
-                            "produto": "Produto",
-                            "quantidade": "Quantidade",
+                            "produtos": "Produtos",
                             "valor_total": "Valor Total",
                             "valor_pago": "Valor Pago",
                             "valor_devendo": "Saldo Devedor",
