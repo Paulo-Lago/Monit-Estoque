@@ -2792,10 +2792,12 @@ else:
 
                     # ---------- SUBABA: FATURAMENTO (COMPLETO) ----------
 
+                    # ---------- SUBABA: FATURAMENTO (PROFISSIONAL) ----------
             with fat_interno[2]:
-                st.markdown("### 📊 Dashboard de Faturamento e Lucro")
+                st.markdown("## 📊 Dashboard Financeiro")
+                st.markdown("---")
 
-                # Filtro de período (unificado)
+                # Filtro de período
                 col_f1, col_f2 = st.columns(2)
                 with col_f1:
                     data_inicio_fat = st.date_input("📅 Data Inicial", value=datetime.now().date() - pd.Timedelta(days=30),
@@ -2804,191 +2806,186 @@ else:
                     data_fim_fat = st.date_input("📅 Data Final", value=datetime.now().date(),
                                                  format="DD/MM/YYYY", key="fat_fim")
 
-                # --- Consultas SQL ---
-                # 1. Receita total (vendas) no período
-                query_receita_total = """
-                    SELECT COALESCE(SUM(vi.subtotal), 0) as receita_total
-                    FROM vendas v
-                    JOIN venda_itens vi ON v.id = vi.venda_id
-                    WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
-                """
-                with engine.connect() as conn:
-                    receita = conn.execute(text(query_receita_total), {
-                        "u": st.session_state.username,
-                        "inicio": data_inicio_fat,
-                        "fim": data_fim_fat
-                    }).fetchone()
-                    receita_total = receita[0] if receita else 0
+                if data_inicio_fat > data_fim_fat:
+                    st.error(
+                        "⚠️ Data inicial não pode ser maior que a data final.")
+                    st.stop()
 
-                # 2. Despesa total no período
-                query_despesa_total = """
-                    SELECT COALESCE(SUM(valor), 0) as despesa_total
-                    FROM despesas
-                    WHERE username = :u AND data BETWEEN :inicio AND :fim
-                """
-                with engine.connect() as conn:
-                    despesa = conn.execute(text(query_despesa_total), {
-                        "u": st.session_state.username,
-                        "inicio": data_inicio_fat,
-                        "fim": data_fim_fat
-                    }).fetchone()
-                    despesa_total = despesa[0] if despesa else 0
+                # --- Função para buscar dados (com cache para performance) ---
+                @st.cache_data(ttl=60)
+                def carregar_dados_faturamento(inicio, fim, username):
+                    with engine.connect() as conn:
+                        # Receita total
+                        rec = conn.execute(text("""
+                            SELECT COALESCE(SUM(vi.subtotal), 0) FROM vendas v
+                            JOIN venda_itens vi ON v.id = vi.venda_id
+                            WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
+                        """), {"u": username, "inicio": inicio, "fim": fim}).scalar()
+                        # Despesa total
+                        desp = conn.execute(text("""
+                            SELECT COALESCE(SUM(valor), 0) FROM despesas
+                            WHERE username = :u AND data BETWEEN :inicio AND :fim
+                        """), {"u": username, "inicio": inicio, "fim": fim}).scalar()
+                        # Evolução diária receita
+                        rec_diaria = pd.read_sql(text("""
+                            SELECT v.data_venda as data, SUM(vi.subtotal) as valor
+                            FROM vendas v
+                            JOIN venda_itens vi ON v.id = vi.venda_id
+                            WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
+                            GROUP BY v.data_venda
+                            ORDER BY v.data_venda
+                        """), conn, params={"u": username, "inicio": inicio, "fim": fim})
+                        # Evolução diária despesa
+                        desp_diaria = pd.read_sql(text("""
+                            SELECT data, SUM(valor) as valor
+                            FROM despesas
+                            WHERE username = :u AND data BETWEEN :inicio AND :fim
+                            GROUP BY data
+                            ORDER BY data
+                        """), conn, params={"u": username, "inicio": inicio, "fim": fim})
+                        # Top despesas
+                        top_desp = pd.read_sql(text("""
+                            SELECT t.nome as tipo, SUM(d.valor) as total
+                            FROM despesas d
+                            JOIN tipos_despesas t ON d.tipo_id = t.id
+                            WHERE d.username = :u AND d.data BETWEEN :inicio AND :fim
+                            GROUP BY t.nome
+                            ORDER BY total DESC
+                            LIMIT 5
+                        """), conn, params={"u": username, "inicio": inicio, "fim": fim})
+                        # Top produtos
+                        top_prod = pd.read_sql(text("""
+                            SELECT p.nome as produto, SUM(vi.subtotal) as receita
+                            FROM vendas v
+                            JOIN venda_itens vi ON v.id = vi.venda_id
+                            JOIN produtos p ON vi.produto_id = p.id
+                            WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
+                            GROUP BY p.nome
+                            ORDER BY receita DESC
+                            LIMIT 5
+                        """), conn, params={"u": username, "inicio": inicio, "fim": fim})
+                    return rec, desp, rec_diaria, desp_diaria, top_desp, top_prod
 
-                # 3. Lucro líquido
+                receita_total, despesa_total, df_rec_diaria, df_desp_diaria, df_top_desp, df_top_prod = carregar_dados_faturamento(
+                    data_inicio_fat, data_fim_fat, st.session_state.username
+                )
+
                 lucro_liquido = receita_total - despesa_total
                 margem_lucro = (lucro_liquido / receita_total *
                                 100) if receita_total > 0 else 0
 
-                # --- Cards principais ---
-                st.markdown("#### 📈 Resumo do Período")
+                # --- Cards com métricas (estilo profissional) ---
+                st.markdown("### 📈 Indicadores do Período")
                 col_a, col_b, col_c, col_d = st.columns(4)
                 with col_a:
-                    st.metric("💰 Receita Total", f"R$ {receita_total:,.2f}")
+                    st.metric("💰 **Receita Total**",
+                              f"R$ {receita_total:,.2f}")
                 with col_b:
-                    st.metric("📉 Total de Despesas",
+                    st.metric("📉 **Despesas Totais**",
                               f"R$ {despesa_total:,.2f}", delta_color="inverse")
                 with col_c:
-                    st.metric("💎 Lucro Líquido", f"R$ {lucro_liquido:,.2f}",
+                    st.metric("💎 **Lucro Líquido**", f"R$ {lucro_liquido:,.2f}",
                               delta=f"{lucro_liquido:+,.2f}", delta_color="normal")
                 with col_d:
-                    st.metric("📊 Margem de Lucro", f"{margem_lucro:.1f}%")
+                    st.metric("📊 **Margem de Lucro**", f"{margem_lucro:.1f}%")
 
-                st.divider()
+                st.markdown("---")
 
-                # --- Gráfico comparativo (Receita vs Despesa) ---
-                st.markdown("#### 📉 Evolução Diária: Receita vs Despesa")
-                # Buscar dados diários de receita e despesa
-                query_evolucao_receita = """
-                    SELECT v.data_venda as data, SUM(vi.subtotal) as valor
-                    FROM vendas v
-                    JOIN venda_itens vi ON v.id = vi.venda_id
-                    WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
-                    GROUP BY v.data_venda
-                    ORDER BY v.data_venda
-                """
-                query_evolucao_despesa = """
-                    SELECT data, SUM(valor) as valor
-                    FROM despesas
-                    WHERE username = :u AND data BETWEEN :inicio AND :fim
-                    GROUP BY data
-                    ORDER BY data
-                """
-                df_rec_diaria = pd.read_sql(text(query_evolucao_receita), engine,
-                                            params={"u": st.session_state.username,
-                                                    "inicio": data_inicio_fat,
-                                                    "fim": data_fim_fat})
-                df_desp_diaria = pd.read_sql(text(query_evolucao_despesa), engine,
-                                             params={"u": st.session_state.username,
-                                                     "inicio": data_inicio_fat,
-                                                     "fim": data_fim_fat})
-
-                # Tratar DataFrames vazios
-                if df_rec_diaria.empty and df_desp_diaria.empty:
-                    st.info(
-                        "Não há dados de receita ou despesa no período selecionado.")
-                else:
-                    # Garantir que a coluna 'data' seja datetime
-                    if not df_rec_diaria.empty:
-                        df_rec_diaria['data'] = pd.to_datetime(
-                            df_rec_diaria['data'])
-                    if not df_desp_diaria.empty:
-                        df_desp_diaria['data'] = pd.to_datetime(
-                            df_desp_diaria['data'])
-
-                    # Criar um DataFrame com todas as datas do período
+                # --- Gráficos lado a lado (evolução e lucro acumulado) ---
+                if not df_rec_diaria.empty or not df_desp_diaria.empty:
+                    # Criar DataFrame completo com todas as datas do período
                     datas = pd.date_range(
                         data_inicio_fat, data_fim_fat, freq='D')
                     df_combinado = pd.DataFrame({'data': datas})
-
-                    # Renomear colunas e fazer merge
+                    # Converter colunas de data para datetime e garantir merge correto
                     if not df_rec_diaria.empty:
+                        df_rec_diaria['data'] = pd.to_datetime(
+                            df_rec_diaria['data'])
                         df_rec_diaria = df_rec_diaria.rename(
                             columns={'valor': 'Receita'})
                         df_combinado = df_combinado.merge(
                             df_rec_diaria[['data', 'Receita']], on='data', how='left')
                     else:
                         df_combinado['Receita'] = 0
-
                     if not df_desp_diaria.empty:
+                        df_desp_diaria['data'] = pd.to_datetime(
+                            df_desp_diaria['data'])
                         df_desp_diaria = df_desp_diaria.rename(
                             columns={'valor': 'Despesa'})
                         df_combinado = df_combinado.merge(
                             df_desp_diaria[['data', 'Despesa']], on='data', how='left')
                     else:
                         df_combinado['Despesa'] = 0
-
                     df_combinado.fillna(0, inplace=True)
-
-                    # Gráfico de linhas
-                    fig_evolucao = px.line(df_combinado, x='data', y=['Receita', 'Despesa'],
-                                           title=f"Evolução Diária (de {data_inicio_fat.strftime('%d/%m/%Y')} a {data_fim_fat.strftime('%d/%m/%Y')})",
-                                           labels={
-                                               'value': 'Valor (R$)', 'variable': ''},
-                                           markers=True,
-                                           color_discrete_map={'Receita': '#2ecc71', 'Despesa': '#e74c3c'})
-                    fig_evolucao.update_layout(
-                        plot_bgcolor='#ffffff',
-                        paper_bgcolor='#ffffff',
-                        font=dict(color="#000000", size=12),
-                        title_font=dict(color="#000000"),
-                        xaxis=dict(tickformat='%d/%m', color="#000000"),
-                        yaxis=dict(color="#000000"),
-                        legend=dict(orientation='h', yanchor='bottom',
-                                    y=1.02, xanchor='right', x=1)
+                    df_combinado['Lucro Diário'] = df_combinado['Receita'] - \
+                        df_combinado['Despesa']
+                    df_combinado['Lucro Acumulado'] = df_combinado['Lucro Diário'].cumsum(
                     )
-                    st.plotly_chart(fig_evolucao, use_container_width=True)
 
-                st.divider()
+                    col_left, col_right = st.columns(2)
+                    with col_left:
+                        st.markdown("#### 📈 Evolução Diária")
+                        fig_evolucao = px.line(df_combinado, x='data', y=['Receita', 'Despesa'],
+                                               labels={
+                                                   'value': 'Valor (R$)', 'variable': ''},
+                                               markers=True,
+                                               color_discrete_map={'Receita': '#2ecc71', 'Despesa': '#e74c3c'})
+                        fig_evolucao.update_layout(
+                            plot_bgcolor='#f8f9fa',
+                            paper_bgcolor='#ffffff',
+                            font=dict(color="#2c3e50", size=12),
+                            title_font=dict(color="#2c3e50"),
+                            xaxis=dict(tickformat='%d/%m', color="#2c3e50"),
+                            yaxis=dict(color="#2c3e50"),
+                            legend=dict(orientation='h', yanchor='bottom',
+                                        y=1.02, xanchor='right', x=1)
+                        )
+                        st.plotly_chart(fig_evolucao, use_container_width=True)
 
-                # --- Detalhamento por tipo de despesa e por produto (tabelas) ---
-                st.markdown("#### 🔍 Detalhamento do Período")
+                    with col_right:
+                        st.markdown("#### 📊 Lucro Acumulado")
+                        fig_lucro = px.area(df_combinado, x='data', y='Lucro Acumulado',
+                                            labels={
+                                                'Lucro Acumulado': 'Lucro (R$)'},
+                                            color_discrete_sequence=['#3498db'])
+                        fig_lucro.update_layout(
+                            plot_bgcolor='#f8f9fa',
+                            paper_bgcolor='#ffffff',
+                            font=dict(color="#2c3e50", size=12),
+                            title_font=dict(color="#2c3e50"),
+                            xaxis=dict(tickformat='%d/%m', color="#2c3e50"),
+                            yaxis=dict(color="#2c3e50")
+                        )
+                        st.plotly_chart(fig_lucro, use_container_width=True)
+                else:
+                    st.info(
+                        "📭 Não há dados de receita ou despesa no período selecionado.")
 
-                # Top despesas por tipo
-                query_top_despesas = """
-                    SELECT t.nome as tipo, SUM(d.valor) as total
-                    FROM despesas d
-                    JOIN tipos_despesas t ON d.tipo_id = t.id
-                    WHERE d.username = :u AND d.data BETWEEN :inicio AND :fim
-                    GROUP BY t.nome
-                    ORDER BY total DESC
-                """
-                df_top_despesas = pd.read_sql(text(query_top_despesas), engine,
-                                              params={"u": st.session_state.username,
-                                                      "inicio": data_inicio_fat,
-                                                      "fim": data_fim_fat})
-                if not df_top_despesas.empty:
-                    st.markdown("**Maiores Despesas por Tipo**")
-                    df_top_despesas['total'] = df_top_despesas['total'].apply(
-                        lambda x: f"R$ {x:,.2f}")
-                    st.dataframe(df_top_despesas.rename(columns={'tipo': 'Tipo', 'total': 'Total (R$)'}),
-                                 use_container_width=True, hide_index=True)
+                st.markdown("---")
 
-                # Receita por produto (já temos da subaba anterior, mas repetimos para consistência)
-                query_top_produtos = """
-                    SELECT p.nome as produto, SUM(vi.subtotal) as receita
-                    FROM vendas v
-                    JOIN venda_itens vi ON v.id = vi.venda_id
-                    JOIN produtos p ON vi.produto_id = p.id
-                    WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
-                    GROUP BY p.nome
-                    ORDER BY receita DESC
-                """
-                df_top_produtos = pd.read_sql(text(query_top_produtos), engine,
-                                              params={"u": st.session_state.username,
-                                                      "inicio": data_inicio_fat,
-                                                      "fim": data_fim_fat})
-                if not df_top_produtos.empty:
-                    st.markdown("**Produtos que mais geraram Receita**")
-                    df_top_produtos['receita'] = df_top_produtos['receita'].apply(
-                        lambda x: f"R$ {x:,.2f}")
-                    st.dataframe(df_top_produtos.rename(columns={'produto': 'Produto', 'receita': 'Receita (R$)'}),
-                                 use_container_width=True, hide_index=True)
+                # --- Tabelas de Top Despesas e Top Produtos (lado a lado) ---
+                col_tab1, col_tab2 = st.columns(2)
+                with col_tab1:
+                    st.markdown("#### 🔝 Principais Despesas")
+                    if not df_top_desp.empty:
+                        df_top_desp['total'] = df_top_desp['total'].apply(
+                            lambda x: f"R$ {x:,.2f}")
+                        st.dataframe(df_top_desp.rename(columns={'tipo': 'Tipo', 'total': 'Valor'}),
+                                     use_container_width=True, hide_index=True,
+                                     column_config={"Tipo": st.column_config.TextColumn("Tipo de Despesa")})
+                    else:
+                        st.info("Nenhuma despesa registrada no período.")
+                with col_tab2:
+                    st.markdown("#### 🔝 Produtos com Maior Receita")
+                    if not df_top_prod.empty:
+                        df_top_prod['receita'] = df_top_prod['receita'].apply(
+                            lambda x: f"R$ {x:,.2f}")
+                        st.dataframe(df_top_prod.rename(columns={'produto': 'Produto', 'receita': 'Receita'}),
+                                     use_container_width=True, hide_index=True,
+                                     column_config={"Produto": st.column_config.TextColumn("Produto")})
+                    else:
+                        st.info("Nenhuma venda registrada no período.")
 
-                # Se não houver dados de despesa ou receita, informar
-                if df_top_despesas.empty and df_top_produtos.empty:
-                    st.warning(
-                        "Nenhum dado de despesa ou receita encontrado no período selecionado.")
-                elif df_top_despesas.empty:
-                    st.info("Nenhuma despesa registrada no período.")
-                elif df_top_produtos.empty:
-                    st.info("Nenhuma venda registrada no período.")
+                st.markdown("---")
+                st.caption(
+                    f"📆 Período analisado: {data_inicio_fat.strftime('%d/%m/%Y')} a {data_fim_fat.strftime('%d/%m/%Y')}")
