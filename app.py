@@ -1413,7 +1413,10 @@ else:
                             v.data_venda,
                             c.nome as cliente,
                             COALESCE(
-                                STRING_AGG(CONCAT(p.nome, ' (', vi.quantidade, ' un)'), ', ' ORDER BY p.nome),
+                                STRING_AGG(
+                                    CONCAT(COALESCE(p.nome, 'Produto sem nome'), ' (', vi.quantidade, ' un)'),
+                                    ', ' ORDER BY p.nome
+                                ),
                                 'Sem produtos'
                             ) as produtos,
                             COALESCE(SUM(vi.subtotal), 0) as valor_total,
@@ -1536,9 +1539,12 @@ else:
                         SELECT
                             v.id,
                             v.data_venda,
-                            c.nome as cliente,
+                            c.nome as cliente,                            
                             COALESCE(
-                                STRING_AGG(CONCAT(p.nome, ' (', vi.quantidade, ' un)'), ', ' ORDER BY p.nome),
+                                STRING_AGG(
+                                    CONCAT(COALESCE(p.nome, 'Produto sem nome'), ' (', vi.quantidade, ' un)'),
+                                    ', ' ORDER BY p.nome
+                                ),
                                 'Sem produtos'
                             ) as produtos,
                             COALESCE(SUM(vi.subtotal), 0) as valor_total,
