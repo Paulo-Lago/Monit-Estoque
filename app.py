@@ -407,10 +407,13 @@ else:
 
                         # --- Exclusão ---
                         st.markdown("#### 🗑️ Excluir Registro")
-                        st.caption("Esta ação é irreversível e removerá permanentemente o registro do histórico.")
+                        st.caption(
+                            "Esta ação é irreversível e removerá permanentemente o registro do histórico.")
                         with st.popover("🗑️ Excluir este registro", use_container_width=True):
-                            st.warning(f"Tem certeza que deseja excluir o registro de {registro['quantidade']} ovos ({registro['tipo']}, {registro['cor']}) do {registro['galpao']}?")
-                            confirmar = st.checkbox("Sim, quero excluir permanentemente este registro.")
+                            st.warning(
+                                f"Tem certeza que deseja excluir o registro de {registro['quantidade']} ovos ({registro['tipo']}, {registro['cor']}) do {registro['galpao']}?")
+                            confirmar = st.checkbox(
+                                "Sim, quero excluir permanentemente este registro.")
                             if st.button("Excluir agora", type="primary", disabled=not confirmar):
                                 try:
                                     with engine.connect() as conn:
@@ -422,7 +425,8 @@ else:
                                             "username": st.session_state.username
                                         })
                                         conn.commit()
-                                    st.success("✅ Registro excluído com sucesso!")
+                                    st.success(
+                                        "✅ Registro excluído com sucesso!")
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"Erro ao excluir: {e}")
@@ -1004,7 +1008,7 @@ else:
             with engine.connect() as conn:
                 produto_id_int = int(produto_id)
                 delta_int = int(delta) if delta is not None else 0
-                
+
                 # Verifica se já existe registro de estoque
                 existe = conn.execute(text("""
                     SELECT 1 FROM estoque WHERE username = :u AND produto_id = :p
@@ -1019,7 +1023,8 @@ else:
                 else:
                     # Se não existe, cria com delta (se delta for positivo, senão lança erro)
                     if delta_int < 0:
-                        raise Exception("Estoque insuficiente e sem registro inicial.")
+                        raise Exception(
+                            "Estoque insuficiente e sem registro inicial.")
                     conn.execute(text("""
                         INSERT INTO estoque (username, produto_id, quantidade)
                         VALUES (:u, :p, :qtd)
@@ -1037,7 +1042,8 @@ else:
                     """), {"u": st.session_state.username, "p": int(produto_id)}).scalar()
                     # Garante que qtd_atual seja int
                     qtd_atual = int(qtd_atual) if qtd_atual is not None else 0
-                    quantidade_necessaria = int(quantidade_necessaria) if quantidade_necessaria is not None else 0
+                    quantidade_necessaria = int(
+                        quantidade_necessaria) if quantidade_necessaria is not None else 0
                     return qtd_atual >= quantidade_necessaria
             except Exception as e:
                 st.error(f"Erro ao verificar estoque: {e}")
@@ -1061,203 +1067,281 @@ else:
                 "💰 Financeiro"
             ])
 
-           # -------------------- NOVA VENDA (COM DATA E TRATAMENTO DE NONE) --------------------
-            with vendas_tabs[0]:
-                st.markdown("""
-                <style>
-                .card-form {
-                    background-color: #f9f9fb;
-                    border-radius: 20px;
-                    padding: 1.5rem;
-                    border: 1px solid #e0e4e8;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.02);
-                    margin-bottom: 1rem;
+          # -------------------- NOVA VENDA COM CARRINHO --------------------
+with vendas_tabs[0]:
+    st.markdown("""
+    <style>
+    .card-form {
+        background-color: #f9f9fb;
+        border-radius: 20px;
+        padding: 1.5rem;
+        border: 1px solid #e0e4e8;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        margin-bottom: 1rem;
+    }
+    .cart-item {
+        background-color: #ffffff;
+        border-radius: 12px;
+        padding: 0.8rem;
+        margin-bottom: 0.5rem;
+        border: 1px solid #e0e4e8;
+    }
+    div.stButton > button:first-child {
+        border-radius: 40px;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+    div.stButton > button:first-child:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("### 🛒 Registrar Nova Venda (Múltiplos Produtos)")
+    st.caption("Adicione os produtos ao carrinho e finalize a venda")
+
+    # Inicializar carrinho no session_state
+    if "carrinho" not in st.session_state:
+        st.session_state.carrinho = []
+    if "mostrar_confirmacao" not in st.session_state:
+        st.session_state.mostrar_confirmacao = False
+
+    # Carregar dados
+    df_clientes = pd.read_sql(text("SELECT id, nome FROM clientes WHERE username = :u ORDER BY nome"), engine,
+                              params={"u": st.session_state.username})
+    df_produtos = pd.read_sql(text("SELECT id, nome, preco_atual FROM produtos WHERE username = :u ORDER BY nome"), engine,
+                              params={"u": st.session_state.username})
+    df_formas = pd.read_sql(text("SELECT id, nome FROM formas_pagamento WHERE (username = :u OR username IS NULL) AND ativo = TRUE ORDER BY nome"),
+                            engine, params={"u": st.session_state.username})
+
+    if df_clientes.empty or df_produtos.empty or df_formas.empty:
+        st.warning(
+            "⚠️ Cadastre pelo menos 1 Cliente, 1 Produto e 1 Forma de Pagamento ativa antes de registrar uma venda.")
+    else:
+        # ==================== MODO CONFIRMAÇÃO ====================
+        if st.session_state.mostrar_confirmacao:
+            with st.container():
+                st.markdown("### ✅ Confirmar Venda")
+                st.markdown("Verifique os dados da venda e os itens abaixo")
+                st.divider()
+
+                dados_venda = st.session_state.get("dados_venda", {})
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown(
+                        f"**📅 Data da Venda**  \n{dados_venda.get('data_venda', '').strftime('%d/%m/%Y') if dados_venda.get('data_venda') else ''}")
+                    st.markdown(
+                        f"**👤 Cliente**  \n{dados_venda.get('cliente_nome', '')}")
+                    st.markdown(
+                        f"**💳 Pagamento**  \n{dados_venda.get('forma_nome', '')}")
+                with col2:
+                    st.markdown(
+                        f"**💰 Valor Total**  \nR$ {dados_venda.get('valor_total', 0):.2f}")
+                    st.markdown(
+                        f"**💵 Valor Pago**  \nR$ {dados_venda.get('valor_pago', 0):.2f}")
+                    st.markdown(
+                        f"**🔻 Ficará Devendo**  \nR$ {dados_venda.get('valor_devendo', 0):.2f}")
+
+                st.divider()
+                st.markdown("#### 🛒 Itens da Venda")
+
+                for i, item in enumerate(st.session_state.carrinho):
+                    st.markdown(
+                        f"- **{item['produto_nome']}** | Qtd: {item['quantidade']} | Preço unit.: R$ {item['preco_unit']:.2f} | Desc. unit.: R$ {item['desconto_unit']:.2f} | Subtotal: R$ {item['subtotal']:.2f}")
+
+                if dados_venda.get('observacoes'):
+                    st.info(f"**📝 Observações:** {dados_venda['observacoes']}")
+
+                st.divider()
+                st.warning(
+                    "⚠️ Confirme os dados. Após salvar, não será possível editar diretamente.")
+
+                col_btn1, col_btn2 = st.columns(2)
+                with col_btn1:
+                    if st.button("✅ Confirmar e Registrar", type="primary", use_container_width=True):
+                        try:
+                            with engine.connect() as conn:
+                                with conn.begin():
+                                    # 1. Inserir venda principal
+                                    venda_result = conn.execute(text("""
+                                        INSERT INTO vendas (username, cliente_id, data_venda, forma_pagamento_id, valor_total, valor_pago, observacoes)
+                                        VALUES (:u, :cliente_id, :data_venda, :forma_id, :valor_total, :valor_pago, :obs)
+                                        RETURNING id
+                                    """), {
+                                        "u": st.session_state.username,
+                                        "cliente_id": dados_venda['cliente_id'],
+                                        "data_venda": dados_venda['data_venda'],
+                                        "forma_id": dados_venda['forma_id'],
+                                        "valor_total": dados_venda['valor_total'],
+                                        "valor_pago": dados_venda['valor_pago'],
+                                        "obs": dados_venda.get('observacoes', '')
+                                    })
+                                    venda_id = venda_result.fetchone()[0]
+
+                                    # 2. Inserir itens e atualizar estoque
+                                    for item in st.session_state.carrinho:
+                                        # Inserir item
+                                        conn.execute(text("""
+                                            INSERT INTO venda_itens (venda_id, produto_id, quantidade, preco_unitario, desconto_unitario, subtotal)
+                                            VALUES (:venda_id, :produto_id, :qtd, :preco, :desconto, :subtotal)
+                                        """), {
+                                            "venda_id": venda_id,
+                                            "produto_id": item['produto_id'],
+                                            "qtd": item['quantidade'],
+                                            "preco": item['preco_unit'],
+                                            "desconto": item['desconto_unit'],
+                                            "subtotal": item['subtotal']
+                                        })
+                                        # Atualizar estoque (subtrair)
+                                        atualizar_estoque(
+                                            item['produto_id'], -item['quantidade'])
+
+                            st.balloons()
+                            st.success(
+                                "✅ Venda registrada com sucesso e estoque atualizado!")
+                            st.session_state.carrinho = []
+                            st.session_state.mostrar_confirmacao = False
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao registrar venda: {e}")
+
+                with col_btn2:
+                    if st.button("✏️ Voltar e editar", use_container_width=True):
+                        st.session_state.mostrar_confirmacao = False
+                        st.rerun()
+
+        # ==================== MODO CARRINHO ====================
+        else:
+            st.markdown('<div class="card-form">', unsafe_allow_html=True)
+
+            # Dados da venda (cliente, data, pagamento)
+            col1, col2 = st.columns(2)
+            with col1:
+                data_venda = st.date_input("📅 Data da Venda", value=datetime.now(
+                ).date(), format="DD/MM/YYYY", key="data_venda")
+                cliente_nome = st.selectbox(
+                    "👤 Cliente *", df_clientes['nome'].tolist(), key="venda_cliente")
+                cliente_id = int(
+                    df_clientes[df_clientes['nome'] == cliente_nome].iloc[0]['id'])
+            with col2:
+                forma_nome = st.selectbox(
+                    "💳 Forma de Pagamento *", df_formas['nome'].tolist(), key="venda_forma")
+                forma_id = int(
+                    df_formas[df_formas['nome'] == forma_nome].iloc[0]['id'])
+                valor_pago = st.number_input(
+                    "💰 Valor Pago agora (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_valor_pago")
+
+            # --- Área para adicionar itens ao carrinho ---
+            st.divider()
+            st.markdown("#### ➕ Adicionar Produto ao Carrinho")
+
+            col_add1, col_add2, col_add3, col_add4 = st.columns([2, 1, 1, 1])
+            with col_add1:
+                produto_nome = st.selectbox(
+                    "Produto", df_produtos['nome'].tolist(), key="produto_carrinho")
+                produto_row = df_produtos[df_produtos['nome']
+                                          == produto_nome].iloc[0]
+                produto_id = int(produto_row['id'])
+                preco_unit = float(produto_row['preco_atual'])
+            with col_add2:
+                quantidade = st.number_input(
+                    "Quantidade", min_value=1, step=1, value=1, key="qtd_carrinho")
+            with col_add3:
+                desconto_unit = st.number_input(
+                    "Desconto (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="desc_carrinho")
+            with col_add4:
+                if st.button("➕ Adicionar ao Carrinho", use_container_width=True):
+                    preco_com_desconto = max(0.0, preco_unit - desconto_unit)
+                    subtotal = quantidade * preco_com_desconto
+
+                    st.session_state.carrinho.append({
+                        "produto_id": produto_id,
+                        "produto_nome": produto_nome,
+                        "quantidade": quantidade,
+                        "preco_unit": preco_unit,
+                        "desconto_unit": desconto_unit,
+                        "subtotal": subtotal
+                    })
+                    st.rerun()
+
+            st.markdown('<div class="preco-unitario" style="margin-top: 0;">💰 Preço unitário: R$ {:.2f}</div>'.format(
+                preco_unit), unsafe_allow_html=True)
+
+            st.divider()
+
+            # --- Exibir carrinho atual ---
+            st.markdown("#### 🛒 Carrinho de Produtos")
+
+            if not st.session_state.carrinho:
+                st.info("Nenhum produto adicionado. Adicione produtos ao carrinho.")
+            else:
+                # Tabela do carrinho
+                df_carrinho = pd.DataFrame(st.session_state.carrinho)
+                df_display = df_carrinho[[
+                    "produto_nome", "quantidade", "preco_unit", "desconto_unit", "subtotal"]].copy()
+                df_display = df_display.rename(columns={
+                    "produto_nome": "Produto",
+                    "quantidade": "Qtd",
+                    "preco_unit": "Preço Unit.",
+                    "desconto_unit": "Desc. Unit.",
+                    "subtotal": "Subtotal"
+                })
+                df_display["Preço Unit."] = df_display["Preço Unit."].apply(
+                    lambda x: f"R$ {x:.2f}")
+                df_display["Desc. Unit."] = df_display["Desc. Unit."].apply(
+                    lambda x: f"R$ {x:.2f}")
+                df_display["Subtotal"] = df_display["Subtotal"].apply(
+                    lambda x: f"R$ {x:.2f}")
+                st.dataframe(df_display, use_container_width=True,
+                             hide_index=True)
+
+                # Botão para remover item
+                st.markdown("**Remover item do carrinho:**")
+                item_remover = st.selectbox(
+                    "Selecione o produto para remover", df_carrinho["produto_nome"].tolist(), key="remover_item")
+                if st.button("🗑️ Remover Produto", use_container_width=True):
+                    st.session_state.carrinho = [
+                        item for item in st.session_state.carrinho if item["produto_nome"] != item_remover]
+                    st.rerun()
+
+            st.divider()
+
+            # --- Resumo e finalização ---
+            valor_total_carrinho = sum(item["subtotal"]
+                                       for item in st.session_state.carrinho)
+            valor_devendo = max(0, valor_total_carrinho - valor_pago)
+
+            col_r1, col_r2, col_r3 = st.columns(3)
+            with col_r1:
+                st.metric("💰 Total do Carrinho",
+                          f"R$ {valor_total_carrinho:.2f}")
+            with col_r2:
+                st.metric("💵 Valor Pago", f"R$ {valor_pago:.2f}")
+            with col_r3:
+                st.metric("🔻 Ficará Devendo", f"R$ {valor_devendo:.2f}")
+
+            observacoes = st.text_area(
+                "📝 Observações (opcional)", key="venda_obs", placeholder="Ex: Entrega agendada, troco, etc.")
+
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            # Botão para finalizar venda
+            if st.button("💸 Finalizar Venda", type="primary", use_container_width=True, disabled=len(st.session_state.carrinho) == 0):
+                st.session_state.dados_venda = {
+                    "cliente_id": cliente_id,
+                    "cliente_nome": cliente_nome,
+                    "data_venda": data_venda,
+                    "forma_id": forma_id,
+                    "forma_nome": forma_nome,
+                    "valor_pago": valor_pago,
+                    "valor_total": valor_total_carrinho,
+                    "valor_devendo": valor_devendo,
+                    "observacoes": observacoes
                 }
-                .preco-unitario {
-                    background-color: #eef2ff;
-                    border-radius: 40px;
-                    padding: 0.3rem 0.8rem;
-                    display: inline-block;
-                    font-size: 0.85rem;
-                    color: #1e3a8a;
-                    font-weight: 500;
-                    margin-top: 1.8rem;
-                }
-                div.stButton > button:first-child {
-                    border-radius: 40px;
-                    font-weight: 600;
-                    transition: all 0.2s ease;
-                }
-                div.stButton > button:first-child:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 6px 12px rgba(0,0,0,0.1);
-                }
-                </style>
-                """, unsafe_allow_html=True)
-
-                st.markdown("### 🧾 Registrar Nova Venda")
-                st.caption("Preencha os dados abaixo — a venda será revisada antes de salvar")
-
-                if "venda_dados" not in st.session_state:
-                    st.session_state.venda_dados = None
-                if "mostrar_confirmacao" not in st.session_state:
-                    st.session_state.mostrar_confirmacao = False
-
-                # Limpa dados antigos com formato incompatível
-                if st.session_state.venda_dados and 'data_venda' not in st.session_state.venda_dados:
-                    st.session_state.venda_dados = None
-                    st.session_state.mostrar_confirmacao = False
-
-                import traceback
-
-                try:
-                    df_clientes = pd.read_sql(text("SELECT id, nome FROM clientes WHERE username = :u ORDER BY nome"), engine,
-                                            params={"u": st.session_state.username})
-                    df_produtos = pd.read_sql(text("SELECT id, nome, preco_atual FROM produtos WHERE username = :u ORDER BY nome"), engine,
-                                            params={"u": st.session_state.username})
-                    df_formas = pd.read_sql(text("SELECT id, nome FROM formas_pagamento WHERE (username = :u OR username IS NULL) AND ativo = TRUE ORDER BY nome"),
-                                            engine, params={"u": st.session_state.username})
-
-                    if df_clientes.empty or df_produtos.empty or df_formas.empty:
-                        st.warning("⚠️ Cadastre pelo menos 1 Cliente, 1 Produto e 1 Forma de Pagamento ativa antes de registrar uma venda.")
-                    else:
-                        # ==================== MODO CONFIRMAÇÃO ====================
-                        if st.session_state.mostrar_confirmacao and st.session_state.venda_dados:
-                            dados = st.session_state.venda_dados
-                            with st.container():
-                                st.markdown("### ✅ Confirmar venda")
-                                st.markdown("Verifique os dados antes de finalizar")
-                                st.divider()
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    st.markdown(f"**📅 Data da Venda**  \n{datetime.strptime(str(dados['data_venda']), '%Y-%m-%d').strftime('%d/%m/%Y')}")
-                                    st.markdown(f"**👤 Cliente**  \n{dados['cliente_nome']}")
-                                    st.markdown(f"**📦 Produto**  \n{dados['produto_nome']}")
-                                    st.markdown(f"**🔢 Quantidade**  \n{dados['quantidade']}")
-                                    preco_original = dados.get('preco_unit', 0.0)
-                                    desconto_unit = dados.get('desconto_unit', 0.0)
-                                    preco_final = max(0.0, preco_original - desconto_unit)
-                                    st.markdown(f"**💰 Preço unitário original**  \nR$ {preco_original:.2f}")
-                                    st.markdown(f"**🎁 Desconto por unidade**  \nR$ {desconto_unit:.2f}")
-                                    st.markdown(f"**💵 Preço unitário com desconto**  \nR$ {preco_final:.2f}")
-                                with col2:
-                                    st.markdown(f"**💳 Pagamento**  \n{dados['forma_nome']}")
-                                    st.markdown(f"**💰 Valor Pago agora**  \nR$ {dados.get('valor_pago', 0.0):.2f}")
-                                    if dados.get('observacoes'):
-                                        st.markdown(f"**📝 Observações**  \n{dados['observacoes']}")
-                                st.divider()
-                                col_r1, col_r2, col_r3 = st.columns(3)
-                                with col_r1:
-                                    st.metric("💰 Valor Total (com desconto)", f"R$ {dados.get('valor_total', 0.0):.2f}")
-                                with col_r2:
-                                    st.metric("💵 Valor Pago", f"R$ {dados.get('valor_pago', 0.0):.2f}")
-                                with col_r3:
-                                    st.metric("🔻 Ficará Devendo", f"R$ {dados.get('valor_devendo', 0.0):.2f}")
-                                st.warning("⚠️ Confirme os dados. Após salvar, não será possível editar diretamente.")
-                                col_btn1, col_btn2 = st.columns(2)
-                                with col_btn1:
-                                    if st.button("✅ Confirmar e Registrar", type="primary", use_container_width=True):
-                                        if not verificar_estoque(dados['produto_id'], dados['quantidade']):
-                                            st.error(f"❌ Estoque insuficiente para o produto '{dados['produto_nome']}'. Consulte a aba Estoque.")
-                                        else:
-                                            try:
-                                                with engine.connect() as conn:
-                                                    conn.execute(text("""
-                                                        INSERT INTO vendas (username, cliente_id, data_venda, produto_id, quantidade,
-                                                        preco_unitario, forma_pagamento_id, desconto, valor_total, valor_pago, observacoes)
-                                                        VALUES (:u, :cliente_id, :data_venda, :produto_id, :qtd, :preco, :forma_id,
-                                                                :desconto, :total, :valor_pago, :obs)
-                                                    """), {
-                                                        "u": st.session_state.username,
-                                                        "cliente_id": dados['cliente_id'],
-                                                        "data_venda": dados['data_venda'],
-                                                        "produto_id": dados['produto_id'],
-                                                        "qtd": dados['quantidade'],
-                                                        "preco": dados['preco_unit'],
-                                                        "forma_id": dados['forma_id'],
-                                                        "desconto": dados['desconto_unit'],
-                                                        "total": dados['valor_total'],
-                                                        "valor_pago": dados['valor_pago'],
-                                                        "obs": dados.get('observacoes')
-                                                    })
-                                                    conn.commit()
-                                                atualizar_estoque(dados['produto_id'], -dados['quantidade'])
-                                                st.balloons()
-                                                st.success("✅ Venda registrada com sucesso e estoque atualizado!")
-                                                st.session_state.venda_dados = None
-                                                st.session_state.mostrar_confirmacao = False
-                                                st.rerun()
-                                            except Exception as e:
-                                                st.error(f"Erro ao registrar venda: {e}")
-                                with col_btn2:
-                                    if st.button("✏️ Voltar e editar", use_container_width=True):
-                                        st.session_state.mostrar_confirmacao = False
-                                        st.rerun()
-
-                        # ==================== MODO FORMULÁRIO ====================
-                        else:
-                            st.markdown('<div class="card-form">', unsafe_allow_html=True)
-                            col_prod, col_preco_chip = st.columns([2, 1])
-                            with col_prod:
-                                produto_nome = st.selectbox("📦 Produto *", df_produtos['nome'].tolist(), key="produto_select_fora")
-                            with col_preco_chip:
-                                produto_row = df_produtos[df_produtos['nome'] == produto_nome].iloc[0]
-                                preco_unit = float(produto_row['preco_atual']) if produto_row['preco_atual'] is not None else 0.0
-                                st.markdown(f'<div class="preco-unitario">💰 Preço unitário: R$ {preco_unit:.2f}</div>', unsafe_allow_html=True)
-
-                            with st.form("form_nova_venda", clear_on_submit=True):
-                                col1, col2 = st.columns(2, gap="medium")
-                                with col1:
-                                    data_venda = st.date_input("📅 Data da Venda", value=datetime.now().date(), format="DD/MM/YYYY", key="data_venda")
-                                    cliente_nome = st.selectbox("👤 Cliente *", df_clientes['nome'].tolist(), key="venda_cliente")
-                                    cliente_id = int(df_clientes[df_clientes['nome'] == cliente_nome].iloc[0]['id'])
-                                    forma_nome = st.selectbox("💳 Forma de Pagamento *", df_formas['nome'].tolist(), key="venda_forma")
-                                    forma_id = int(df_formas[df_formas['nome'] == forma_nome].iloc[0]['id'])
-                                with col2:
-                                    quantidade = st.number_input("🔢 Quantidade *", min_value=1, step=1, value=1, key="venda_qtd")
-                                    valor_pago = st.number_input("💰 Valor Pago agora (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_valor_pago")
-                                    desconto_unit = st.number_input("🎁 Desconto por unidade (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_desconto_unit")
-                                observacoes = st.text_area("📝 Observações (opcional)", key="venda_obs", placeholder="Ex: Entrega agendada, troco, etc.")
-                                submitted = st.form_submit_button("💸 Registrar Venda", type="primary", use_container_width=True)
-                            st.markdown('</div>', unsafe_allow_html=True)
-
-                            if submitted:
-                                # Garantir que valores não sejam None
-                                preco_unit_safe = float(preco_unit) if preco_unit is not None else 0.0
-                                desconto_unit_safe = float(desconto_unit) if desconto_unit is not None else 0.0
-                                valor_pago_safe = float(valor_pago) if valor_pago is not None else 0.0
-                                
-                                preco_com_desconto = max(0.0, preco_unit_safe - desconto_unit_safe)
-                                valor_total = quantidade * preco_com_desconto
-                                valor_devendo = max(0.0, valor_total - valor_pago_safe)
-
-                                produto_row_final = df_produtos[df_produtos['nome'] == produto_nome].iloc[0]
-                                produto_id_final = int(produto_row_final['id'])
-                                preco_unit_final = float(produto_row_final['preco_atual']) if produto_row_final['preco_atual'] is not None else 0.0
-
-                                st.session_state.venda_dados = {
-                                    "cliente_id": cliente_id,
-                                    "cliente_nome": cliente_nome,
-                                    "produto_id": produto_id_final,
-                                    "produto_nome": produto_nome,
-                                    "quantidade": quantidade,
-                                    "preco_unit": preco_unit_final,
-                                    "desconto_unit": desconto_unit_safe,
-                                    "forma_id": forma_id,
-                                    "forma_nome": forma_nome,
-                                    "valor_pago": valor_pago_safe,
-                                    "valor_total": valor_total,
-                                    "valor_devendo": valor_devendo,
-                                    "observacoes": observacoes,
-                                    "data_venda": data_venda
-                                }
-                                st.session_state.mostrar_confirmacao = True
-                                st.rerun()
-
-                except Exception as e:
-                    import traceback
-                    st.error(f"Erro ao carregar dados: {e}")
-                    st.code(traceback.format_exc())
+                st.session_state.mostrar_confirmacao = True
+                st.rerun()
 
            # -------------------- REGISTROS DE VENDAS --------------------
             with vendas_tabs[1]:
@@ -1511,87 +1595,120 @@ else:
                                         f"Pagamento de R$ {valor_recebido:.2f} registrado!")
                                     st.rerun()
                         with tab_edit:
-                            st.warning("⚠️ Editar uma venda afetará o estoque. Altere os dados com cuidado.")
-                            
+                            st.warning(
+                                "⚠️ Editar uma venda afetará o estoque. Altere os dados com cuidado.")
+
                             # Carregar dados necessários para os selects
                             df_produtos_edit = pd.read_sql(
-                                text("SELECT id, nome, preco_atual FROM produtos WHERE username = :u ORDER BY nome"),
+                                text(
+                                    "SELECT id, nome, preco_atual FROM produtos WHERE username = :u ORDER BY nome"),
                                 engine, params={"u": st.session_state.username}
                             )
                             df_formas_edit = pd.read_sql(
-                                text("SELECT id, nome FROM formas_pagamento WHERE (username = :u OR username IS NULL) AND ativo = TRUE ORDER BY nome"),
+                                text(
+                                    "SELECT id, nome FROM formas_pagamento WHERE (username = :u OR username IS NULL) AND ativo = TRUE ORDER BY nome"),
                                 engine, params={"u": st.session_state.username}
                             )
-                            
+
                             if df_produtos_edit.empty or df_formas_edit.empty:
-                                st.error("❌ Não há produtos ou formas de pagamento cadastrados. Edite os cadastros primeiro.")
+                                st.error(
+                                    "❌ Não há produtos ou formas de pagamento cadastrados. Edite os cadastros primeiro.")
                             else:
                                 with st.form("form_editar_venda_completa"):
                                     # Dados originais da venda
-                                    venda_id_edit = int(venda['id'])  # 👈 linha já corrigida 
-                                    produto_antigo_id = int(venda['produto_id'])
-                                    quantidade_antiga = int(venda['quantidade'])
-                                    valor_pago_antigo = float(venda['valor_pago']) 
-                                    desconto_antigo = float(venda.get('desconto', 0))  # campo desconto no banco é por unidade? Conforme nova lógica, sim.
-                                    forma_pagamento_antiga_id = int(venda['forma_pagamento_id'])  # Precisa ter esse campo na query? Verificar. Na query da aba Financeiro, não incluímos forma_pagamento_id. Vamos adicionar.
+                                    # 👈 linha já corrigida
+                                    venda_id_edit = int(venda['id'])
+                                    produto_antigo_id = int(
+                                        venda['produto_id'])
+                                    quantidade_antiga = int(
+                                        venda['quantidade'])
+                                    valor_pago_antigo = float(
+                                        venda['valor_pago'])
+                                    # campo desconto no banco é por unidade? Conforme nova lógica, sim.
+                                    desconto_antigo = float(
+                                        venda.get('desconto', 0))
+                                    # Precisa ter esse campo na query? Verificar. Na query da aba Financeiro, não incluímos forma_pagamento_id. Vamos adicionar.
+                                    forma_pagamento_antiga_id = int(
+                                        venda['forma_pagamento_id'])
                                     # Para evitar erro, vamos buscar o forma_pagamento_id da venda atual. Vou adicionar na query principal mais adiante.
                                     # Mas por enquanto, vamos buscar novamente do banco.
-                                    
+
                                     # Buscar dados completos da venda (incluindo forma_pagamento_id)
                                     venda_completa = pd.read_sql(
-                                        text("SELECT forma_pagamento_id, data_venda, observacoes FROM vendas WHERE id = :id"),
-                                        engine, params={"id": int(venda_id_edit)}
+                                        text(
+                                            "SELECT forma_pagamento_id, data_venda, observacoes FROM vendas WHERE id = :id"),
+                                        engine, params={
+                                            "id": int(venda_id_edit)}
                                     ).iloc[0]
-                                    forma_pagamento_antiga_id = int(venda_completa['forma_pagamento_id'])
+                                    forma_pagamento_antiga_id = int(
+                                        venda_completa['forma_pagamento_id'])
                                     data_venda_antiga = venda_completa['data_venda']
-                                    observacoes_antigas = venda_completa.get('observacoes', '') or ''
-                                    
+                                    observacoes_antigas = venda_completa.get(
+                                        'observacoes', '') or ''
+
                                     # Preços
-                                    preco_unitario_antigo = float(venda['preco_unitario'])
-                                    
+                                    preco_unitario_antigo = float(
+                                        venda['preco_unitario'])
+
                                     # Layout do formulário
                                     col1, col2 = st.columns(2)
                                     with col1:
-                                        nova_data = st.date_input("📅 Data da Venda", value=data_venda_antiga, format="DD/MM/YYYY")
+                                        nova_data = st.date_input(
+                                            "📅 Data da Venda", value=data_venda_antiga, format="DD/MM/YYYY")
                                         novo_produto_nome = st.selectbox(
                                             "📦 Produto",
                                             df_produtos_edit['nome'].tolist(),
-                                            index=df_produtos_edit[df_produtos_edit['id'] == produto_antigo_id].index[0] if produto_antigo_id in df_produtos_edit['id'].values else 0
+                                            index=df_produtos_edit[df_produtos_edit['id'] == produto_antigo_id].index[
+                                                0] if produto_antigo_id in df_produtos_edit['id'].values else 0
                                         )
-                                        novo_produto_id = int(df_produtos_edit[df_produtos_edit['nome'] == novo_produto_nome].iloc[0]['id'])
-                                        novo_preco_unitario = float(df_produtos_edit[df_produtos_edit['id'] == novo_produto_id].iloc[0]['preco_atual'])
-                                        
+                                        novo_produto_id = int(
+                                            df_produtos_edit[df_produtos_edit['nome'] == novo_produto_nome].iloc[0]['id'])
+                                        novo_preco_unitario = float(
+                                            df_produtos_edit[df_produtos_edit['id'] == novo_produto_id].iloc[0]['preco_atual'])
+
                                         nova_forma_nome = st.selectbox(
                                             "💳 Forma de Pagamento",
                                             df_formas_edit['nome'].tolist(),
-                                            index=df_formas_edit[df_formas_edit['id'] == forma_pagamento_antiga_id].index[0] if forma_pagamento_antiga_id in df_formas_edit['id'].values else 0
+                                            index=df_formas_edit[df_formas_edit['id'] == forma_pagamento_antiga_id].index[
+                                                0] if forma_pagamento_antiga_id in df_formas_edit['id'].values else 0
                                         )
-                                        nova_forma_id = int(df_formas_edit[df_formas_edit['nome'] == nova_forma_nome].iloc[0]['id'])
-                                    
+                                        nova_forma_id = int(
+                                            df_formas_edit[df_formas_edit['nome'] == nova_forma_nome].iloc[0]['id'])
+
                                     with col2:
-                                        nova_quantidade = st.number_input("🔢 Quantidade", min_value=1, value=quantidade_antiga, step=1)
-                                        novo_desconto_unit = st.number_input("🎁 Desconto por unidade (R$)", min_value=0.0, value=desconto_antigo, step=0.01, format="%.2f")
-                                        novo_valor_pago = st.number_input("💰 Valor Pago (R$)", min_value=0.0, value=valor_pago_antigo, step=0.01, format="%.2f")
-                                    
-                                    novas_obs = st.text_area("📝 Observações", value=observacoes_antigas)
-                                    
+                                        nova_quantidade = st.number_input(
+                                            "🔢 Quantidade", min_value=1, value=quantidade_antiga, step=1)
+                                        novo_desconto_unit = st.number_input(
+                                            "🎁 Desconto por unidade (R$)", min_value=0.0, value=desconto_antigo, step=0.01, format="%.2f")
+                                        novo_valor_pago = st.number_input(
+                                            "💰 Valor Pago (R$)", min_value=0.0, value=valor_pago_antigo, step=0.01, format="%.2f")
+
+                                    novas_obs = st.text_area(
+                                        "📝 Observações", value=observacoes_antigas)
+
                                     # Calcular novo valor total
-                                    preco_com_desconto = max(0.0, novo_preco_unitario - novo_desconto_unit)
+                                    preco_com_desconto = max(
+                                        0.0, novo_preco_unitario - novo_desconto_unit)
                                     novo_valor_total = nova_quantidade * preco_com_desconto
-                                    novo_valor_devendo = max(0.0, novo_valor_total - novo_valor_pago)
-                                    
+                                    novo_valor_devendo = max(
+                                        0.0, novo_valor_total - novo_valor_pago)
+
                                     st.divider()
                                     st.markdown("#### 📊 Resumo da Edição")
                                     colr1, colr2, colr3 = st.columns(3)
                                     with colr1:
-                                        st.metric("💰 Novo Valor Total", f"R$ {novo_valor_total:.2f}")
+                                        st.metric("💰 Novo Valor Total",
+                                                  f"R$ {novo_valor_total:.2f}")
                                     with colr2:
-                                        st.metric("💵 Valor Pago", f"R$ {novo_valor_pago:.2f}")
+                                        st.metric("💵 Valor Pago",
+                                                  f"R$ {novo_valor_pago:.2f}")
                                     with colr3:
-                                        st.metric("⚠️ Novo Saldo Devedor", f"R$ {novo_valor_devendo:.2f}")
-                                    
-                                    submitted_edit = st.form_submit_button("💾 Salvar Todas as Alterações", type="primary", use_container_width=True)
-                                
+                                        st.metric("⚠️ Novo Saldo Devedor",
+                                                  f"R$ {novo_valor_devendo:.2f}")
+
+                                    submitted_edit = st.form_submit_button(
+                                        "💾 Salvar Todas as Alterações", type="primary", use_container_width=True)
+
                                 if submitted_edit:
                                     # Verificar se houve mudança que afeta estoque
                                     # Caso o produto ou a quantidade tenham mudado, ajustar o estoque
@@ -1600,17 +1717,21 @@ else:
                                             # Iniciar transação
                                             with conn.begin():
                                                 # 1. Devolver a quantidade antiga do produto antigo ao estoque
-                                                atualizar_estoque(produto_antigo_id, quantidade_antiga)
-                                                
+                                                atualizar_estoque(
+                                                    produto_antigo_id, quantidade_antiga)
+
                                                 # 2. Verificar estoque suficiente para o novo produto com a nova quantidade
                                                 if not verificar_estoque(novo_produto_id, nova_quantidade):
-                                                    st.error(f"❌ Estoque insuficiente para o produto '{novo_produto_nome}'. Necessário: {nova_quantidade}. Consulte a aba Estoque.")
+                                                    st.error(
+                                                        f"❌ Estoque insuficiente para o produto '{novo_produto_nome}'. Necessário: {nova_quantidade}. Consulte a aba Estoque.")
                                                     # Reverter a devolução? Como estamos dentro de uma transação, podemos cancelar. Mas como o erro é lançado, a transação será abortada. Mas precisamos evitar que a devolução persista. Vamos usar rollback explícito.
-                                                    raise Exception("Estoque insuficiente")
-                                                
+                                                    raise Exception(
+                                                        "Estoque insuficiente")
+
                                                 # 3. Subtrair a nova quantidade do novo produto
-                                                atualizar_estoque(novo_produto_id, -nova_quantidade)
-                                                
+                                                atualizar_estoque(
+                                                    novo_produto_id, -nova_quantidade)
+
                                                 # 4. Atualizar os dados da venda no banco
                                                 conn.execute(text("""
                                                     UPDATE vendas 
@@ -1636,8 +1757,9 @@ else:
                                                     "obs": novas_obs,
                                                     "id": venda_id_edit
                                                 })
-                                                
-                                        st.success("✅ Venda atualizada e estoque ajustado com sucesso!")
+
+                                        st.success(
+                                            "✅ Venda atualizada e estoque ajustado com sucesso!")
                                         st.rerun()
                                     except Exception as e:
                                         st.error(f"Erro ao editar venda: {e}")
