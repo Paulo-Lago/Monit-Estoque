@@ -2641,8 +2641,16 @@ else:
                         st.metric("💰 Total de Despesas no Período",
                                   f"R$ {total_geral:,.2f}")
                         st.divider()
-                        # Totais por tipo
-
+                        # Totais por tipo (somente tabela)
+                        st.markdown("#### Totais por Tipo de Despesa")
+                        df_totais = df_despesas.groupby('tipo')['valor'].sum(
+                        ).reset_index().sort_values('valor', ascending=False)
+                        df_totais = df_totais.rename(
+                            columns={'tipo': 'Tipo de Despesa', 'valor': 'Total (R$)'})
+                        df_totais['Total (R$)'] = df_totais['Total (R$)'].apply(
+                            lambda x: f"R$ {x:,.2f}")
+                        st.dataframe(
+                            df_totais, use_container_width=True, hide_index=True)
                         # Lista de despesas
                         st.markdown("#### Lista de Despesas")
                         df_display = df_despesas.copy()
