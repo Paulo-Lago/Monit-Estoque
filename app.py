@@ -2645,7 +2645,7 @@ else:
                         st.markdown("#### Totais por Tipo de Despesa")
                         df_totais = df_despesas.groupby('tipo')['valor'].sum(
                         ).reset_index().sort_values('valor', ascending=False)
-                        st.bar_chart(df_totais.set_index('tipo'))
+                        st.line_chart(df_totais.set_index('tipo'))
                         st.dataframe(df_totais.rename(
                             columns={'valor': 'Total (R$)'}), use_container_width=True, hide_index=True)
                         st.divider()
