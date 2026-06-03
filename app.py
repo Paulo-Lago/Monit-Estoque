@@ -2882,16 +2882,41 @@ else:
                                                      "inicio": data_inicio_fat,
                                                      "fim": data_fim_fat})
 
-                # Combinar em um único DataFrame para plotagem
-                if not df_rec_diaria.empty or not df_desp_diaria.empty:
+                # Tratar DataFrames vazios
+                if df_rec_diaria.empty and df_desp_diaria.empty:
+                    st.info(
+                        "Não há dados de receita ou despesa no período selecionado.")
+                else:
+                    # Garantir que a coluna 'data' seja datetime
+                    if not df_rec_diaria.empty:
+                        df_rec_diaria['data'] = pd.to_datetime(
+                            df_rec_diaria['data'])
+                    if not df_desp_diaria.empty:
+                        df_desp_diaria['data'] = pd.to_datetime(
+                            df_desp_diaria['data'])
+
                     # Criar um DataFrame com todas as datas do período
                     datas = pd.date_range(
                         data_inicio_fat, data_fim_fat, freq='D')
                     df_combinado = pd.DataFrame({'data': datas})
-                    df_combinado = df_combinado.merge(df_rec_diaria.rename(
-                        columns={'data': 'data', 'valor': 'Receita'}), on='data', how='left')
-                    df_combinado = df_combinado.merge(df_desp_diaria.rename(
-                        columns={'data': 'data', 'valor': 'Despesa'}), on='data', how='left')
+
+                    # Renomear colunas e fazer merge
+                    if not df_rec_diaria.empty:
+                        df_rec_diaria = df_rec_diaria.rename(
+                            columns={'valor': 'Receita'})
+                        df_combinado = df_combinado.merge(
+                            df_rec_diaria[['data', 'Receita']], on='data', how='left')
+                    else:
+                        df_combinado['Receita'] = 0
+
+                    if not df_desp_diaria.empty:
+                        df_desp_diaria = df_desp_diaria.rename(
+                            columns={'valor': 'Despesa'})
+                        df_combinado = df_combinado.merge(
+                            df_desp_diaria[['data', 'Despesa']], on='data', how='left')
+                    else:
+                        df_combinado['Despesa'] = 0
+
                     df_combinado.fillna(0, inplace=True)
 
                     # Gráfico de linhas
@@ -2912,33 +2937,6 @@ else:
                                     y=1.02, xanchor='right', x=1)
                     )
                     st.plotly_chart(fig_evolucao, use_container_width=True)
-                else:
-                    st.info(
-                        "Não há dados suficientes para exibir a evolução diária.")
-
-                st.divider()
-
-                # --- Lucro Acumulado no Período (gráfico de área) ---
-                st.markdown("#### 📈 Lucro Líquido Acumulado Diário")
-                # Calcular lucro diário (Receita - Despesa) e acumular
-                df_combinado['Lucro Diário'] = df_combinado['Receita'] - \
-                    df_combinado['Despesa']
-                df_combinado['Lucro Acumulado'] = df_combinado['Lucro Diário'].cumsum()
-
-                fig_lucro_acum = px.area(df_combinado, x='data', y='Lucro Acumulado',
-                                         title="Lucro Líquido Acumulado no Período",
-                                         labels={
-                                             'Lucro Acumulado': 'Lucro (R$)'},
-                                         color_discrete_sequence=['#3498db'])
-                fig_lucro_acum.update_layout(
-                    plot_bgcolor='#ffffff',
-                    paper_bgcolor='#ffffff',
-                    font=dict(color="#000000", size=12),
-                    title_font=dict(color="#000000"),
-                    xaxis=dict(tickformat='%d/%m', color="#000000"),
-                    yaxis=dict(color="#000000")
-                )
-                st.plotly_chart(fig_lucro_acum, use_container_width=True)
 
                 st.divider()
 
