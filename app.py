@@ -1628,174 +1628,270 @@ else:
                                     st.rerun()
                         with tab_edit:
                             st.warning(
-                                "⚠️ Editar uma venda afetará o estoque. Altere os dados com cuidado.")
+                                "⚠️ Editar uma venda afetará o estoque. Você pode modificar produtos, quantidades, descontos e outros dados.")
 
-                            # Carregar dados necessários para os selects
-                            df_produtos_edit = pd.read_sql(
+                            # Carregar dados atuais da venda e seus itens
+                            venda_atual = pd.read_sql(
                                 text(
-                                    "SELECT id, nome, preco_atual FROM produtos WHERE username = :u ORDER BY nome"),
-                                engine, params={"u": st.session_state.username}
-                            )
-                            df_formas_edit = pd.read_sql(
-                                text(
-                                    "SELECT id, nome FROM formas_pagamento WHERE (username = :u OR username IS NULL) AND ativo = TRUE ORDER BY nome"),
-                                engine, params={"u": st.session_state.username}
-                            )
+                                    "SELECT cliente_id, data_venda, forma_pagamento_id, valor_pago, observacoes FROM vendas WHERE id = :id"),
+                                engine, params={"id": venda_id}
+                            ).iloc[0]
 
-                            if df_produtos_edit.empty or df_formas_edit.empty:
-                                st.error(
-                                    "❌ Não há produtos ou formas de pagamento cadastrados. Edite os cadastros primeiro.")
-                            else:
-                                with st.form("form_editar_venda_completa"):
-                                    # Dados originais da venda
-                                    # 👈 linha já corrigida
-                                    venda_id_edit = int(venda['id'])
-                                    produto_antigo_id = int(
-                                        venda['produto_id'])
-                                    quantidade_antiga = int(
-                                        venda['quantidade'])
-                                    valor_pago_antigo = float(
-                                        venda['valor_pago'])
-                                    # campo desconto no banco é por unidade? Conforme nova lógica, sim.
-                                    desconto_antigo = float(
-                                        venda.get('desconto', 0))
-                                    # Precisa ter esse campo na query? Verificar. Na query da aba Financeiro, não incluímos forma_pagamento_id. Vamos adicionar.
-                                    forma_pagamento_antiga_id = int(
-                                        venda['forma_pagamento_id'])
-                                    # Para evitar erro, vamos buscar o forma_pagamento_id da venda atual. Vou adicionar na query principal mais adiante.
-                                    # Mas por enquanto, vamos buscar novamente do banco.
+                            # Carregar itens atuais da venda
+                            itens_atuais = pd.read_sql(
+                                text("""
+                                    SELECT vi.id as item_id, vi.produto_id, p.nome as produto_nome, 
+                                        vi.quantidade, vi.preco_unitario, vi.desconto_unitario, vi.subtotal
+                                    FROM venda_itens vi
+                                    JOIN produtos p ON vi.produto_id = p.id
+                                    WHERE vi.venda_id = :vid
+                                """), engine, params={"vid": venda_id}
+                            ).to_dict('records')
 
-                                    # Buscar dados completos da venda (incluindo forma_pagamento_id)
-                                    venda_completa = pd.read_sql(
-                                        text(
-                                            "SELECT forma_pagamento_id, data_venda, observacoes FROM vendas WHERE id = :id"),
-                                        engine, params={
-                                            "id": int(venda_id_edit)}
-                                    ).iloc[0]
-                                    forma_pagamento_antiga_id = int(
-                                        venda_completa['forma_pagamento_id'])
-                                    data_venda_antiga = venda_completa['data_venda']
-                                    observacoes_antigas = venda_completa.get(
-                                        'observacoes', '') or ''
+                            # Carregar combos
+                            df_clientes_edit = pd.read_sql(text("SELECT id, nome FROM clientes WHERE username = :u ORDER BY nome"),
+                                                           engine, params={"u": st.session_state.username})
+                            df_produtos_edit = pd.read_sql(text("SELECT id, nome, preco_atual FROM produtos WHERE username = :u ORDER BY nome"),
+                                                           engine, params={"u": st.session_state.username})
+                            df_formas_edit = pd.read_sql(text("SELECT id, nome FROM formas_pagamento WHERE (username = :u OR username IS NULL) AND ativo = TRUE ORDER BY nome"),
+                                                         engine, params={"u": st.session_state.username})
 
-                                    # Preços
-                                    preco_unitario_antigo = float(
-                                        venda['preco_unitario'])
+                            # Inicializar estado da edição (itens modificados)
+                            if f"edit_items_{venda_id}" not in st.session_state:
+                                # Copia os itens atuais para edição
+                                st.session_state[f"edit_items_{venda_id}"] = itens_atuais.copy(
+                                )
+                                st.session_state[f"edit_removed_{venda_id}"] = [
+                                ]
 
-                                    # Layout do formulário
-                                    col1, col2 = st.columns(2)
-                                    with col1:
-                                        nova_data = st.date_input(
-                                            "📅 Data da Venda", value=data_venda_antiga, format="DD/MM/YYYY")
+                            items_edit = st.session_state[f"edit_items_{venda_id}"]
+
+                            # --- Campos principais da venda ---
+                            st.markdown("#### 📋 Dados da Venda")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                nova_data = st.date_input(
+                                    "📅 Data da Venda", value=venda_atual['data_venda'], format="DD/MM/YYYY")
+                                novo_cliente_id = st.selectbox(
+                                    "👤 Cliente",
+                                    options=df_clientes_edit['id'].tolist(),
+                                    format_func=lambda x: df_clientes_edit[df_clientes_edit['id']
+                                                                           == x].iloc[0]['nome'],
+                                    index=df_clientes_edit[df_clientes_edit['id'] == venda_atual['cliente_id']
+                                                           ].index[0] if venda_atual['cliente_id'] in df_clientes_edit['id'].values else 0
+                                )
+                            with col2:
+                                nova_forma_id = st.selectbox(
+                                    "💳 Forma de Pagamento",
+                                    options=df_formas_edit['id'].tolist(),
+                                    format_func=lambda x: df_formas_edit[df_formas_edit['id']
+                                                                         == x].iloc[0]['nome'],
+                                    index=df_formas_edit[df_formas_edit['id'] == venda_atual['forma_pagamento_id']
+                                                         ].index[0] if venda_atual['forma_pagamento_id'] in df_formas_edit['id'].values else 0
+                                )
+                                novo_valor_pago = st.number_input("💰 Valor Pago (R$)", min_value=0.0, value=float(
+                                    venda_atual['valor_pago']), step=0.01, format="%.2f")
+
+                            novas_obs = st.text_area(
+                                "📝 Observações", value=venda_atual.get('observacoes', '') or '')
+
+                            st.divider()
+
+                            # --- Edição dos itens ---
+                            st.markdown("#### 🛒 Itens da Venda")
+                            st.caption(
+                                "Você pode editar os itens existentes, remover ou adicionar novos produtos.")
+
+                            # Exibir itens atuais (editáveis)
+                            for idx, item in enumerate(items_edit):
+                                with st.container():
+                                    st.markdown(f"**Item {idx+1}**")
+                                    col_a, col_b, col_c, col_d, col_e = st.columns(
+                                        [2, 1, 1, 1, 0.5])
+                                    with col_a:
                                         novo_produto_nome = st.selectbox(
-                                            "📦 Produto",
-                                            df_produtos_edit['nome'].tolist(),
-                                            index=df_produtos_edit[df_produtos_edit['id'] == produto_antigo_id].index[
-                                                0] if produto_antigo_id in df_produtos_edit['id'].values else 0
+                                            "Produto",
+                                            options=df_produtos_edit['nome'].tolist(
+                                            ),
+                                            index=df_produtos_edit[df_produtos_edit['id'] == item['produto_id']
+                                                                   ].index[0] if item['produto_id'] in df_produtos_edit['id'].values else 0,
+                                            key=f"edit_prod_{venda_id}_{idx}"
                                         )
                                         novo_produto_id = int(
                                             df_produtos_edit[df_produtos_edit['nome'] == novo_produto_nome].iloc[0]['id'])
-                                        novo_preco_unitario = float(
+                                        novo_preco_unit = float(
                                             df_produtos_edit[df_produtos_edit['id'] == novo_produto_id].iloc[0]['preco_atual'])
+                                    with col_b:
+                                        nova_qtd = st.number_input("Qtd", min_value=1, value=int(
+                                            item['quantidade']), step=1, key=f"edit_qtd_{venda_id}_{idx}")
+                                    with col_c:
+                                        novo_desc_unit = st.number_input("Desc. unit. (R$)", min_value=0.0, value=float(item.get(
+                                            'desconto_unitario', 0)), step=0.01, format="%.2f", key=f"edit_desc_{venda_id}_{idx}")
+                                    with col_d:
+                                        preco_final = novo_preco_unit - novo_desc_unit
+                                        subtotal = nova_qtd * \
+                                            max(0, preco_final)
+                                        st.metric(
+                                            "Subtotal", f"R$ {subtotal:.2f}")
+                                    with col_e:
+                                        if st.button("🗑️", key=f"remove_item_{venda_id}_{idx}"):
+                                            # Marcar item para remoção
+                                            st.session_state[f"edit_removed_{venda_id}"].append(
+                                                items_edit.pop(idx))
+                                            st.rerun()
 
-                                        nova_forma_nome = st.selectbox(
-                                            "💳 Forma de Pagamento",
-                                            df_formas_edit['nome'].tolist(),
-                                            index=df_formas_edit[df_formas_edit['id'] == forma_pagamento_antiga_id].index[
-                                                0] if forma_pagamento_antiga_id in df_formas_edit['id'].values else 0
-                                        )
-                                        nova_forma_id = int(
-                                            df_formas_edit[df_formas_edit['nome'] == nova_forma_nome].iloc[0]['id'])
+                                    # Atualizar dados do item
+                                    item['produto_id'] = novo_produto_id
+                                    item['produto_nome'] = novo_produto_nome
+                                    item['quantidade'] = nova_qtd
+                                    item['preco_unitario'] = novo_preco_unit
+                                    item['desconto_unitario'] = novo_desc_unit
+                                    item['subtotal'] = subtotal
 
-                                    with col2:
-                                        nova_quantidade = st.number_input(
-                                            "🔢 Quantidade", min_value=1, value=quantidade_antiga, step=1)
-                                        novo_desconto_unit = st.number_input(
-                                            "🎁 Desconto por unidade (R$)", min_value=0.0, value=desconto_antigo, step=0.01, format="%.2f")
-                                        novo_valor_pago = st.number_input(
-                                            "💰 Valor Pago (R$)", min_value=0.0, value=valor_pago_antigo, step=0.01, format="%.2f")
+                                    st.markdown("---")
 
-                                    novas_obs = st.text_area(
-                                        "📝 Observações", value=observacoes_antigas)
+                            # --- Adicionar novo item ---
+                            st.markdown("#### ➕ Adicionar novo produto")
+                            col_add1, col_add2, col_add3, col_add4 = st.columns([
+                                                                                2, 1, 1, 1])
+                            with col_add1:
+                                novo_produto_nome = st.selectbox(
+                                    "Produto", df_produtos_edit['nome'].tolist(), key="add_prod_edit")
+                                novo_produto_row = df_produtos_edit[df_produtos_edit['nome']
+                                                                    == novo_produto_nome].iloc[0]
+                                novo_produto_id = int(novo_produto_row['id'])
+                                novo_preco_unit = float(
+                                    novo_produto_row['preco_atual'])
+                            with col_add2:
+                                nova_qtd = st.number_input(
+                                    "Quantidade", min_value=1, step=1, value=1, key="add_qtd_edit")
+                            with col_add3:
+                                novo_desc_unit = st.number_input(
+                                    "Desconto unit. (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="add_desc_edit")
+                            with col_add4:
+                                if st.button("➕ Adicionar", key="add_item_btn_edit", use_container_width=True):
+                                    preco_final = novo_preco_unit - novo_desc_unit
+                                    subtotal = nova_qtd * max(0, preco_final)
+                                    items_edit.append({
+                                        "item_id": None,  # novo item
+                                        "produto_id": novo_produto_id,
+                                        "produto_nome": novo_produto_nome,
+                                        "quantidade": nova_qtd,
+                                        "preco_unitario": novo_preco_unit,
+                                        "desconto_unitario": novo_desc_unit,
+                                        "subtotal": subtotal
+                                    })
+                                    st.rerun()
 
-                                    # Calcular novo valor total
-                                    preco_com_desconto = max(
-                                        0.0, novo_preco_unitario - novo_desconto_unit)
-                                    novo_valor_total = nova_quantidade * preco_com_desconto
-                                    novo_valor_devendo = max(
-                                        0.0, novo_valor_total - novo_valor_pago)
+                            st.divider()
 
-                                    st.divider()
-                                    st.markdown("#### 📊 Resumo da Edição")
-                                    colr1, colr2, colr3 = st.columns(3)
-                                    with colr1:
-                                        st.metric("💰 Novo Valor Total",
-                                                  f"R$ {novo_valor_total:.2f}")
-                                    with colr2:
-                                        st.metric("💵 Valor Pago",
-                                                  f"R$ {novo_valor_pago:.2f}")
-                                    with colr3:
-                                        st.metric("⚠️ Novo Saldo Devedor",
-                                                  f"R$ {novo_valor_devendo:.2f}")
+                            # --- Resumo e botão salvar ---
+                            total_carrinho = sum(
+                                item['subtotal'] for item in items_edit)
+                            novo_valor_devendo = max(
+                                0, total_carrinho - novo_valor_pago)
 
-                                    submitted_edit = st.form_submit_button(
-                                        "💾 Salvar Todas as Alterações", type="primary", use_container_width=True)
+                            colr1, colr2, colr3 = st.columns(3)
+                            with colr1:
+                                st.metric("💰 Novo Valor Total",
+                                          f"R$ {total_carrinho:.2f}")
+                            with colr2:
+                                st.metric("💵 Valor Pago",
+                                          f"R$ {novo_valor_pago:.2f}")
+                            with colr3:
+                                st.metric("⚠️ Novo Saldo Devedor",
+                                          f"R$ {novo_valor_devendo:.2f}")
 
-                                if submitted_edit:
-                                    # Verificar se houve mudança que afeta estoque
-                                    # Caso o produto ou a quantidade tenham mudado, ajustar o estoque
-                                    try:
-                                        with engine.connect() as conn:
-                                            # Iniciar transação
-                                            with conn.begin():
-                                                # 1. Devolver a quantidade antiga do produto antigo ao estoque
+                            if st.button("💾 Salvar Todas as Alterações", type="primary", use_container_width=True):
+                                try:
+                                    with engine.connect() as conn:
+                                        with conn.begin():
+                                            # 1. Devolver ao estoque os itens removidos
+                                            for item_removido in st.session_state[f"edit_removed_{venda_id}"]:
                                                 atualizar_estoque(
-                                                    produto_antigo_id, quantidade_antiga)
+                                                    item_removido['produto_id'], item_removido['quantidade'])
 
-                                                # 2. Verificar estoque suficiente para o novo produto com a nova quantidade
-                                                if not verificar_estoque(novo_produto_id, nova_quantidade):
-                                                    st.error(
-                                                        f"❌ Estoque insuficiente para o produto '{novo_produto_nome}'. Necessário: {nova_quantidade}. Consulte a aba Estoque.")
-                                                    # Reverter a devolução? Como estamos dentro de uma transação, podemos cancelar. Mas como o erro é lançado, a transação será abortada. Mas precisamos evitar que a devolução persista. Vamos usar rollback explícito.
-                                                    raise Exception(
-                                                        "Estoque insuficiente")
+                                            # 2. Calcular diferenças entre itens antigos e novos (para itens que mudaram)
+                                            # Criar dicionário para fácil acesso
+                                            itens_antigos_dict = {
+                                                item['item_id']: item for item in itens_atuais if item.get('item_id')}
+                                            for item_novo in items_edit:
+                                                if item_novo.get('item_id') is not None:
+                                                    # Item existente: comparar com o antigo
+                                                    item_antigo = itens_antigos_dict.get(
+                                                        item_novo['item_id'])
+                                                    if item_antigo:
+                                                        diff_qtd = item_novo['quantidade'] - \
+                                                            item_antigo['quantidade']
+                                                        if diff_qtd != 0:
+                                                            if diff_qtd > 0:
+                                                                # Aumentou: verificar estoque disponível
+                                                                if not verificar_estoque(item_novo['produto_id'], diff_qtd):
+                                                                    raise Exception(
+                                                                        f"Estoque insuficiente para o produto {item_novo['produto_nome']} (necessário: {diff_qtd})")
+                                                                atualizar_estoque(
+                                                                    item_novo['produto_id'], -diff_qtd)
+                                                            else:
+                                                                # Diminuiu: devolver ao estoque
+                                                                # diff_qtd é negativo, então -diff_qtd positivo
+                                                                atualizar_estoque(
+                                                                    item_novo['produto_id'], -diff_qtd)
+                                                else:
+                                                    # Item novo: subtrair do estoque
+                                                    if not verificar_estoque(item_novo['produto_id'], item_novo['quantidade']):
+                                                        raise Exception(
+                                                            f"Estoque insuficiente para o produto {item_novo['produto_nome']} (necessário: {item_novo['quantidade']})")
+                                                    atualizar_estoque(
+                                                        item_novo['produto_id'], -item_novo['quantidade'])
 
-                                                # 3. Subtrair a nova quantidade do novo produto
-                                                atualizar_estoque(
-                                                    novo_produto_id, -nova_quantidade)
+                                            # 3. Atualizar os dados da venda
+                                            conn.execute(text("""
+                                                UPDATE vendas
+                                                SET data_venda = :data,
+                                                    cliente_id = :cliente_id,
+                                                    forma_pagamento_id = :forma_id,
+                                                    valor_total = :total,
+                                                    valor_pago = :valor_pago,
+                                                    observacoes = :obs
+                                                WHERE id = :id
+                                            """), {
+                                                "data": nova_data,
+                                                "cliente_id": novo_cliente_id,
+                                                "forma_id": nova_forma_id,
+                                                "total": total_carrinho,
+                                                "valor_pago": novo_valor_pago,
+                                                "obs": novas_obs,
+                                                "id": venda_id
+                                            })
 
-                                                # 4. Atualizar os dados da venda no banco
+                                            # 4. Excluir todos os itens antigos da venda
+                                            conn.execute(text("DELETE FROM venda_itens WHERE venda_id = :vid"), {
+                                                         "vid": venda_id})
+
+                                            # 5. Inserir os novos itens
+                                            for item in items_edit:
                                                 conn.execute(text("""
-                                                    UPDATE vendas 
-                                                    SET data_venda = :data,
-                                                        produto_id = :produto_id,
-                                                        quantidade = :qtd,
-                                                        preco_unitario = :preco_unit,
-                                                        desconto = :desconto,
-                                                        valor_total = :total,
-                                                        valor_pago = :valor_pago,
-                                                        forma_pagamento_id = :forma_id,
-                                                        observacoes = :obs
-                                                    WHERE id = :id
+                                                    INSERT INTO venda_itens (venda_id, produto_id, quantidade, preco_unitario, desconto_unitario, subtotal)
+                                                    VALUES (:vid, :prod_id, :qtd, :preco, :desc, :subtotal)
                                                 """), {
-                                                    "data": nova_data,
-                                                    "produto_id": novo_produto_id,
-                                                    "qtd": nova_quantidade,
-                                                    "preco_unit": novo_preco_unitario,
-                                                    "desconto": novo_desconto_unit,
-                                                    "total": novo_valor_total,
-                                                    "valor_pago": novo_valor_pago,
-                                                    "forma_id": nova_forma_id,
-                                                    "obs": novas_obs,
-                                                    "id": venda_id_edit
+                                                    "vid": venda_id,
+                                                    "prod_id": item['produto_id'],
+                                                    "qtd": item['quantidade'],
+                                                    "preco": item['preco_unitario'],
+                                                    "desc": item['desconto_unitario'],
+                                                    "subtotal": item['subtotal']
                                                 })
 
-                                        st.success(
-                                            "✅ Venda atualizada e estoque ajustado com sucesso!")
-                                        st.rerun()
-                                    except Exception as e:
-                                        st.error(f"Erro ao editar venda: {e}")
-                                        # Aqui a transação já terá sido revertida automaticamente pelo with begin() se houve exceção
+                                    # Limpar session state da edição
+                                    del st.session_state[f"edit_items_{venda_id}"]
+                                    del st.session_state[f"edit_removed_{venda_id}"]
+
+                                    st.success(
+                                        "✅ Venda atualizada e estoque ajustado com sucesso!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao editar venda: {e}")
+                                    # Aqui a transação já terá sido revertida automaticamente pelo with begin() se houve exceção
 
                         with tab_del:
                             if valor_pago_atual > 0:
@@ -1806,23 +1902,30 @@ else:
                             st.error("Esta ação não pode ser desfeita.")
                             confirm = st.checkbox(
                                 "Entendo que é irreversível", key=f"confirm_del_{venda_id}")
+
                             if st.button("🗑️ Excluir Venda Permanentemente", type="primary", disabled=not confirm):
                                 try:
-                                    # Obter produto_id e quantidade da venda antes de excluir
                                     with engine.connect() as conn:
-                                        venda_dados = conn.execute(text("""
-                                            SELECT produto_id, quantidade FROM vendas WHERE id = :id
-                                        """), {"id": venda_id}).fetchone()
-                                        if venda_dados:
-                                            produto_id_excluir = venda_dados[0]
-                                            qtd_excluir = venda_dados[1]
-                                            # Devolver ao estoque
-                                            atualizar_estoque(
-                                                produto_id_excluir, qtd_excluir)
-                                            # Excluir a venda
+                                        with conn.begin():
+                                            # 1. Buscar itens da venda para devolver ao estoque
+                                            itens = conn.execute(text("""
+                                                SELECT produto_id, quantidade FROM venda_itens WHERE venda_id = :vid
+                                            """), {"vid": venda_id}).fetchall()
+
+                                            # 2. Devolver cada item ao estoque
+                                            for item in itens:
+                                                # positivo, soma
+                                                atualizar_estoque(
+                                                    item[0], item[1])
+
+                                            # 3. Excluir itens da venda (cascade automático se configurado, mas vamos garantir)
+                                            conn.execute(text("DELETE FROM venda_itens WHERE venda_id = :vid"), {
+                                                         "vid": venda_id})
+
+                                            # 4. Excluir a venda principal
                                             conn.execute(text("DELETE FROM vendas WHERE id = :id"), {
                                                          "id": venda_id})
-                                            conn.commit()
+
                                     st.success(
                                         "Venda excluída e estoque restaurado com sucesso!")
                                     st.rerun()
