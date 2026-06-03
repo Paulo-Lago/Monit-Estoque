@@ -1483,7 +1483,7 @@ else:
                             column_config={
                                 "Data": st.column_config.TextColumn("📅 Data", width="small"),
                                 "Cliente": st.column_config.TextColumn("👤 Cliente", width="medium"),
-                                "Produtos": st.column_config.TextColumn("📦 Produto", width="medium"),
+                                "Produtos": st.column_config.TextColumn("📦 Produtos", width="medium"),
                                 "Valor Total": st.column_config.TextColumn("💰 Valor Total", width="small"),
                                 "Valor Pago": st.column_config.TextColumn("💵 Valor Pago", width="small"),
                                 "Saldo Devedor": st.column_config.TextColumn("⚠️ Saldo Devedor", width="small")
@@ -1589,7 +1589,7 @@ else:
                             column_config={
                                 "Data": st.column_config.TextColumn("📅 Data", width="small"),
                                 "Cliente": st.column_config.TextColumn("👤 Cliente", width="medium"),
-                                "Produtos": st.column_config.TextColumn("📦 Produto", width="medium"),
+                                "Produtos": st.column_config.TextColumn("📦 Produtos", width="medium"),
                                 "Valor Total": st.column_config.TextColumn("💰 Valor Total", width="small"),
                                 "Valor Pago": st.column_config.TextColumn("💵 Valor Pago", width="small"),
                                 "Saldo Pendente": st.column_config.TextColumn("⚠️ Saldo Pendente", width="small")
