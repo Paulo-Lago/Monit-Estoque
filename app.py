@@ -1448,16 +1448,6 @@ else:
                     if busca:
                         query += " AND c.nome ILIKE :busca"
                         params["busca"] = f"%{busca}%"
-                    query += """
-                        GROUP BY
-                            v.id,
-                            v.data_venda,
-                            c.nome,
-                            v.valor_total,
-                            v.valor_pago,
-                            v.observacoes
-                        ORDER BY v.data_venda DESC
-                    """
 
                     df_vendas = pd.read_sql(text(query), engine, params=params)
                     if df_vendas.empty:
@@ -1486,15 +1476,14 @@ else:
                             lambda x: f"R$ {max(0, x):,.2f}")
 
                         st.dataframe(
-                            df_display[["Data", "Cliente", "Produto", "Quantidade",
+                            df_display[["Data", "Cliente", "Produtos",
                                         "Valor Total", "Valor Pago", "Saldo Devedor"]],
                             width='stretch',
                             hide_index=True,
                             column_config={
                                 "Data": st.column_config.TextColumn("📅 Data", width="small"),
                                 "Cliente": st.column_config.TextColumn("👤 Cliente", width="medium"),
-                                "Produto": st.column_config.TextColumn("📦 Produto", width="medium"),
-                                "Quantidade": st.column_config.NumberColumn("🔢 Quantidade", width="small"),
+                                "Produtos": st.column_config.TextColumn("📦 Produto", width="medium"),
                                 "Valor Total": st.column_config.TextColumn("💰 Valor Total", width="small"),
                                 "Valor Pago": st.column_config.TextColumn("💵 Valor Pago", width="small"),
                                 "Saldo Devedor": st.column_config.TextColumn("⚠️ Saldo Devedor", width="small")
@@ -1544,30 +1533,32 @@ else:
                 st.markdown("#### Todas as Vendas do Período")
                 try:
                     query = """
-                    SELECT
-                        v.id,
-                        v.data_venda,
-                        c.nome as cliente,
-                        STRING_AGG(CONCAT(p.nome, ' (', vi.quantidade, ' un)'), ', ' ORDER BY p.nome) as produtos,
-                        v.quantidade,
-                        v.valor_total,
-                        v.valor_pago,
-                        (v.valor_total - v.valor_pago) as valor_devendo,
-                        v.observacoes
-                    FROM vendas v
-                    JOIN clientes c ON v.cliente_id = c.id
-                    JOIN venda_itens vi ON v.id = vi.venda_id
-                    JOIN produtos p ON vi.produto_id = p.id
-                    WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
-                    GROUP BY v.id, v.data_venda, c.nome, v.valor_total, v.valor_pago, v.observacoes
-                    ORDER BY v.data_venda DESC
-                """
+                        SELECT
+                            v.id,
+                            v.data_venda,
+                            c.nome as cliente,
+                            COALESCE(
+                                STRING_AGG(CONCAT(p.nome, ' (', vi.quantidade, ' un)'), ', ' ORDER BY p.nome),
+                                'Sem produtos'
+                            ) as produtos,
+                            COALESCE(SUM(vi.subtotal), 0) as valor_total,
+                            v.valor_pago,
+                            (COALESCE(SUM(vi.subtotal), 0) - v.valor_pago) as valor_devendo,
+                            v.observacoes
+                        FROM vendas v
+                        JOIN clientes c ON v.cliente_id = c.id
+                        LEFT JOIN venda_itens vi ON v.id = vi.venda_id
+                        LEFT JOIN produtos p ON vi.produto_id = p.id
+                        WHERE v.username = :u
+                            AND v.data_venda BETWEEN :inicio AND :fim
+                        GROUP BY v.id, v.data_venda, c.nome, v.valor_pago, v.observacoes
+                        ORDER BY v.data_venda DESC
+                    """
                     params = {"u": st.session_state.username,
                               "inicio": data_inicio, "fim": data_fim}
                     if cliente_filtro != "Todos":
                         query += " AND c.nome = :cliente"
                         params["cliente"] = cliente_filtro
-                    query += " ORDER BY v.data_venda DESC"
                     df_vendas = pd.read_sql(text(query), engine, params=params)
                     if df_vendas.empty:
                         st.info("Nenhuma venda no período.")
@@ -1576,8 +1567,7 @@ else:
                         df_display = df_display.rename(columns={
                             "data_venda": "Data",
                             "cliente": "Cliente",
-                            "produto": "Produto",
-                            "quantidade": "Quantidade",
+                            "produtos": "Produtos",
                             "valor_total": "Valor Total",
                             "valor_pago": "Valor Pago",
                             "valor_devendo": "Saldo Pendente"
@@ -1592,15 +1582,14 @@ else:
                             lambda x: f"R$ {max(0, x):,.2f}")
 
                         st.dataframe(
-                            df_display[["Data", "Cliente", "Produto", "Quantidade",
+                            df_display[["Data", "Cliente", "Produtos",
                                         "Valor Total", "Valor Pago", "Saldo Pendente"]],
                             width='stretch',
                             hide_index=True,
                             column_config={
                                 "Data": st.column_config.TextColumn("📅 Data", width="small"),
                                 "Cliente": st.column_config.TextColumn("👤 Cliente", width="medium"),
-                                "Produto": st.column_config.TextColumn("📦 Produto", width="medium"),
-                                "Quantidade": st.column_config.NumberColumn("🔢 Quantidade", width="small"),
+                                "Produtos": st.column_config.TextColumn("📦 Produto", width="medium"),
                                 "Valor Total": st.column_config.TextColumn("💰 Valor Total", width="small"),
                                 "Valor Pago": st.column_config.TextColumn("💵 Valor Pago", width="small"),
                                 "Saldo Pendente": st.column_config.TextColumn("⚠️ Saldo Pendente", width="small")
