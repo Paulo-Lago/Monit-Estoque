@@ -682,7 +682,7 @@ else:
                 st.markdown("#### 🍽️ Consumo Diário de Ração")
                 col_rac1, col_rac2 = st.columns(2)
                 with col_rac1:
-                    st.metric("🍗 Total de Aves Vivas", f"{total_aves_vivas} aves")
+                    st.metric("🐔 Total de Aves Vivas", f"{total_aves_vivas} aves")
                 with col_rac2:
                     st.metric(
                         "📦 Ração consumida por dia",
