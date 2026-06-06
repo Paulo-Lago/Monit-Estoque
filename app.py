@@ -638,11 +638,12 @@ else:
                 except Exception as e:
                     st.error(f"Erro ao carregar histórico: {e}")
 
-        # ==================== RESUMO ATUAL ====================
+                    # ==================== RESUMO ATUAL ====================
             st.divider()
             st.markdown("#### 📊 Resumo Atual de Aves por Galpão")
 
             total_aves_vivas = 0
+            consumo_por_ave_kg = 0.115
 
             for galpao in GALPOES:
                 try:
@@ -659,39 +660,31 @@ else:
 
                     total_vivo = max(0, total_reg - total_morto)
                     total_aves_vivas += total_vivo
+                    consumo_galpao_kg = total_vivo * consumo_por_ave_kg
 
-                    col1, col2, col3 = st.columns(3)
+                    col1, col2, col3, col4 = st.columns(4)
                     with col1:
-                        st.metric(f"{galpao} - Registradas",
-                                  f"{total_reg} aves")
+                        st.metric(f"{galpao} - Registradas", f"{total_reg} aves")
                     with col2:
                         st.metric(f"{galpao} - Mortas", f"{total_morto} aves")
                     with col3:
                         st.metric(f"{galpao} - Vivas", f"{total_vivo} aves")
+                    with col4:
+                        st.metric(f"{galpao} - Ração/dia", f"{consumo_galpao_kg:,.2f} kg", 
+                                  help=f"Baseado em {consumo_por_ave_kg} kg/ave")
 
                 except Exception as e:
                     st.error(f"Erro ao calcular resumo: {e}")
 
-            # ----- Consumo diário de ração -----
+            # ----- Consumo total (opcional, mas útil) -----
             if total_aves_vivas > 0:
-                consumo_por_ave_kg = 0.115
                 consumo_total_kg = total_aves_vivas * consumo_por_ave_kg
-                consumo_total_ton = consumo_total_kg / 1000
-
                 st.markdown("---")
-                st.markdown("#### 🍽️ Consumo Diário de Ração")
-                col_rac1, col_rac2 = st.columns(2)
-                with col_rac1:
-                    st.metric("🐔 Total de Aves Vivas", f"{total_aves_vivas} aves")
-                with col_rac2:
-                    st.metric(
-                        "📦 Ração consumida por dia",
-                        f"{consumo_total_kg:,.2f} kg",
-                        help=f"Baseado em {consumo_por_ave_kg} kg/ave/dia"
-                    )
-                # Opcional: exibir também em toneladas se for maior que 1000 kg
-                if consumo_total_kg >= 1000:
-                    st.caption(f"≈ {consumo_total_ton:.2f} toneladas/dia")
+                col_total1, col_total2 = st.columns(2)
+                with col_total1:
+                    st.metric("🐔 Total Geral de Aves Vivas", f"{total_aves_vivas} aves")
+                with col_total2:
+                    st.metric("🍽️ Consumo Total de Ração/dia", f"{consumo_total_kg:,.2f} kg")
             else:
                 st.info("Nenhuma ave viva registrada no momento.")
 
