@@ -638,9 +638,11 @@ else:
                 except Exception as e:
                     st.error(f"Erro ao carregar histórico: {e}")
 
-            # ==================== RESUMO ATUAL ====================
+        # ==================== RESUMO ATUAL ====================
             st.divider()
             st.markdown("#### 📊 Resumo Atual de Aves por Galpão")
+
+            total_aves_vivas = 0
 
             for galpao in GALPOES:
                 try:
@@ -656,6 +658,7 @@ else:
                         """), {"u": st.session_state.username, "g": galpao}).scalar()
 
                     total_vivo = max(0, total_reg - total_morto)
+                    total_aves_vivas += total_vivo
 
                     col1, col2, col3 = st.columns(3)
                     with col1:
@@ -668,6 +671,29 @@ else:
 
                 except Exception as e:
                     st.error(f"Erro ao calcular resumo: {e}")
+
+            # ----- Consumo diário de ração -----
+            if total_aves_vivas > 0:
+                consumo_por_ave_kg = 0.115
+                consumo_total_kg = total_aves_vivas * consumo_por_ave_kg
+                consumo_total_ton = consumo_total_kg / 1000
+
+                st.markdown("---")
+                st.markdown("#### 🍽️ Consumo Diário de Ração")
+                col_rac1, col_rac2 = st.columns(2)
+                with col_rac1:
+                    st.metric("🍗 Total de Aves Vivas", f"{total_aves_vivas} aves")
+                with col_rac2:
+                    st.metric(
+                        "📦 Ração consumida por dia",
+                        f"{consumo_total_kg:,.2f} kg",
+                        help=f"Baseado em {consumo_por_ave_kg} kg/ave/dia"
+                    )
+                # Opcional: exibir também em toneladas se for maior que 1000 kg
+                if consumo_total_kg >= 1000:
+                    st.caption(f"≈ {consumo_total_ton:.2f} toneladas/dia")
+            else:
+                st.info("Nenhuma ave viva registrada no momento.")
 
         # ======================== ABA 3: GRÁFICOS ========================
         with tabs[3]:
