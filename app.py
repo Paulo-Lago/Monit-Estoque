@@ -760,7 +760,7 @@ else:
                             with col_btn2:
                                 with st.popover("🗑️ Excluir", use_container_width=True):
                                     st.warning("⚠️ Esta ação não pode ser desfeita!")
-                                    if st.button("Sim, excluir permanentemente", type="primary"):
+                                    if st.button("Sim, excluir permanentemente", type="primary", key=f"del_ave_{selected_id}"):
                                         try:
                                             with engine.connect() as conn:
                                                 conn.execute(text("""
@@ -828,8 +828,16 @@ else:
 
                             with st.popover("🗑️ Excluir este registro", use_container_width=True):
                                 st.warning("⚠️ Esta ação é irreversível e removerá permanentemente o registro de morte.")
-                                confirmar_morta = st.checkbox("Sim, quero excluir permanentemente este registro.", key="confirma_morta")
-                                if st.button("Excluir agora", type="primary", disabled=not confirmar_morta):
+                                confirmar_morta = st.checkbox(
+                                    "Sim, quero excluir permanentemente este registro.",
+                                    key=f"confirma_morta_{selected_id_morta}"
+                                )
+                                if st.button(
+                                    "Excluir agora",
+                                    type="primary",
+                                    disabled=not confirmar_morta,
+                                    key=f"btn_excluir_morta_{selected_id_morta}"   # 👈 chave única adicionada
+                                ):
                                     try:
                                         with engine.connect() as conn:
                                             conn.execute(text("""
