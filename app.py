@@ -379,6 +379,11 @@ else:
                                 "Corrigir quantidade:", min_value=0, step=1, value=int(registro['quantidade']))
                             novo_tipo = st.selectbox(
                                 "Corrigir tipo:", TIPOS_OVO, index=TIPOS_OVO.index(registro['tipo']))
+                            nova_data = st.date_input(
+                                "📅 Data da Colheita", 
+                                value=pd.to_datetime(registro['data']).date(),
+                                format="DD/MM/YYYY"
+                            )
                         with col2:
                             novo_galpao = st.selectbox(
                                 "Corrigir galpão:", GALPOES, index=GALPOES.index(registro['galpao']))
@@ -390,15 +395,19 @@ else:
                                 with engine.connect() as conn:
                                     conn.execute(text("""
                                         UPDATE producao
-                                        SET quantidade = :qtd, tipo = :tipo, galpao = :galpao, cor = :cor
+                                        SET quantidade = :qtd, tipo = :tipo, galpao = :galpao, cor = :cor, data = :data
                                         WHERE id = :id AND username = :username
                                     """), {
-                                        "qtd": novo_val, "tipo": novo_tipo,
-                                        "galpao": novo_galpao, "cor": nova_cor,
-                                        "id": selected_id, "username": st.session_state.username
+                                        "qtd": novo_val, 
+                                        "tipo": novo_tipo,
+                                        "galpao": novo_galpao, 
+                                        "cor": nova_cor,
+                                        "data": nova_data,
+                                        "id": selected_id, 
+                                        "username": st.session_state.username
                                     })
                                     conn.commit()
-                                st.success("✅ Registro atualizado!")
+                                st.success("✅ Registro atualizado com sucesso!")
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Erro ao atualizar: {e}")
