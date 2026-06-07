@@ -767,7 +767,17 @@ else:
                     st.divider()
 
                     # ---- HISTÓRICO DE AVES MORTAS ----
-                    st.markdown("### 🪦 Aves Mortas")
+                   # --- Título com imagem personalizada ---
+                    img_icone = BASE_DIR / "assets" / "galinhamorta.png"  # ou outro nome de arquivo
+                    if img_icone.exists():
+                        with open(img_icone, "rb") as f:
+                            img_base64 = base64.b64encode(f.read()).decode()
+                        st.markdown(
+                            f'<h3><img src="data:image/png;base64,{img_base64}" width="28" style="vertical-align: middle; margin-right: 6px;"> Aves Mortas</h3>',
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.markdown("### 🪦 Aves Mortas")  # fallback com emoji
                     try:
                         df_mortas = pd.read_sql(text("""
                             SELECT id, data, galpao, quantidade
