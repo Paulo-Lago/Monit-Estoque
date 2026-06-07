@@ -23,6 +23,35 @@ def get_engine():
 
 engine = get_engine()
 
+# ==================== TABELA DE LOGS ====================
+with engine.connect() as conn:
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS logs_acoes (
+            id SERIAL PRIMARY KEY,
+            username TEXT NOT NULL,
+            acao TEXT NOT NULL,
+            tabela TEXT NOT NULL,
+            registro_id INTEGER,
+            detalhes TEXT,
+            data_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """))
+    conn.commit()
+
+def registrar_log(acao, tabela, registro_id=None, detalhes=None):
+    with engine.connect() as conn:
+        conn.execute(text("""
+            INSERT INTO logs_acoes (username, acao, tabela, registro_id, detalhes)
+            VALUES (:u, :a, :t, :rid, :d)
+        """), {
+            "u": st.session_state.username,
+            "a": acao,
+            "t": tabela,
+            "rid": registro_id,
+            "d": detalhes
+        })
+        conn.commit()
+
 # ==================== ESTILO ====================
 BASE_DIR = Path(__file__).parent
 LOGO_PATH = BASE_DIR / "assets" / "logomarca.png"
@@ -520,6 +549,7 @@ else:
                                 confirmar = st.checkbox("Sim, quero excluir permanentemente este registro.")
                                 if st.button("Excluir agora", type="primary", disabled=not confirmar):
                                     try:
+                                        registrar_log("DELETE", "producao", selected_id, f"Excluiu colheita de {registro['quantidade']} ovos")
                                         with engine.connect() as conn:
                                             conn.execute(
                                                 text("DELETE FROM producao WHERE id = :id AND username = :username"),
@@ -836,9 +866,11 @@ else:
                                     "Excluir agora",
                                     type="primary",
                                     disabled=not confirmar_morta,
-                                    key=f"btn_excluir_morta_{selected_id_morta}"   # 👈 chave única adicionada
+                                    key=f"btn_excluir_morta_{selected_id_morta}"
                                 ):
                                     try:
+                                        registrar_log("DELETE", "aves_mortas", selected_id_morta,
+                                                    f"Excluiu registro de morte de {df_mortas[df_mortas['id']==selected_id_morta].iloc[0]['Quantidade']} aves")
                                         with engine.connect() as conn:
                                             conn.execute(text("""
                                                 DELETE FROM aves_mortas
@@ -1286,7 +1318,8 @@ else:
             "🛒 Vendas",
             "📦 Estoque",
             "📝 Cadastros",
-            "💰 Faturamento"
+            "💰 Faturamento",
+            "📋 Logs"
         ])
 
         # ============================================
@@ -1418,6 +1451,7 @@ else:
                                                 })
                                                 venda_id = venda_result.fetchone()[
                                                     0]
+                                                registrar_log("INSERT", "vendas", venda_id, f"Nova venda para {dados_venda['cliente_nome']} no valor de R$ {dados_venda['valor_total']:.2f}")
 
                                                 # 2. Inserir itens e atualizar estoque
                                                 for item in st.session_state.carrinho:
@@ -2153,6 +2187,7 @@ else:
 
                             if st.button("🗑️ Excluir Venda Permanentemente", type="primary", disabled=not confirm):
                                 try:
+                                    registrar_log("DELETE", "vendas", venda_id, f"Excluiu venda do cliente {venda['cliente']} no valor de R$ {venda['valor_total']:.2f}")
                                     with engine.connect() as conn:
                                         with conn.begin():
                                             # 1. Buscar itens da venda para devolver ao estoque
@@ -2473,6 +2508,7 @@ else:
                         with st.expander("🗑️ Excluir Cliente"):
                             st.warning("⚠️ Esta ação não pode ser desfeita!")
                             if st.button("Excluir Cliente", type="primary"):
+                                registrar_log("DELETE", "clientes", cliente['id'], f"Excluiu cliente '{cliente['nome']}'")
                                 with engine.connect() as conn:
                                     conn.execute(text("DELETE FROM clientes WHERE id = :id"), {
                                                  "id": cliente['id']})
@@ -2615,6 +2651,7 @@ else:
                                     "Sim, entendo que esta ação é irreversível", key="confirm_excluir_produto")
                                 if st.button("🗑️ Excluir Permanentemente", type="primary", disabled=not confirm_excluir):
                                     try:
+                                        registrar_log("DELETE", "produtos", produto_id, f"Excluiu produto '{produto_selecionado}'")
                                         with engine.connect() as conn:
                                             # Inicia transação para garantir consistência
                                             with conn.begin():
@@ -3224,3 +3261,65 @@ else:
                 st.markdown("---")
                 st.caption(
                     f"📆 Período analisado: {data_inicio_fat.strftime('%d/%m/%Y')} a {data_fim_fat.strftime('%d/%m/%Y')}")
+
+
+        # ============================================
+        # ABA 4 → LOGS
+        # ============================================
+        with fat_tabs[4]:
+            st.subheader("📋 Registro de Ações (Logs)")
+            st.caption("Histórico de alterações, exclusões e inserções feitas pelos usuários.")
+
+            col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+            with col_f1:
+                data_log_inicio = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=30),
+                                                format="DD/MM/YYYY", key="log_inicio")
+            with col_f2:
+                data_log_fim = st.date_input("Data Final", value=datetime.now().date(),
+                                             format="DD/MM/YYYY", key="log_fim")
+            with col_f3:
+                acoes = ["Todas", "INSERT", "UPDATE", "DELETE"]
+                filtro_acao = st.selectbox("Ação", acoes)
+            with col_f4:
+                tabelas = ["Todas", "vendas", "produtos", "clientes", "despesas", "aves", "producao", "tipos_despesas", "venda_itens"]
+                filtro_tabela = st.selectbox("Tabela", tabelas)
+
+            query_logs = """
+                SELECT id, username, acao, tabela, registro_id, detalhes, data_hora
+                FROM logs_acoes
+                WHERE username = :u
+                AND data_hora BETWEEN :inicio AND :fim
+            """
+            params = {
+                "u": st.session_state.username,
+                "inicio": data_log_inicio,
+                "fim": data_log_fim
+            }
+            if filtro_acao != "Todas":
+                query_logs += " AND acao = :acao"
+                params["acao"] = filtro_acao
+            if filtro_tabela != "Todas":
+                query_logs += " AND tabela = :tabela"
+                params["tabela"] = filtro_tabela
+            query_logs += " ORDER BY data_hora DESC"
+
+            try:
+                df_logs = pd.read_sql(text(query_logs), engine, params=params)
+                if df_logs.empty:
+                    st.info("Nenhum registro de log encontrado no período.")
+                else:
+                    df_display = df_logs.copy()
+                    df_display['data_hora'] = pd.to_datetime(df_display['data_hora']).dt.strftime('%d/%m/%Y %H:%M:%S')
+                    df_display = df_display.rename(columns={
+                        'username': 'Usuário',
+                        'acao': 'Ação',
+                        'tabela': 'Tabela',
+                        'registro_id': 'ID Registro',
+                        'detalhes': 'Detalhes',
+                        'data_hora': 'Data/Hora'
+                    })
+                    st.dataframe(df_display[['Data/Hora', 'Usuário', 'Ação', 'Tabela', 'ID Registro', 'Detalhes']],
+                                 use_container_width=True, hide_index=True)
+                    st.caption(f"Mostrando {len(df_logs)} registros.")
+            except Exception as e:
+                st.error(f"Erro ao carregar logs: {e}")
