@@ -1267,6 +1267,19 @@ else:
     else:
         st.header("💰 Faturamento & Controle de Estoque")
 
+                # Converter colunas de quantidade para NUMERIC (aceitar decimais)
+        with engine.connect() as conn:
+            try:
+                conn.execute(text("ALTER TABLE estoque ALTER COLUMN quantidade TYPE NUMERIC"))
+                conn.commit()
+            except Exception:
+                pass
+            try:
+                conn.execute(text("ALTER TABLE venda_itens ALTER COLUMN quantidade TYPE NUMERIC"))
+                conn.commit()
+            except Exception:
+                pass
+
                 # Adicionar coluna numero_recibo se não existir
         with engine.connect() as conn:
             try:
@@ -1280,7 +1293,7 @@ else:
             """Atualiza a quantidade em estoque (soma delta). delta pode ser negativo (venda) ou positivo (devolução)."""
             with engine.connect() as conn:
                 produto_id_int = int(produto_id)
-                delta_int = int(delta) if delta is not None else 0
+                delta_float = float(delta) if delta is not None else 0.0
 
                 # Verifica se já existe registro de estoque
                 existe = conn.execute(text("""
@@ -1292,16 +1305,16 @@ else:
                         UPDATE estoque 
                         SET quantidade = quantidade + :delta, data_atualizacao = CURRENT_TIMESTAMP
                         WHERE username = :u AND produto_id = :p
-                    """), {"u": st.session_state.username, "p": produto_id_int, "delta": delta_int})
+                    """), {"u": st.session_state.username, "p": produto_id_int, "delta": delta_float})
                 else:
                     # Se não existe, cria com delta (se delta for positivo, senão lança erro)
-                    if delta_int < 0:
+                    if delta_float < 0:
                         raise Exception(
                             "Estoque insuficiente e sem registro inicial.")
                     conn.execute(text("""
                         INSERT INTO estoque (username, produto_id, quantidade)
                         VALUES (:u, :p, :qtd)
-                    """), {"u": st.session_state.username, "p": produto_id_int, "qtd": delta_int})
+                    """), {"u": st.session_state.username, "p": produto_id_int, "qtd": delta_float})
                 conn.commit()
 
         # ----- FUNÇÃO AUXILIAR PARA VERIFICAR ESTOQUE (com tratamento None) -----
@@ -1534,7 +1547,8 @@ else:
                             preco_unit = float(produto_row['preco_atual'])
                         with col_add2:
                             quantidade = st.number_input(
-                                "Quantidade", min_value=1, step=1, value=1, key="qtd_carrinho")
+                                "Quantidade", min_value=0.1, step=0.1, value=1.0, format="%.2f", key="qtd_carrinho"
+                            )
                         with col_add3:
                             desconto_unit = st.number_input(
                                 "Desconto (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="desc_carrinho")
@@ -1696,7 +1710,7 @@ else:
                             c.nome as cliente,
                             COALESCE(
                                 STRING_AGG(
-                                    CONCAT(COALESCE(p.nome, 'Produto sem nome'), ' (', vi.quantidade, ' un)'),
+                                    CONCAT(COALESCE(p.nome, 'Produto sem nome'), ' (', ROUND(vi.quantidade::numeric, 2), ' un)'),
                                     ', ' ORDER BY p.nome
                                 ),
                                 'Sem produtos'
@@ -1825,7 +1839,7 @@ else:
                             c.nome as cliente,                            
                             COALESCE(
                                 STRING_AGG(
-                                    CONCAT(COALESCE(p.nome, 'Produto sem nome'), ' (', vi.quantidade, ' un)'),
+                                    CONCAT(COALESCE(p.nome, 'Produto sem nome'), ' (', ROUND(vi.quantidade::numeric, 2), ' un)'),
                                     ', ' ORDER BY p.nome
                                 ),
                                 'Sem produtos'
@@ -2019,8 +2033,8 @@ else:
                                         novo_preco_unit = float(
                                             df_produtos_edit[df_produtos_edit['id'] == novo_produto_id].iloc[0]['preco_atual'])
                                     with col_b:
-                                        nova_qtd = st.number_input("Qtd", min_value=1, value=int(
-                                            item['quantidade']), step=1, key=f"edit_qtd_{venda_id}_{idx}")
+                                        nova_qtd = st.number_input("Qtd", min_value=0.1, value=float(
+                                            item['quantidade']), step=0.1, format="%.2f", key=f"edit_qtd_{venda_id}_{idx}")
                                     with col_c:
                                         novo_desc_unit = st.number_input("Desc. unit. (R$)", min_value=0.0, value=float(item.get(
                                             'desconto_unitario', 0)), step=0.01, format="%.2f", key=f"edit_desc_{venda_id}_{idx}")
@@ -2265,23 +2279,18 @@ else:
                 return pd.read_sql(text(query), engine, params={"username": st.session_state.username})
 
             def incrementar_estoque(produto_id, quantidade_adicionar):
-                """Soma quantidade_adicionar ao estoque existente do produto"""
                 with engine.connect() as conn:
                     produto_id_int = int(produto_id)
-                    # Verifica se já existe registro
                     existe = conn.execute(text("""
                         SELECT 1 FROM estoque WHERE username = :u AND produto_id = :p
                     """), {"u": st.session_state.username, "p": produto_id_int}).fetchone()
-
                     if existe:
-                        # Atualiza somando
                         conn.execute(text("""
                             UPDATE estoque 
                             SET quantidade = quantidade + :qtd, data_atualizacao = CURRENT_TIMESTAMP
                             WHERE username = :u AND produto_id = :p
                         """), {"u": st.session_state.username, "p": produto_id_int, "qtd": quantidade_adicionar})
                     else:
-                        # Insere com a quantidade informada
                         conn.execute(text("""
                             INSERT INTO estoque (username, produto_id, quantidade)
                             VALUES (:u, :p, :qtd)
@@ -2335,7 +2344,7 @@ else:
                     with col2:
                         quantidade_hoje = st.number_input(
                             "➕ Quantidade a adicionar (hoje)",
-                            min_value=1, step=1, value=1,
+                            min_value=0.0, step=0.1, value=0.0, format="%.2f",
                             key="estoque_qtd_add"
                         )
 
@@ -2374,7 +2383,7 @@ else:
 
                 st.divider()
 
-                # Tabela de estoque
+               # Tabela de estoque
                 st.markdown("**Produtos em Estoque**")
                 df_display = df_estoque.copy()
                 df_display = df_display.rename(columns={
@@ -2386,6 +2395,8 @@ else:
                 })
                 df_display["Preço Unitário"] = df_display["Preço Unitário"].apply(
                     lambda x: f"R$ {x:.2f}")
+                df_display["Quantidade Total"] = df_display["Quantidade Total"].apply(
+                    lambda x: f"{x:,.2f}")          # <-- ADICIONE ESTA LINHA
                 df_display["Valor Total"] = df_display["Valor Total"].apply(
                     lambda x: f"R$ {x:,.2f}")
 
