@@ -636,104 +636,192 @@ else:
                     except Exception as e:
                         st.error(f"Erro ao registrar morte: {e}")
 
-            # ==================== HISTÓRICO + EDIÇÃO ====================
+            # ==================== HISTÓRICO + EDIÇÃO (AVES VIVAS E MORTAS) ====================
             with tab_historico:
-                st.markdown("#### 📋 Histórico de Aves Registradas")
+                st.markdown("#### 📋 Histórico de Aves")
 
-                try:
-                    df_aves = pd.read_sql(text("""
-                        SELECT id, data_registro, galpao, quantidade_total
-                        FROM aves
-                        WHERE username = :username
-                        ORDER BY data_registro DESC
-                    """), engine, params={"username": st.session_state.username})
+                # Filtro de período
+                col_f1, col_f2 = st.columns(2)
+                with col_f1:
+                    data_inicio_aves = st.date_input(
+                        "Data Inicial",
+                        value=datetime.now().date() - pd.Timedelta(days=30),
+                        format="DD/MM/YYYY",
+                        key="aves_data_inicio"
+                    )
+                with col_f2:
+                    data_fim_aves = st.date_input(
+                        "Data Final",
+                        value=datetime.now().date(),
+                        format="DD/MM/YYYY",
+                        key="aves_data_fim"
+                    )
 
-                    if df_aves.empty:
-                        st.info("Nenhum registro de aves encontrado.")
-                    else:
-                        df_aves = df_aves.rename(columns={
-                            "data_registro": "Data",
-                            "galpao": "Galpão",
-                            "quantidade_total": "Quantidade"
+                if data_inicio_aves > data_fim_aves:
+                    st.error("⚠️ Data inicial não pode ser maior que a data final.")
+                else:
+                    # ---- HISTÓRICO DE AVES VIVAS (REGISTRADAS) ----
+                    st.markdown("### 🐔 Aves Registradas (Vivas)")
+                    try:
+                        df_aves = pd.read_sql(text("""
+                            SELECT id, data_registro, galpao, quantidade_total
+                            FROM aves
+                            WHERE username = :username
+                                AND data_registro BETWEEN :inicio AND :fim
+                            ORDER BY data_registro DESC
+                        """), engine, params={
+                            "username": st.session_state.username,
+                            "inicio": data_inicio_aves,
+                            "fim": data_fim_aves
                         })
-                        df_aves['Data'] = pd.to_datetime(
-                            df_aves['Data']).dt.strftime('%d/%m/%Y')
 
-                        # Select para editar/excluir
-                        opcoes = {
-                            row['id']: f"📅 {row['Data']} | {row['Galpão']} | {row['Quantidade']} aves"
-                            for _, row in df_aves.iterrows()
-                        }
+                        if df_aves.empty:
+                            st.info("Nenhum registro de aves vivas no período.")
+                        else:
+                            df_aves = df_aves.rename(columns={
+                                "data_registro": "Data",
+                                "galpao": "Galpão",
+                                "quantidade_total": "Quantidade"
+                            })
+                            df_aves['Data'] = pd.to_datetime(df_aves['Data']).dt.strftime('%d/%m/%Y')
+                            st.dataframe(df_aves[['Data', 'Galpão', 'Quantidade']], use_container_width=True, hide_index=True)
 
-                        selecao = st.selectbox(
-                            "Selecione um registro para editar ou excluir:", list(opcoes.values()))
-                        selected_id = [
-                            k for k, v in opcoes.items() if v == selecao][0]
+                            # ---- Edição/Exclusão de Aves Vivas (como já existia) ----
+                            st.markdown("#### ✏️ Editar ou Excluir Registro de Aves Vivas")
+                            opcoes = {
+                                row['id']: f"📅 {row['Data']} | {row['Galpão']} | {row['Quantidade']} aves"
+                                for _, row in df_aves.iterrows()
+                            }
+                            selecao = st.selectbox(
+                                "Selecione um registro para editar ou excluir:",
+                                list(opcoes.values()),
+                                key="select_ave_viva"
+                            )
+                            selected_id = [k for k, v in opcoes.items() if v == selecao][0]
+                            # Buscar dados completos do registro selecionado
+                            registro = pd.read_sql(text("""
+                                SELECT data_registro, galpao, quantidade_total
+                                FROM aves WHERE id = :id
+                            """), engine, params={"id": selected_id}).iloc[0]
 
-                        registro = df_aves[df_aves['id']
-                                           == selected_id].iloc[0]
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                novo_galpao = st.selectbox(
+                                    "Galpão", GALPOES,
+                                    index=GALPOES.index(registro['galpao']),
+                                    key="edit_galpao_ave"
+                                )
+                                nova_qtd = st.number_input(
+                                    "Quantidade", min_value=1, step=1,
+                                    value=int(registro['quantidade_total']),
+                                    key="edit_qtd_ave"
+                                )
+                            with col2:
+                                nova_data = st.date_input(
+                                    "Data", value=pd.to_datetime(registro['data_registro']).date(),
+                                    format="DD/MM/YYYY",
+                                    key="edit_data_ave"
+                                )
 
-                        st.markdown("---")
-                        st.markdown("**Editar ou Excluir Registro**")
+                            col_btn1, col_btn2 = st.columns(2)
+                            with col_btn1:
+                                if st.button("✅ Salvar Alterações", use_container_width=True, type="primary"):
+                                    try:
+                                        with engine.connect() as conn:
+                                            conn.execute(text("""
+                                                UPDATE aves
+                                                SET galpao = :galpao,
+                                                    quantidade_total = :qtd,
+                                                    data_registro = :data
+                                                WHERE id = :id AND username = :username
+                                            """), {
+                                                "galpao": novo_galpao,
+                                                "qtd": nova_qtd,
+                                                "data": nova_data,
+                                                "id": selected_id,
+                                                "username": st.session_state.username
+                                            })
+                                            conn.commit()
+                                        st.success("✅ Registro atualizado com sucesso!")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Erro ao atualizar: {e}")
+                            with col_btn2:
+                                with st.popover("🗑️ Excluir", use_container_width=True):
+                                    st.warning("⚠️ Esta ação não pode ser desfeita!")
+                                    if st.button("Sim, excluir permanentemente", type="primary"):
+                                        try:
+                                            with engine.connect() as conn:
+                                                conn.execute(text("""
+                                                    DELETE FROM aves
+                                                    WHERE id = :id AND username = :username
+                                                """), {"id": selected_id, "username": st.session_state.username})
+                                                conn.commit()
+                                            st.success("Registro excluído!")
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"Erro ao excluir: {e}")
+                    except Exception as e:
+                        st.error(f"Erro ao carregar aves vivas: {e}")
 
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            novo_galpao = st.selectbox("Galpão", GALPOES,
-                                                       index=GALPOES.index(registro['Galpão']))
-                            nova_qtd = st.number_input("Quantidade", min_value=1, step=1,
-                                                       value=int(registro['Quantidade']))
-                        with col2:
-                            nova_data = st.date_input("Data", value=pd.to_datetime(registro['Data']).date(),
-                                                      format="DD/MM/YYYY")
+                    st.divider()
 
-                        col_btn1, col_btn2 = st.columns(2)
-                        with col_btn1:
-                            if st.button("✅ Salvar Alterações", width='stretch', type="primary"):
-                                try:
-                                    with engine.connect() as conn:
-                                        conn.execute(text("""
-                                            UPDATE aves
-                                            SET galpao = :galpao, quantidade_total = :qtd, data_registro = :data
-                                            WHERE id = :id AND username = :username
-                                        """), {
-                                            "galpao": novo_galpao,
-                                            "qtd": nova_qtd,
-                                            "data": nova_data,
-                                            "id": selected_id,
-                                            "username": st.session_state.username
-                                        })
-                                        conn.commit()
-                                    st.success(
-                                        "✅ Registro atualizado com sucesso!")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Erro ao atualizar: {e}")
+                    # ---- HISTÓRICO DE AVES MORTAS ----
+                    st.markdown("### 🪦 Aves Mortas")
+                    try:
+                        df_mortas = pd.read_sql(text("""
+                            SELECT id, data, galpao, quantidade
+                            FROM aves_mortas
+                            WHERE username = :username
+                                AND data BETWEEN :inicio AND :fim
+                            ORDER BY data DESC
+                        """), engine, params={
+                            "username": st.session_state.username,
+                            "inicio": data_inicio_aves,
+                            "fim": data_fim_aves
+                        })
 
-                        with col_btn2:
-                            st.warning("⚠️ Excluir este registro?")
-                            if st.button("🗑️ Excluir Registro", type="primary"):
-                                try:
-                                    with engine.connect() as conn:
-                                        conn.execute(text("""
-                                            DELETE FROM aves
-                                            WHERE id = :id AND username = :username
-                                        """), {
-                                            "id": selected_id,
-                                            "username": st.session_state.username
-                                        })
-                                        conn.commit()
-                                    st.success(
-                                        "✅ Registro excluído com sucesso!")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Erro ao excluir: {e}")
+                        if df_mortas.empty:
+                            st.info("Nenhum registro de aves mortas no período.")
+                        else:
+                            df_mortas = df_mortas.rename(columns={
+                                "data": "Data",
+                                "galpao": "Galpão",
+                                "quantidade": "Quantidade"
+                            })
+                            df_mortas['Data'] = pd.to_datetime(df_mortas['Data']).dt.strftime('%d/%m/%Y')
+                            st.dataframe(df_mortas[['Data', 'Galpão', 'Quantidade']], use_container_width=True, hide_index=True)
 
-                        st.divider()
-                        st.markdown("**Histórico Completo**")
-                        st.dataframe(df_aves, width='stretch', hide_index=True)
+                            # Opcional: permitir excluir registros de mortes (sem edição)
+                            st.markdown("#### 🗑️ Excluir Registro de Aves Mortas")
+                            opcoes_mortas = {
+                                row['id']: f"📅 {row['Data']} | {row['Galpão']} | {row['Quantidade']} aves"
+                                for _, row in df_mortas.iterrows()
+                            }
+                            selecao_morta = st.selectbox(
+                                "Selecione um registro para excluir:",
+                                list(opcoes_mortas.values()),
+                                key="select_ave_morta"
+                            )
+                            selected_id_morta = [k for k, v in opcoes_mortas.items() if v == selecao_morta][0]
 
-                except Exception as e:
-                    st.error(f"Erro ao carregar histórico: {e}")
+                            with st.popover("🗑️ Excluir este registro", use_container_width=True):
+                                st.warning("⚠️ Esta ação é irreversível e removerá permanentemente o registro de morte.")
+                                confirmar_morta = st.checkbox("Sim, quero excluir permanentemente este registro.", key="confirma_morta")
+                                if st.button("Excluir agora", type="primary", disabled=not confirmar_morta):
+                                    try:
+                                        with engine.connect() as conn:
+                                            conn.execute(text("""
+                                                DELETE FROM aves_mortas
+                                                WHERE id = :id AND username = :username
+                                            """), {"id": selected_id_morta, "username": st.session_state.username})
+                                            conn.commit()
+                                        st.success("✅ Registro de morte excluído com sucesso!")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Erro ao excluir: {e}")
+                    except Exception as e:
+                        st.error(f"Erro ao carregar aves mortas: {e}")
 
                     # ==================== RESUMO ATUAL ====================
             st.divider()
