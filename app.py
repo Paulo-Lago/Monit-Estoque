@@ -342,109 +342,197 @@ else:
                 except Exception as e:
                     st.error(f"Erro ao carregar monitoramento: {e}")
 
-            # ==================== SUB-ABA 2: HISTÓRICO & EDIÇÃO ====================
+           
+             # ==================== SUB-ABA 2: HISTÓRICO & EDIÇÃO (COM FILTRO E TABELA) ====================
             with prod_tabs[1]:
-                st.markdown("### 🔍 Gerenciar Histórico")
+                st.markdown("### 🔍 Histórico e Edição de Colheitas")
 
-                try:
-                    df_edit = pd.read_sql(text("""
-                        SELECT id, data, quantidade, tipo, galpao, cor
-                        FROM producao
-                        WHERE username = :username
-                        ORDER BY id DESC
-                    """), engine, params={"username": st.session_state.username})
+                # ----- FILTRO DE PERÍODO -----
+                col_f1, col_f2 = st.columns(2)
+                with col_f1:
+                    data_inicio_hist = st.date_input(
+                        "📅 Data Inicial",
+                        value=datetime.now().date() - pd.Timedelta(days=30),
+                        format="DD/MM/YYYY",
+                        key="hist_data_inicio"
+                    )
+                with col_f2:
+                    data_fim_hist = st.date_input(
+                        "📅 Data Final",
+                        value=datetime.now().date(),
+                        format="DD/MM/YYYY",
+                        key="hist_data_fim"
+                    )
 
-                    if not df_edit.empty:
-                        df_edit['data_fmt'] = pd.to_datetime(
-                            df_edit['data']).dt.strftime('%d/%m/%Y')
+                if data_inicio_hist > data_fim_hist:
+                    st.error("⚠️ Data inicial não pode ser maior que a data final.")
+                else:
+                    # ----- TABELA HISTÓRICA (período filtrado) -----
+                    try:
+                        query_hist = text("""
+                            SELECT id, data, quantidade, tipo, galpao, cor
+                            FROM producao
+                            WHERE username = :username
+                                AND data BETWEEN :inicio AND :fim
+                            ORDER BY data DESC, id DESC
+                        """)
+                        df_hist = pd.read_sql(
+                            query_hist,
+                            engine,
+                            params={
+                                "username": st.session_state.username,
+                                "inicio": data_inicio_hist,
+                                "fim": data_fim_hist
+                            }
+                        )
 
-                        opcoes = {
-                            row['id']: f"📅 {row['data_fmt']} | {row['quantidade']} ovos | {row['tipo']} | {row['cor']} | {row['galpao']}"
-                            for _, row in df_edit.iterrows()
-                        }
-
-                        selecao = st.selectbox(
-                            "Escolha um registro para corrigir ou excluir:", list(opcoes.values()))
-                        selected_id = [
-                            k for k, v in opcoes.items() if v == selecao][0]
-
-                        registro = df_edit[df_edit['id']
-                                           == selected_id].iloc[0]
-
-                        # --- Edição ---
-                        st.markdown("#### ✏️ Editar Registro")
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            novo_val = st.number_input(
-                                "Corrigir quantidade:", min_value=0, step=1, value=int(registro['quantidade']))
-                            novo_tipo = st.selectbox(
-                                "Corrigir tipo:", TIPOS_OVO, index=TIPOS_OVO.index(registro['tipo']))
-                            nova_data = st.date_input(
-                                "📅 Data da Colheita", 
-                                value=pd.to_datetime(registro['data']).date(),
-                                format="DD/MM/YYYY"
+                        if df_hist.empty:
+                            st.info("📭 Nenhum registro de colheita encontrado no período selecionado.")
+                        else:
+                            # Formatar para exibição
+                            df_display = df_hist.copy()
+                            df_display['data'] = pd.to_datetime(df_display['data']).dt.strftime('%d/%m/%Y')
+                            df_display = df_display.rename(columns={
+                                'data': 'Data',
+                                'quantidade': 'Quantidade',
+                                'tipo': 'Tipo',
+                                'galpao': 'Galpão',
+                                'cor': 'Cor'
+                            })
+                            st.markdown("#### 📋 Registros do Período")
+                            st.dataframe(
+                                df_display[['Data', 'Quantidade', 'Tipo', 'Galpão', 'Cor']],
+                                use_container_width=True,
+                                hide_index=True
                             )
-                        with col2:
-                            novo_galpao = st.selectbox(
-                                "Corrigir galpão:", GALPOES, index=GALPOES.index(registro['galpao']))
-                            nova_cor = st.selectbox(
-                                "Corrigir cor:", CORES, index=CORES.index(registro['cor']))
+                    except Exception as e:
+                        st.error(f"Erro ao carregar histórico: {e}")
 
-                        if st.button("✅ Confirmar Alteração", width='stretch'):
-                            try:
-                                with engine.connect() as conn:
-                                    conn.execute(text("""
-                                        UPDATE producao
-                                        SET quantidade = :qtd, tipo = :tipo, galpao = :galpao, cor = :cor, data = :data
-                                        WHERE id = :id AND username = :username
-                                    """), {
-                                        "qtd": novo_val, 
-                                        "tipo": novo_tipo,
-                                        "galpao": novo_galpao, 
-                                        "cor": nova_cor,
-                                        "data": nova_data,
-                                        "id": selected_id, 
-                                        "username": st.session_state.username
-                                    })
-                                    conn.commit()
-                                st.success("✅ Registro atualizado com sucesso!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Erro ao atualizar: {e}")
+                    st.divider()
 
-                        st.divider()
+                    # ----- EDIÇÃO/EXCLUSÃO (selecionar um registro) -----
+                    st.markdown("#### ✏️ Editar ou Excluir Registro")
 
-                        # --- Exclusão ---
-                        st.markdown("#### 🗑️ Excluir Registro")
-                        st.caption(
-                            "Esta ação é irreversível e removerá permanentemente o registro do histórico.")
-                        with st.popover("🗑️ Excluir este registro", use_container_width=True):
-                            st.warning(
-                                f"Tem certeza que deseja excluir o registro de {registro['quantidade']} ovos ({registro['tipo']}, {registro['cor']}) do {registro['galpao']}?")
-                            confirmar = st.checkbox(
-                                "Sim, quero excluir permanentemente este registro.")
-                            if st.button("Excluir agora", type="primary", disabled=not confirmar):
+                    # Carregar todos os registros (ou apenas do período? Vou manter todos para não perder a funcionalidade)
+                    try:
+                        df_edit = pd.read_sql(
+                            text("""
+                                SELECT id, data, quantidade, tipo, galpao, cor
+                                FROM producao
+                                WHERE username = :username
+                                ORDER BY id DESC
+                            """),
+                            engine,
+                            params={"username": st.session_state.username}
+                        )
+
+                        if df_edit.empty:
+                            st.info("Nenhum registro disponível para edição/exclusão.")
+                        else:
+                            df_edit['data_fmt'] = pd.to_datetime(df_edit['data']).dt.strftime('%d/%m/%Y')
+                            opcoes = {
+                                row['id']: f"📅 {row['data_fmt']} | {row['quantidade']} ovos | {row['tipo']} | {row['cor']} | {row['galpao']}"
+                                for _, row in df_edit.iterrows()
+                            }
+                            selecao = st.selectbox(
+                                "Escolha um registro para corrigir ou excluir:",
+                                list(opcoes.values()),
+                                key="edit_select"
+                            )
+                            selected_id = [k for k, v in opcoes.items() if v == selecao][0]
+                            registro = df_edit[df_edit['id'] == selected_id].iloc[0]
+
+                            # Formulário de edição
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                novo_val = st.number_input(
+                                    "Corrigir quantidade:",
+                                    min_value=0,
+                                    step=1,
+                                    value=int(registro['quantidade']),
+                                    key="edit_qtd"
+                                )
+                                novo_tipo = st.selectbox(
+                                    "Corrigir tipo:",
+                                    TIPOS_OVO,
+                                    index=TIPOS_OVO.index(registro['tipo']),
+                                    key="edit_tipo"
+                                )
+                                nova_data = st.date_input(
+                                    "📅 Data da Colheita",
+                                    value=pd.to_datetime(registro['data']).date(),
+                                    format="DD/MM/YYYY",
+                                    key="edit_data"
+                                )
+                            with col2:
+                                novo_galpao = st.selectbox(
+                                    "Corrigir galpão:",
+                                    GALPOES,
+                                    index=GALPOES.index(registro['galpao']),
+                                    key="edit_galpao"
+                                )
+                                nova_cor = st.selectbox(
+                                    "Corrigir cor:",
+                                    CORES,
+                                    index=CORES.index(registro['cor']),
+                                    key="edit_cor"
+                                )
+
+                            if st.button("✅ Confirmar Alteração", use_container_width=True):
                                 try:
                                     with engine.connect() as conn:
-                                        conn.execute(text("""
-                                            DELETE FROM producao
-                                            WHERE id = :id AND username = :username
-                                        """), {
-                                            "id": selected_id,
-                                            "username": st.session_state.username
-                                        })
+                                        conn.execute(
+                                            text("""
+                                                UPDATE producao
+                                                SET quantidade = :qtd,
+                                                    tipo = :tipo,
+                                                    galpao = :galpao,
+                                                    cor = :cor,
+                                                    data = :data
+                                                WHERE id = :id AND username = :username
+                                            """),
+                                            {
+                                                "qtd": novo_val,
+                                                "tipo": novo_tipo,
+                                                "galpao": novo_galpao,
+                                                "cor": nova_cor,
+                                                "data": nova_data,
+                                                "id": selected_id,
+                                                "username": st.session_state.username
+                                            }
+                                        )
                                         conn.commit()
-                                    st.success(
-                                        "✅ Registro excluído com sucesso!")
+                                    st.success("✅ Registro atualizado com sucesso!")
                                     st.rerun()
                                 except Exception as e:
-                                    st.error(f"Erro ao excluir: {e}")
+                                    st.error(f"Erro ao atualizar: {e}")
 
-                    else:
-                        st.info("📭 Nenhum registro de colheita encontrado.")
+                            st.divider()
 
-                except Exception as e:
-                    st.error(f"Erro ao carregar histórico: {e}")
+                            # Exclusão
+                            st.markdown("#### 🗑️ Excluir Registro")
+                            st.caption("Esta ação é irreversível e removerá permanentemente o registro do histórico.")
+                            with st.popover("🗑️ Excluir este registro", use_container_width=True):
+                                st.warning(
+                                    f"Tem certeza que deseja excluir o registro de {registro['quantidade']} ovos "
+                                    f"({registro['tipo']}, {registro['cor']}) do {registro['galpao']}?"
+                                )
+                                confirmar = st.checkbox("Sim, quero excluir permanentemente este registro.")
+                                if st.button("Excluir agora", type="primary", disabled=not confirmar):
+                                    try:
+                                        with engine.connect() as conn:
+                                            conn.execute(
+                                                text("DELETE FROM producao WHERE id = :id AND username = :username"),
+                                                {"id": selected_id, "username": st.session_state.username}
+                                            )
+                                            conn.commit()
+                                        st.success("✅ Registro excluído com sucesso!")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Erro ao excluir: {e}")
+
+                    except Exception as e:
+                        st.error(f"Erro ao carregar registros para edição: {e}")
 
              # ==================== CAIXAS DE OVOS ====================
                 with prod_tabs[2]:
