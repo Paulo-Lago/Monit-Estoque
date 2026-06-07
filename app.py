@@ -1267,6 +1267,14 @@ else:
     else:
         st.header("💰 Faturamento & Controle de Estoque")
 
+                # Adicionar coluna numero_recibo se não existir
+        with engine.connect() as conn:
+            try:
+                conn.execute(text("ALTER TABLE vendas ADD COLUMN numero_recibo TEXT"))
+                conn.commit()
+            except Exception:
+                pass  # coluna já existe
+
         # ----- FUNÇÃO AUXILIAR PARA ATUALIZAR ESTOQUE (com tratamento None) -----
         def atualizar_estoque(produto_id, delta):
             """Atualiza a quantidade em estoque (soma delta). delta pode ser negativo (venda) ou positivo (devolução)."""
@@ -1403,6 +1411,8 @@ else:
                                 st.markdown(
                                     f"**📅 Data da Venda**  \n{dados_venda.get('data_venda', '').strftime('%d/%m/%Y') if dados_venda.get('data_venda') else ''}")
                                 st.markdown(
+                                    f"**🧾 N° Recibo**  \n{dados_venda.get('numero_recibo', 'Não informado')}")
+                                st.markdown(
                                     f"**👤 Cliente**  \n{dados_venda.get('cliente_nome', '')}")
                                 st.markdown(
                                     f"**💳 Pagamento**  \n{dados_venda.get('forma_nome', '')}")
@@ -1437,8 +1447,8 @@ else:
                                             with conn.begin():
                                                 # 1. Inserir venda principal
                                                 venda_result = conn.execute(text("""
-                                                    INSERT INTO vendas (username, cliente_id, data_venda, forma_pagamento_id, valor_total, valor_pago, observacoes)
-                                                    VALUES (:u, :cliente_id, :data_venda, :forma_id, :valor_total, :valor_pago, :obs)
+                                                    INSERT INTO vendas (username, cliente_id, data_venda, forma_pagamento_id, valor_total, valor_pago, observacoes, numero_recibo)
+                                                    VALUES (:u, :cliente_id, :data_venda, :forma_id, :valor_total, :valor_pago, :obs, :recibo)
                                                     RETURNING id
                                                 """), {
                                                     "u": st.session_state.username,
@@ -1447,7 +1457,8 @@ else:
                                                     "forma_id": dados_venda['forma_id'],
                                                     "valor_total": dados_venda['valor_total'],
                                                     "valor_pago": dados_venda['valor_pago'],
-                                                    "obs": dados_venda.get('observacoes', '')
+                                                    "obs": dados_venda.get('observacoes', ''),
+                                                    "recibo": dados_venda.get('numero_recibo', '')
                                                 })
                                                 venda_id = venda_result.fetchone()[
                                                     0]
@@ -1603,6 +1614,7 @@ else:
                             st.metric("🔻 Ficará Devendo",
                                       f"R$ {valor_devendo:.2f}")
 
+                        numero_recibo = st.text_input("🧾 N° do Recibo (opcional)", key="venda_recibo")
                         observacoes = st.text_area(
                             "📝 Observações (opcional)", key="venda_obs", placeholder="Ex: Entrega agendada, troco, etc.")
 
@@ -1619,7 +1631,8 @@ else:
                                 "valor_pago": valor_pago,
                                 "valor_total": valor_total_carrinho,
                                 "valor_devendo": valor_devendo,
-                                "observacoes": observacoes
+                                "observacoes": observacoes,
+                                "numero_recibo": numero_recibo
                             }
                             st.session_state.mostrar_confirmacao = True
                             st.rerun()
@@ -1679,6 +1692,7 @@ else:
                         SELECT
                             v.id,
                             v.data_venda,
+                            v.numero_recibo,
                             c.nome as cliente,
                             COALESCE(
                                 STRING_AGG(
@@ -1728,6 +1742,7 @@ else:
                         df_display = df_vendas.copy()
                         df_display = df_display.rename(columns={
                             "data_venda": "Data",
+                            "numero_recibo": "N° Recibo",
                             "cliente": "Cliente",
                             "produtos": "Produtos",
                             "valor_total": "Valor Total",
