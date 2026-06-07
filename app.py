@@ -773,7 +773,7 @@ else:
                         with open(img_icone, "rb") as f:
                             img_base64 = base64.b64encode(f.read()).decode()
                         st.markdown(
-                            f'<h3><img src="data:image/png;base64,{img_base64}" width="28" style="vertical-align: middle; margin-right: 6px;"> Aves Mortas</h3>',
+                            f'<h3 style="font-size: 1.5rem;"><img src="data:image/png;base64,{img_base64}" width="36" style="vertical-align: middle; margin-right: 8px;"> Aves Mortas</h3>',
                             unsafe_allow_html=True
                         )
                     else:
