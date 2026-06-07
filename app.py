@@ -608,12 +608,12 @@ else:
             # ==================== AVES MORTAS ====================
             with tab_mortas:
                 # Título com imagem
-                img_alerta = BASE_DIR / "assets" / "galinhamorta.png"
-                if img_alerta.exists():
-                    with open(img_alerta, "rb") as f:
+                img_icone = BASE_DIR / "assets" / "galinhamorta.png"
+                if img_icone.exists():
+                    with open(img_icone, "rb") as f:
                         img_base64 = base64.b64encode(f.read()).decode()
                     st.markdown(
-                        f'<h4 style="font-size: 1.2rem;"><img src="data:image/png;base64,{img_base64}" width="24" style="vertical-align: middle; margin-right: 6px;"> Registrar Aves Mortas</h4>',
+                        f'<h4 style="font-size: 1.8rem;"><img src="data:image/png;base64,{img_base64}" width="44" style="vertical-align: middle; margin-right: 6px;"> Registrar Aves Mortas</h4>',
                         unsafe_allow_html=True
                     )
                 else:
