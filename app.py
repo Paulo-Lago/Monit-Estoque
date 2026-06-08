@@ -2852,7 +2852,7 @@ else:
                                 tipo_despesa = st.selectbox("Tipo de despesa", df_tipos['nome'].tolist())
                                 tipo_id = int(df_tipos[df_tipos['nome'] == tipo_despesa].iloc[0]['id'])
                             with col2:
-                                valor_despesa = st.number_input("Valor (R$)", min_value=0.01, step=0.01, format="%.2f")
+                                valor_despesa = st.number_input("Valor (R$)", min_value=0.01, step=0.00, format="%.2f")
                                 observacao = st.text_area("Observação (opcional)")
                             if st.form_submit_button("Registrar Despesa"):
                                 registrar_despesa(data_despesa, tipo_id, valor_despesa, observacao)
