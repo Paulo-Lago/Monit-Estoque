@@ -1696,7 +1696,7 @@ else:
                 except Exception as e:
                     st.error(f"Erro ao carregar resumo: {e}")
 
-                                st.divider()
+                st.divider()
                 st.markdown("#### Histórico de Vendas")
                 try:
                     # Base da query
