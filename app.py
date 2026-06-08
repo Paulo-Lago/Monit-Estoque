@@ -2908,7 +2908,7 @@ else:
                                 novo_tipo = st.selectbox("Tipo", df_tipos_edit['nome'].tolist(), index=df_tipos_edit['nome'].tolist().index(tipo_atual_nome))
                                 novo_tipo_id = int(df_tipos_edit[df_tipos_edit['nome'] == novo_tipo].iloc[0]['id'])
                             with col2:
-                                novo_valor = st.number_input("Valor (R$)", min_value=0.01, step=0.01, value=float(despesa_edit['valor']), format="%.2f")
+                                novo_valor = st.number_input("Valor (R$)", min_value=0.00, step=0.01, value=float(despesa_edit['valor']), format="%.2f")
                                 nova_obs = st.text_area("Observação", value=despesa_edit.get('observacao', ''))
                             if st.form_submit_button("Salvar alterações"):
                                 try:
