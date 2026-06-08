@@ -2713,11 +2713,11 @@ else:
             fat_interno = st.tabs(
                 ["📉 Despesas", "📊 Receita de Vendas", "📈 Faturamento"])
 
-            # ---------- SUBABA: DESPESAS ----------
+            # ---------- SUBABA: DESPESAS (CORRIGIDA) ----------
             with fat_interno[0]:
                 st.markdown("### 📉 Controle de Despesas")
 
-                # --- Criar tabelas se não existirem (apenas uma vez) ---
+                # Criar tabelas se não existirem
                 with engine.connect() as conn:
                     conn.execute(text("""
                         CREATE TABLE IF NOT EXISTS tipos_despesas (
@@ -2741,7 +2741,7 @@ else:
                     """))
                     conn.commit()
 
-                # Funções auxiliares
+                # ---- Funções auxiliares ----
                 def obter_tipos_despesas():
                     return pd.read_sql(text("SELECT id, nome, descricao FROM tipos_despesas WHERE username = :u ORDER BY nome"),
                                        engine, params={"u": st.session_state.username})
@@ -2787,12 +2787,11 @@ else:
                                                                     "inicio": data_inicio,
                                                                     "fim": data_fim})
 
-                # Organização das despesas com sub-sub-abas
-                desp_tabs = st.tabs(
-                    ["🏷️ Tipos de Despesa", "➕ Nova Despesa", "📋 Histórico"])
+                # ---- Abas internas ----
+                sub_tabs = st.tabs(["🏷️ Tipos de Despesa", "➕ Nova Despesa", "📋 Histórico"])
 
-                # --- Tipos de Despesa (inalterado) ---
-                with desp_tabs[0]:
+                # ==================== TIPOS DE DESPESA ====================
+                with sub_tabs[0]:
                     st.markdown("#### Tipos de Despesa Cadastrados")
                     with st.expander("➕ Adicionar novo tipo", expanded=False):
                         with st.form("form_novo_tipo"):
@@ -2839,8 +2838,8 @@ else:
                                     except Exception as e:
                                         st.error(str(e))
 
-                # --- Nova Despesa (inalterado) ---
-                with desp_tabs[1]:
+                # ==================== NOVA DESPESA ====================
+                with sub_tabs[1]:
                     st.markdown("#### Registrar Despesa")
                     df_tipos = obter_tipos_despesas()
                     if df_tipos.empty:
@@ -2860,8 +2859,8 @@ else:
                                 st.success("Despesa registrada!")
                                 st.rerun()
 
-                # --- Histórico de Despesas (COM EDIÇÃO E EXCLUSÃO) ---
-                with desp_tabs[2]:
+                # ==================== HISTÓRICO (COM EDIÇÃO E EXCLUSÃO ESTÁVEIS) ====================
+                with sub_tabs[2]:
                     st.markdown("#### Histórico de Despesas")
                     col_f1, col_f2 = st.columns(2)
                     with col_f1:
@@ -2879,50 +2878,39 @@ else:
                         st.metric("💰 Total de Despesas no Período", f"R$ {total_geral:,.2f}")
                         st.divider()
 
-                        # Totais por tipo (somente tabela)
                         st.markdown("#### Totais por Tipo de Despesa")
                         df_totais = df_despesas.groupby('tipo')['valor'].sum().reset_index().sort_values('valor', ascending=False)
                         df_totais = df_totais.rename(columns={'tipo': 'Tipo de Despesa', 'valor': 'Total (R$)'})
                         df_totais['Total (R$)'] = df_totais['Total (R$)'].apply(lambda x: f"R$ {x:,.2f}")
                         st.dataframe(df_totais, use_container_width=True, hide_index=True)
 
-                        # Lista de despesas com ações de editar/excluir
                         st.markdown("#### Lista de Despesas")
                         df_display = df_despesas.copy()
                         df_display['data'] = pd.to_datetime(df_display['data']).dt.strftime('%d/%m/%Y')
                         df_display['valor'] = df_display['valor'].apply(lambda x: f"R$ {x:,.2f}")
                         df_display = df_display.rename(columns={'data': 'Data', 'tipo': 'Tipo', 'valor': 'Valor', 'observacao': 'Observação'})
-                        
                         st.dataframe(df_display[['Data', 'Tipo', 'Valor', 'Observação']], use_container_width=True, hide_index=True)
-                        
+
                         st.markdown("---")
-                        st.markdown("#### ✏️ Editar ou 🗑️ Excluir Despesa")
+                        st.markdown("#### ✏️ Editar Despesa")
                         
-                        # Select para escolher a despesa
-                        opcoes_despesa = {row['id']: f"{row['Data']} - {row['Tipo']} - {row['Valor']}" for _, row in df_display.iterrows()}
-                        despesa_selecionada_id = st.selectbox("Selecione a despesa", options=list(opcoes_despesa.keys()), format_func=lambda x: opcoes_despesa[x], key="select_despesa")
-                        despesa_selecionada = df_despesas[df_despesas['id'] == despesa_selecionada_id].iloc[0]
+                        # Select para escolher a despesa (usando os dados já carregados)
+                        opcoes = {row['id']: f"{row['Data']} - {row['Tipo']} - {row['Valor']}" for _, row in df_display.iterrows()}
+                        despesa_id = st.selectbox("Selecione a despesa para editar", options=list(opcoes.keys()), format_func=lambda x: opcoes[x], key="edit_despesa_select")
+                        despesa_edit = df_despesas[df_despesas['id'] == despesa_id].iloc[0]
                         
-                        # Formulário de edição
                         with st.form("form_editar_despesa"):
-                            st.markdown("**Editar Despesa**")
                             col1, col2 = st.columns(2)
                             with col1:
-                                nova_data = st.date_input("Data", value=despesa_selecionada['data'], format="DD/MM/YYYY")
-                                # Carregar tipos novamente
+                                nova_data = st.date_input("Data", value=despesa_edit['data'], format="DD/MM/YYYY")
                                 df_tipos_edit = obter_tipos_despesas()
-                                # Encontrar o índice do tipo atual
-                                tipo_atual_id = despesa_selecionada['tipo_id']
-                                tipo_atual_nome = df_tipos_edit[df_tipos_edit['id'] == tipo_atual_id].iloc[0]['nome']
-                                novo_tipo = st.selectbox("Tipo de despesa", df_tipos_edit['nome'].tolist(), index=df_tipos_edit['nome'].tolist().index(tipo_atual_nome))
+                                tipo_atual_nome = df_tipos_edit[df_tipos_edit['id'] == despesa_edit['tipo_id']].iloc[0]['nome']
+                                novo_tipo = st.selectbox("Tipo", df_tipos_edit['nome'].tolist(), index=df_tipos_edit['nome'].tolist().index(tipo_atual_nome))
                                 novo_tipo_id = int(df_tipos_edit[df_tipos_edit['nome'] == novo_tipo].iloc[0]['id'])
                             with col2:
-                                novo_valor = st.number_input("Valor (R$)", min_value=0.01, step=0.01, value=float(despesa_selecionada['valor']), format="%.2f")
-                                nova_obs = st.text_area("Observação", value=despesa_selecionada.get('observacao', ''))
-                            
-                            # Botão de salvar (dentro do form)
-                            submitted_edit = st.form_submit_button("✅ Salvar Alterações")
-                            if submitted_edit:
+                                novo_valor = st.number_input("Valor (R$)", min_value=0.01, step=0.01, value=float(despesa_edit['valor']), format="%.2f")
+                                nova_obs = st.text_area("Observação", value=despesa_edit.get('observacao', ''))
+                            if st.form_submit_button("Salvar alterações"):
                                 try:
                                     with engine.connect() as conn:
                                         conn.execute(text("""
@@ -2934,29 +2922,30 @@ else:
                                             "tipo_id": novo_tipo_id,
                                             "valor": novo_valor,
                                             "obs": nova_obs,
-                                            "id": despesa_selecionada_id,
+                                            "id": despesa_id,
                                             "u": st.session_state.username
                                         })
                                         conn.commit()
-                                    registrar_log("UPDATE", "despesas", despesa_selecionada_id, f"Editou despesa: valor de {despesa_selecionada['valor']} para {novo_valor}")
+                                    registrar_log("UPDATE", "despesas", despesa_id, f"Editou despesa para R$ {novo_valor}")
                                     st.success("Despesa atualizada!")
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"Erro ao atualizar: {e}")
                         
-                        # Exclusão (fora do form para não conflitar com submit)
                         st.markdown("---")
-                        with st.popover("🗑️ Excluir Despesa", use_container_width=True):
-                            st.warning(f"Tem certeza que deseja excluir a despesa de R$ {despesa_selecionada['valor']:.2f}?")
-                            confirm_excluir = st.checkbox("Sim, quero excluir permanentemente.", key="confirm_del_despesa")
+                        st.markdown("#### 🗑️ Excluir Despesa")
+                        # Exclusão com confirmação em popover
+                        with st.popover("Clique para excluir a despesa selecionada", use_container_width=True):
+                            st.warning(f"Excluir permanentemente a despesa de {despesa_edit['tipo']} no valor de R$ {despesa_edit['valor']:.2f}?")
+                            confirm_excluir = st.checkbox("Confirmo que quero excluir", key="confirma_excluir_despesa")
                             if st.button("Excluir agora", type="primary", disabled=not confirm_excluir):
                                 try:
                                     with engine.connect() as conn:
                                         conn.execute(text("DELETE FROM despesas WHERE id = :id AND username = :u"), 
-                                                     {"id": despesa_selecionada_id, "u": st.session_state.username})
+                                                     {"id": despesa_id, "u": st.session_state.username})
                                         conn.commit()
-                                    registrar_log("DELETE", "despesas", despesa_selecionada_id, f"Excluiu despesa de R$ {despesa_selecionada['valor']} ({despesa_selecionada['tipo']})")
-                                    st.success("Despesa excluída com sucesso!")
+                                    registrar_log("DELETE", "despesas", despesa_id, f"Excluiu despesa de {despesa_edit['tipo']} - R$ {despesa_edit['valor']:.2f}")
+                                    st.success("Despesa excluída com Sucesso!")
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"Erro ao excluir: {e}")
