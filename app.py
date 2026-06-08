@@ -2777,7 +2777,7 @@ else:
 
                 def obter_despesas(data_inicio, data_fim):
                     query = """
-                        SELECT d.id, d.data, t.nome as tipo, d.valor, d.observacao
+                        SELECT d.id, d.data, d.tipo_id, t.nome as tipo, d.valor, d.observacao
                         FROM despesas d
                         JOIN tipos_despesas t ON d.tipo_id = t.id
                         WHERE d.username = :u AND d.data BETWEEN :inicio AND :fim
@@ -2888,19 +2888,18 @@ else:
 
                         # Lista de despesas com ações de editar/excluir
                         st.markdown("#### Lista de Despesas")
-                        # Adicionar coluna de ações na exibição
                         df_display = df_despesas.copy()
                         df_display['data'] = pd.to_datetime(df_display['data']).dt.strftime('%d/%m/%Y')
                         df_display['valor'] = df_display['valor'].apply(lambda x: f"R$ {x:,.2f}")
                         df_display = df_display.rename(columns={'data': 'Data', 'tipo': 'Tipo', 'valor': 'Valor', 'observacao': 'Observação'})
                         
-                        # Exibir a tabela com seleção para editar/excluir
                         st.dataframe(df_display[['Data', 'Tipo', 'Valor', 'Observação']], use_container_width=True, hide_index=True)
                         
                         st.markdown("---")
                         st.markdown("#### ✏️ Editar ou 🗑️ Excluir Despesa")
+                        
                         # Select para escolher a despesa
-                        opcoes_despesa = {row['id']: f"{row['data']} - {row['tipo']} - R$ {row['valor']:.2f}" for _, row in df_despesas.iterrows()}
+                        opcoes_despesa = {row['id']: f"{row['Data']} - {row['Tipo']} - {row['Valor']}" for _, row in df_display.iterrows()}
                         despesa_selecionada_id = st.selectbox("Selecione a despesa", options=list(opcoes_despesa.keys()), format_func=lambda x: opcoes_despesa[x], key="select_despesa")
                         despesa_selecionada = df_despesas[df_despesas['id'] == despesa_selecionada_id].iloc[0]
                         
@@ -2912,57 +2911,55 @@ else:
                                 nova_data = st.date_input("Data", value=despesa_selecionada['data'], format="DD/MM/YYYY")
                                 # Carregar tipos novamente
                                 df_tipos_edit = obter_tipos_despesas()
-                                tipo_atual = df_tipos_edit[df_tipos_edit['id'] == despesa_selecionada['tipo_id']].iloc[0]['nome']
-                                novo_tipo = st.selectbox("Tipo de despesa", df_tipos_edit['nome'].tolist(), index=df_tipos_edit['nome'].tolist().index(tipo_atual))
+                                # Encontrar o índice do tipo atual
+                                tipo_atual_id = despesa_selecionada['tipo_id']
+                                tipo_atual_nome = df_tipos_edit[df_tipos_edit['id'] == tipo_atual_id].iloc[0]['nome']
+                                novo_tipo = st.selectbox("Tipo de despesa", df_tipos_edit['nome'].tolist(), index=df_tipos_edit['nome'].tolist().index(tipo_atual_nome))
                                 novo_tipo_id = int(df_tipos_edit[df_tipos_edit['nome'] == novo_tipo].iloc[0]['id'])
                             with col2:
                                 novo_valor = st.number_input("Valor (R$)", min_value=0.01, step=0.01, value=float(despesa_selecionada['valor']), format="%.2f")
                                 nova_obs = st.text_area("Observação", value=despesa_selecionada.get('observacao', ''))
-                            col_btn1, col_btn2 = st.columns(2)
-                            with col_btn1:
-                                if st.form_submit_button("✅ Salvar Alterações"):
-                                    try:
-                                        with engine.connect() as conn:
-                                            conn.execute(text("""
-                                                UPDATE despesas
-                                                SET data = :data, tipo_id = :tipo_id, valor = :valor, observacao = :obs
-                                                WHERE id = :id AND username = :u
-                                            """), {
-                                                "data": nova_data,
-                                                "tipo_id": novo_tipo_id,
-                                                "valor": novo_valor,
-                                                "obs": nova_obs,
-                                                "id": despesa_selecionada_id,
-                                                "u": st.session_state.username
-                                            })
-                                            conn.commit()
-                                        registrar_log("UPDATE", "despesas", despesa_selecionada_id, f"Editou despesa: valor de {despesa_selecionada['valor']} para {novo_valor}")
-                                        st.success("Despesa atualizada!")
-                                        st.rerun()
-                                    except Exception as e:
-                                        st.error(f"Erro ao atualizar: {e}")
-                            with col_btn2:
-                                if st.form_submit_button("🗑️ Excluir Despesa", type="primary"):
-                                    st.warning("Clique novamente para confirmar exclusão.")
-                                    # Usar um session_state para confirmação
-                                    if 'confirm_del_despesa' not in st.session_state:
-                                        st.session_state.confirm_del_despesa = False
-                                    if not st.session_state.confirm_del_despesa:
-                                        st.session_state.confirm_del_despesa = True
-                                        st.warning("Clique novamente no botão 'Excluir' para confirmar.")
-                                    else:
-                                        try:
-                                            with engine.connect() as conn:
-                                                conn.execute(text("DELETE FROM despesas WHERE id = :id AND username = :u"), 
-                                                             {"id": despesa_selecionada_id, "u": st.session_state.username})
-                                                conn.commit()
-                                            registrar_log("DELETE", "despesas", despesa_selecionada_id, f"Excluiu despesa de R$ {despesa_selecionada['valor']} ({despesa_selecionada['tipo']})")
-                                            st.success("Despesa excluída com sucesso!")
-                                            st.session_state.confirm_del_despesa = False
-                                            st.rerun()
-                                        except Exception as e:
-                                            st.error(f"Erro ao excluir: {e}")
-                                            st.session_state.confirm_del_despesa = False
+                            
+                            # Botão de salvar (dentro do form)
+                            submitted_edit = st.form_submit_button("✅ Salvar Alterações")
+                            if submitted_edit:
+                                try:
+                                    with engine.connect() as conn:
+                                        conn.execute(text("""
+                                            UPDATE despesas
+                                            SET data = :data, tipo_id = :tipo_id, valor = :valor, observacao = :obs
+                                            WHERE id = :id AND username = :u
+                                        """), {
+                                            "data": nova_data,
+                                            "tipo_id": novo_tipo_id,
+                                            "valor": novo_valor,
+                                            "obs": nova_obs,
+                                            "id": despesa_selecionada_id,
+                                            "u": st.session_state.username
+                                        })
+                                        conn.commit()
+                                    registrar_log("UPDATE", "despesas", despesa_selecionada_id, f"Editou despesa: valor de {despesa_selecionada['valor']} para {novo_valor}")
+                                    st.success("Despesa atualizada!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao atualizar: {e}")
+                        
+                        # Exclusão (fora do form para não conflitar com submit)
+                        st.markdown("---")
+                        with st.popover("🗑️ Excluir Despesa", use_container_width=True):
+                            st.warning(f"Tem certeza que deseja excluir a despesa de R$ {despesa_selecionada['valor']:.2f}?")
+                            confirm_excluir = st.checkbox("Sim, quero excluir permanentemente.", key="confirm_del_despesa")
+                            if st.button("Excluir agora", type="primary", disabled=not confirm_excluir):
+                                try:
+                                    with engine.connect() as conn:
+                                        conn.execute(text("DELETE FROM despesas WHERE id = :id AND username = :u"), 
+                                                     {"id": despesa_selecionada_id, "u": st.session_state.username})
+                                        conn.commit()
+                                    registrar_log("DELETE", "despesas", despesa_selecionada_id, f"Excluiu despesa de R$ {despesa_selecionada['valor']} ({despesa_selecionada['tipo']})")
+                                    st.success("Despesa excluída com sucesso!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao excluir: {e}")
 
             # ---------- SUBABA: RECEITA DE VENDAS ----------
             with fat_interno[1]:
