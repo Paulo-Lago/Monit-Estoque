@@ -1995,7 +1995,7 @@ else:
                                     max_value=float(valor_devendo_atual),
                                     step=0.01,
                                     format="%.2f",
-                                    value=min(50.0, float(valor_devendo_atual))
+                                    value=min(0.0, float(valor_devendo_atual))
                                 )
                                 if st.form_submit_button("Confirmar Recebimento"):
                                     novo_pago = valor_pago_atual + valor_recebido
