@@ -1983,8 +1983,10 @@ else:
                         tab_pag, tab_edit, tab_del = st.tabs(
                             ["💰 Registrar Pagamento", "✏️ Editar Venda", "🗑️ Excluir Venda"])
                         with tab_pag:
+                            # Formata o valor pendente no padrão brasileiro (R$ 1.234,56)
                             valor_pendente_br = f"R$ {valor_devendo_atual:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                             st.info(f"💰 **Valor pendente:** {valor_pendente_br}")
+                            
                             with st.form("form_receber_pagamento"):
                                 st.caption("Use **ponto** como separador decimal (ex: 123.45)")
                                 valor_recebido = st.number_input(
@@ -1995,14 +1997,13 @@ else:
                                     format="%.2f",
                                     value=min(50.0, float(valor_devendo_atual))
                                 )
-                                if st.form_submit_button("Confirmar Recebimento"):                                    
+                                if st.form_submit_button("Confirmar Recebimento"):
                                     novo_pago = valor_pago_atual + valor_recebido
                                     with engine.connect() as conn:
-                                        conn.execute(text("UPDATE vendas SET valor_pago = :novo WHERE id = :id"), {
-                                                     "novo": novo_pago, "id": venda_id})
+                                        conn.execute(text("UPDATE vendas SET valor_pago = :novo WHERE id = :id"), 
+                                                    {"novo": novo_pago, "id": venda_id})
                                         conn.commit()
-                                    st.success(
-                                        f"Pagamento de R$ {valor_recebido:.2f} registrado!")
+                                    st.success(f"Pagamento de R$ {valor_recebido:.2f} registrado!")
                                     st.rerun()
                         with tab_edit:
                             st.warning(
