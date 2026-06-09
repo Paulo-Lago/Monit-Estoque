@@ -5,47 +5,43 @@ from datetime import datetime, date
 import base64
 from pathlib import Path
 import plotly.express as px
+
+# ==================== FUNÇÃO DE GERAR PDF (REPORTLAB) ====================
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT
-from reportlab.pdfgen import canvas
 from io import BytesIO
-import pandas as pd
+from pathlib import Path
 
 def gerar_pdf_recibo_reportlab(dados_venda, itens, numero_recibo):
-    """
-    Gera PDF do recibo usando ReportLab.
-    dados_venda: dict com keys: cliente_nome, data_venda, valor_total, valor_pago, valor_devendo, observacoes
-    itens: lista de dicts com produto_nome, quantidade, preco_unit, desconto_unit, subtotal
-    numero_recibo: string
-    """
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1.5*cm, bottomMargin=1.5*cm, leftMargin=2*cm, rightMargin=2*cm)
     styles = getSampleStyleSheet()
     
-    # Estilo personalizado
     style_title = ParagraphStyle(name='Title', parent=styles['Heading1'], alignment=TA_CENTER, fontSize=16, spaceAfter=10)
     style_subtitle = ParagraphStyle(name='Subtitle', parent=styles['Normal'], alignment=TA_CENTER, fontSize=12, textColor=colors.grey)
-    style_normal = styles['Normal']
-    style_normal_right = ParagraphStyle(name='Right', parent=styles['Normal'], alignment=TA_RIGHT)
     
-    # Lista de elementos do PDF
     elements = []
     
-    # --- Cabeçalho (logomarca opcional) ---
-    # Se você tiver uma logo, pode adicionar aqui:
-    from reportlab.lib.utils import ImageReader
-    logo = ImageReader("assets/logomarca.png")
-    elements.append(Image(logo, width=4*cm, height=4*cm, hAlign='CENTER'))
+    # --- Logo (se existir) ---
+    logo_path = Path(__file__).parent / "assets" / "logomarca.png"
+    if logo_path.exists():
+        try:
+            img = Image(str(logo_path), width=4*cm, height=4*cm, hAlign='CENTER')
+            elements.append(img)
+            elements.append(Spacer(1, 0.3*cm))
+        except:
+            pass  # se falhar ao carregar, ignora
     
+    # Cabeçalho
     elements.append(Paragraph("Estoque Ovos Pro", style_title))
     elements.append(Paragraph("RECIBO DE VENDA", style_subtitle))
     elements.append(Spacer(1, 0.5*cm))
     
-    # --- Dados da venda ---
+    # Dados da venda
     info_data = [
         ["Nº Recibo:", numero_recibo],
         ["Data:", dados_venda['data_venda'].strftime('%d/%m/%Y')],
@@ -53,20 +49,12 @@ def gerar_pdf_recibo_reportlab(dados_venda, itens, numero_recibo):
         ["Observações:", dados_venda.get('observacoes', '')]
     ]
     table_info = Table(info_data, colWidths=[3.5*cm, 10*cm])
-    table_info.setStyle(TableStyle([
-        ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-        ('FONTSIZE', (0,0), (-1,-1), 10),
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('LEFTPADDING', (0,0), (-1,-1), 0),
-    ]))
+    table_info.setStyle(TableStyle([('FONTNAME', (0,0), (-1,-1), 'Helvetica'), ('FONTSIZE', (0,0), (-1,-1), 10)]))
     elements.append(table_info)
     elements.append(Spacer(1, 0.5*cm))
     
-    # --- Tabela de produtos ---
-    # Cabeçalho da tabela
+    # Tabela de produtos
     data = [["Produto", "Qtd", "Preço Unit. (R$)", "Desc. Unit. (R$)", "Subtotal (R$)"]]
-    
-    # Preenche linhas
     for item in itens:
         data.append([
             item['produto_nome'],
@@ -75,56 +63,44 @@ def gerar_pdf_recibo_reportlab(dados_venda, itens, numero_recibo):
             f"{item['desconto_unit']:.2f}".replace('.', ','),
             f"{item['subtotal']:.2f}".replace('.', ',')
         ])
-    
-    # Estilos da tabela
     table_prod = Table(data, colWidths=[6*cm, 1.8*cm, 2.5*cm, 2.5*cm, 2.5*cm])
     table_prod.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,0), 10),
-        ('FONTNAME', (0,1), (-1,-1), 'Helvetica'),
-        ('FONTSIZE', (0,1), (-1,-1), 9),
         ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-        ('LEFTPADDING', (0,0), (-1,-1), 4),
-        ('RIGHTPADDING', (0,0), (-1,-1), 4),
     ]))
     elements.append(table_prod)
     elements.append(Spacer(1, 0.5*cm))
     
-    # --- Totais (à direita) ---
+    # Totais
     valor_bruto = sum(item['subtotal'] + item['desconto_unit'] * item['quantidade'] for item in itens)
     desconto_total = sum(item['desconto_unit'] * item['quantidade'] for item in itens)
     
+    def fmt_br(valor):
+        return f"R$ {valor:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+    
     totais_data = [
-        ["Valor Bruto:", f"R$ {valor_bruto:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')],
-        ["Desconto Total:", f"R$ {desconto_total:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')],
-        ["Valor Final:", f"R$ {dados_venda['valor_total']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')],
-        ["Valor Pago:", f"R$ {dados_venda['valor_pago']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')],
-        ["Saldo Devedor:", f"R$ {dados_venda['valor_devendo']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')]
+        ["Valor Bruto:", fmt_br(valor_bruto)],
+        ["Desconto Total:", fmt_br(desconto_total)],
+        ["Valor Final:", fmt_br(dados_venda['valor_total'])],
+        ["Valor Pago:", fmt_br(dados_venda['valor_pago'])],
+        ["Saldo Devedor:", fmt_br(dados_venda['valor_devendo'])]
     ]
     table_totais = Table(totais_data, colWidths=[4.5*cm, 4.5*cm])
     table_totais.setStyle(TableStyle([
         ('ALIGN', (0,0), (0,-1), 'RIGHT'),
-        ('ALIGN', (1,0), (1,-1), 'LEFT'),
         ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-        ('FONTSIZE', (0,0), (-1,-1), 10),
-        ('BACKGROUND', (0,2), (1,2), colors.lightblue),  # destaca valor final
+        ('BACKGROUND', (0,2), (1,2), colors.lightblue)
     ]))
-    # Posiciona a tabela à direita usando uma tabela wrapper
     wrapper = Table([[table_totais]], colWidths=[16*cm])
     wrapper.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'RIGHT')]))
     elements.append(wrapper)
     elements.append(Spacer(1, 0.5*cm))
     
-    # --- Mensagem de agradecimento ---
-    elements.append(Paragraph("Obrigado pela preferência!", ParagraphStyle(
-        name='Thanks', parent=styles['Normal'], alignment=TA_CENTER, textColor=colors.grey, fontSize=10, spaceAfter=0.3*cm)))
-    elements.append(Paragraph("Documento emitido eletronicamente – não é necessária assinatura.",
-                              ParagraphStyle(name='Footer', parent=styles['Normal'], alignment=TA_CENTER, fontSize=8, textColor=colors.grey)))
+    # Mensagem final
+    elements.append(Paragraph("Obrigado pela preferência!", ParagraphStyle(name='Thanks', parent=styles['Normal'], alignment=TA_CENTER, fontSize=10, textColor=colors.grey)))
+    elements.append(Paragraph("Documento emitido eletronicamente – não é necessária assinatura.", ParagraphStyle(name='Footer', parent=styles['Normal'], alignment=TA_CENTER, fontSize=8, textColor=colors.grey)))
     
-    # Gera o PDF
     doc.build(elements)
     pdf_bytes = buffer.getvalue()
     buffer.close()
