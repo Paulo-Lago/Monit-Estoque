@@ -1872,11 +1872,16 @@ else:
                         SELECT
                             v.id,
                             v.data_venda,
-                            v.numero_recibo,   
-                            c.nome as cliente,                            
+                            v.numero_recibo,
+                            c.nome as cliente,
                             COALESCE(
                                 STRING_AGG(
-                                    CONCAT(COALESCE(p.nome, 'Produto sem nome'), ' (', ROUND(vi.quantidade::numeric, 2), ' un)'),
+                                    CONCAT(
+                                        COALESCE(p.nome, 'Produto sem nome'),
+                                        ' (',
+                                        ROUND(vi.quantidade::numeric, 2),
+                                        ' un)'
+                                    ),
                                     ', ' ORDER BY p.nome
                                 ),
                                 'Sem produtos'
@@ -1891,14 +1896,34 @@ else:
                         LEFT JOIN produtos p ON vi.produto_id = p.id
                         WHERE v.username = :u
                             AND v.data_venda BETWEEN :inicio AND :fim
-                        GROUP BY v.id, v.data_venda, c.nome, v.valor_pago, v.observacoes
-                        ORDER BY v.data_venda DESC
                     """
-                    params = {"u": st.session_state.username,
-                              "inicio": data_inicio, "fim": data_fim}
+
+                    params = {
+                        "u": st.session_state.username,
+                        "inicio": data_inicio,
+                        "fim": data_fim
+                    }
+
+                    # filtro cliente
                     if cliente_filtro != "Todos":
                         query += " AND c.nome = :cliente"
                         params["cliente"] = cliente_filtro
+
+                    # fecha a query por último
+                    query += """
+                        GROUP BY
+                            v.id,
+                            v.data_venda,
+                            c.nome,
+                            v.numero_recibo,
+                            v.valor_pago,
+                            v.observacoes
+
+                        ORDER BY
+                            v.data_venda DESC
+                    """
+
+
                     df_vendas = pd.read_sql(text(query), engine, params=params)
                     if df_vendas.empty:
                         st.info("Nenhuma venda no período.")
