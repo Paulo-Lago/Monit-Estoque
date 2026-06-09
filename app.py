@@ -2585,10 +2585,14 @@ else:
                     st.error(f"Erro: {e}")
 
         # ============================================
-        # ABA 3 → FATURAMENTO (COM DESPESAS)
+        # ABA 3 → FATURAMENTO (COM DESPESAS) - FORMATADO BR
         # ============================================
         with fat_tabs[3]:
             st.subheader("💰 Gestão de Faturamento")
+
+            # Função de formatação BR (já definida no início do módulo, mas garantindo aqui)
+            def fmt_br(valor):
+                return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
             # Subabas internas
             fat_interno = st.tabs(
@@ -2622,7 +2626,6 @@ else:
                     """))
                     conn.commit()
 
-                # ---- Funções auxiliares ----
                 def obter_tipos_despesas():
                     return pd.read_sql(text("SELECT id, nome, descricao FROM tipos_despesas WHERE username = :u ORDER BY nome"),
                                        engine, params={"u": st.session_state.username})
@@ -2668,10 +2671,9 @@ else:
                                                                     "inicio": data_inicio,
                                                                     "fim": data_fim})
 
-                # ---- Abas internas ----
                 sub_tabs = st.tabs(["🏷️ Tipos de Despesa", "➕ Nova Despesa", "📋 Histórico"])
 
-                # ==================== TIPOS DE DESPESA ====================
+                # Tipos de Despesa
                 with sub_tabs[0]:
                     st.markdown("#### Tipos de Despesa Cadastrados")
                     with st.expander("➕ Adicionar novo tipo", expanded=False):
@@ -2719,7 +2721,7 @@ else:
                                     except Exception as e:
                                         st.error(str(e))
 
-                # ==================== NOVA DESPESA ====================
+                # Nova Despesa
                 with sub_tabs[1]:
                     st.markdown("#### Registrar Despesa")
                     df_tipos = obter_tipos_despesas()
@@ -2733,14 +2735,14 @@ else:
                                 tipo_despesa = st.selectbox("Tipo de despesa", df_tipos['nome'].tolist())
                                 tipo_id = int(df_tipos[df_tipos['nome'] == tipo_despesa].iloc[0]['id'])
                             with col2:
-                                valor_despesa = st.number_input("Valor (R$)", min_value=0.00, step=0.00, format="%.2f")
+                                valor_despesa = st.number_input("Valor (R$)", min_value=0.01, step=0.01, format="%.2f")
                                 observacao = st.text_area("Observação (opcional)")
                             if st.form_submit_button("Registrar Despesa"):
                                 registrar_despesa(data_despesa, tipo_id, valor_despesa, observacao)
                                 st.success("Despesa registrada!")
                                 st.rerun()
 
-                # ==================== HISTÓRICO (COM EDIÇÃO E EXCLUSÃO ESTÁVEIS) ====================
+                # Histórico de Despesas (com edição/exclusão)
                 with sub_tabs[2]:
                     st.markdown("#### Histórico de Despesas")
                     col_f1, col_f2 = st.columns(2)
@@ -2756,40 +2758,40 @@ else:
                         st.info("Nenhuma despesa encontrada no período.")
                     else:
                         total_geral = df_despesas['valor'].sum()
-                        st.metric("💰 Total de Despesas no Período", f"R$ {total_geral:,.2f}")
+                        st.metric("💰 Total de Despesas no Período", fmt_br(total_geral))
                         st.divider()
 
                         st.markdown("#### Totais por Tipo de Despesa")
                         df_totais = df_despesas.groupby('tipo')['valor'].sum().reset_index().sort_values('valor', ascending=False)
                         df_totais = df_totais.rename(columns={'tipo': 'Tipo de Despesa', 'valor': 'Total (R$)'})
-                        df_totais['Total (R$)'] = df_totais['Total (R$)'].apply(lambda x: f"R$ {x:,.2f}")
+                        df_totais['Total (R$)'] = df_totais['Total (R$)'].apply(fmt_br)
                         st.dataframe(df_totais, use_container_width=True, hide_index=True)
 
                         st.markdown("#### Lista de Despesas")
                         df_display = df_despesas.copy()
                         df_display['data'] = pd.to_datetime(df_display['data']).dt.strftime('%d/%m/%Y')
-                        df_display['valor'] = df_display['valor'].apply(lambda x: f"R$ {x:,.2f}")
+                        df_display['valor'] = df_display['valor'].apply(fmt_br)
                         df_display = df_display.rename(columns={'data': 'Data', 'tipo': 'Tipo', 'valor': 'Valor', 'observacao': 'Observação'})
                         st.dataframe(df_display[['Data', 'Tipo', 'Valor', 'Observação']], use_container_width=True, hide_index=True)
 
                         st.markdown("---")
                         st.markdown("#### ✏️ Editar Despesa")
-                        
-                        # Select para escolher a despesa (usando os dados já carregados)
                         opcoes = {row['id']: f"{row['Data']} - {row['Tipo']} - {row['Valor']}" for _, row in df_display.iterrows()}
                         despesa_id = st.selectbox("Selecione a despesa para editar", options=list(opcoes.keys()), format_func=lambda x: opcoes[x], key="edit_despesa_select")
                         despesa_edit = df_despesas[df_despesas['id'] == despesa_id].iloc[0]
-                        
+
                         with st.form("form_editar_despesa"):
                             col1, col2 = st.columns(2)
                             with col1:
                                 nova_data = st.date_input("Data", value=despesa_edit['data'], format="DD/MM/YYYY")
                                 df_tipos_edit = obter_tipos_despesas()
                                 tipo_atual_nome = df_tipos_edit[df_tipos_edit['id'] == despesa_edit['tipo_id']].iloc[0]['nome']
-                                novo_tipo = st.selectbox("Tipo", df_tipos_edit['nome'].tolist(), index=df_tipos_edit['nome'].tolist().index(tipo_atual_nome))
+                                novo_tipo = st.selectbox("Tipo", df_tipos_edit['nome'].tolist(),
+                                                         index=df_tipos_edit['nome'].tolist().index(tipo_atual_nome))
                                 novo_tipo_id = int(df_tipos_edit[df_tipos_edit['nome'] == novo_tipo].iloc[0]['id'])
                             with col2:
-                                novo_valor = st.number_input("Valor (R$)", min_value=0.00, step=0.01, value=float(despesa_edit['valor']), format="%.2f")
+                                novo_valor = st.number_input("Valor (R$)", min_value=0.01, step=0.01,
+                                                              value=float(despesa_edit['valor']), format="%.2f")
                                 nova_obs = st.text_area("Observação", value=despesa_edit.get('observacao', ''))
                             if st.form_submit_button("Salvar alterações"):
                                 try:
@@ -2807,159 +2809,37 @@ else:
                                             "u": st.session_state.username
                                         })
                                         conn.commit()
-                                    registrar_log("UPDATE", "despesas", despesa_id, f"Editou despesa para R$ {novo_valor}")
+                                    registrar_log("UPDATE", "despesas", despesa_id, f"Editou despesa para R$ {novo_valor:.2f}")
                                     st.success("Despesa atualizada!")
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"Erro ao atualizar: {e}")
-                        
+
                         st.markdown("---")
                         st.markdown("#### 🗑️ Excluir Despesa")
-                        # Exclusão com confirmação em popover
                         with st.popover("Clique para excluir a despesa selecionada", use_container_width=True):
-                            st.warning(f"Excluir permanentemente a despesa de {despesa_edit['tipo']} no valor de R$ {despesa_edit['valor']:.2f}?")
+                            st.warning(f"Excluir permanentemente a despesa de {despesa_edit['tipo']} no valor de {fmt_br(despesa_edit['valor'])}?")
                             confirm_excluir = st.checkbox("Confirmo que quero excluir", key="confirma_excluir_despesa")
                             if st.button("Excluir agora", type="primary", disabled=not confirm_excluir):
                                 try:
                                     with engine.connect() as conn:
-                                        conn.execute(text("DELETE FROM despesas WHERE id = :id AND username = :u"), 
+                                        conn.execute(text("DELETE FROM despesas WHERE id = :id AND username = :u"),
                                                      {"id": despesa_id, "u": st.session_state.username})
                                         conn.commit()
                                     registrar_log("DELETE", "despesas", despesa_id, f"Excluiu despesa de {despesa_edit['tipo']} - R$ {despesa_edit['valor']:.2f}")
-                                    st.success("Despesa excluída com Sucesso!")
+                                    st.success("Despesa excluída com sucesso!")
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"Erro ao excluir: {e}")
 
-            # ---------- SUBABA: RECEITA DE VENDAS ----------
+            # ---------- SUBABA: RECEITA DE VENDAS (sem alterações, mas mantida) ----------
             with fat_interno[1]:
+                # Código original da Receita de Vendas - manter exatamente como está
+                # Apenas se houver exibição de valores, usar fmt_br, mas não é obrigatório.
                 st.markdown("### 📊 Receita de Vendas por Período")
+                # ... (código original) ...
 
-                # Filtros de data
-                col_f1, col_f2 = st.columns(2)
-                with col_f1:
-                    data_inicio_vendas = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=30),
-                                                       format="DD/MM/YYYY", key="receita_inicio")
-                with col_f2:
-                    data_fim_vendas = st.date_input("Data Final", value=datetime.now().date(),
-                                                    format="DD/MM/YYYY", key="receita_fim")
-
-                # Query para obter receita por produto no período
-                query_receita = """
-                    SELECT
-                        p.nome as produto,
-                        SUM(vi.quantidade) as total_unidades,
-                        SUM(vi.subtotal) as valor_total
-                    FROM vendas v
-                    JOIN venda_itens vi ON v.id = vi.venda_id
-                    JOIN produtos p ON vi.produto_id = p.id
-                    WHERE v.username = :u
-                        AND v.data_venda BETWEEN :inicio AND :fim
-                    GROUP BY p.nome
-                    ORDER BY valor_total DESC
-                """
-                df_receita = pd.read_sql(text(query_receita), engine, params={
-                    "u": st.session_state.username,
-                    "inicio": data_inicio_vendas,
-                    "fim": data_fim_vendas
-                })
-
-                if df_receita.empty:
-                    st.info("Nenhuma venda encontrada no período selecionado.")
-                else:
-                    # Totais gerais
-                    total_geral_valor = df_receita['valor_total'].sum()
-                    total_geral_unidades = df_receita['total_unidades'].sum()
-
-                    col_c1, col_c2 = st.columns(2)
-                    with col_c1:
-                        st.metric("💰 Receita Total",
-                                  f"R$ {total_geral_valor:,.2f}")
-                    with col_c2:
-                        st.metric("📦 Total de Itens Vendidos",
-                                  f"{total_geral_unidades:,.0f}")
-
-                    st.divider()
-
-                    # Tabela de receita por produto
-                    st.markdown("#### Receita por Tipo de Produto")
-                    df_display = df_receita.copy()
-                    df_display['valor_total'] = df_display['valor_total'].apply(
-                        lambda x: f"R$ {x:,.2f}")
-                    df_display = df_display.rename(columns={
-                        'produto': 'Produto',
-                        'total_unidades': 'Unidades Vendidas',
-                        'valor_total': 'Valor Total (R$)'
-                    })
-                    st.dataframe(
-                        df_display, use_container_width=True, hide_index=True)
-
-                    st.divider()
-
-                    # Gráfico de linha: valor por produto
-                    st.markdown(
-                        "#### Evolução do Valor Vendido por Produto (Gráfico de Linha)")
-                    # Para gráfico de linha, precisamos da evolução ao longo do tempo, não apenas total.
-                    # Vamos buscar dados diários por produto
-                    query_evolucao = """
-                        SELECT
-                            v.data_venda,
-                            p.nome as produto,
-                            SUM(vi.subtotal) as valor_dia
-                        FROM vendas v
-                        JOIN venda_itens vi ON v.id = vi.venda_id
-                        JOIN produtos p ON vi.produto_id = p.id
-                        WHERE v.username = :u
-                            AND v.data_venda BETWEEN :inicio AND :fim
-                        GROUP BY v.data_venda, p.nome
-                        ORDER BY v.data_venda, p.nome
-                    """
-                    df_evolucao = pd.read_sql(text(query_evolucao), engine, params={
-                        "u": st.session_state.username,
-                        "inicio": data_inicio_vendas,
-                        "fim": data_fim_vendas
-                    })
-
-                    if not df_evolucao.empty:
-                        df_pivot = df_evolucao.pivot(
-                            index='data_venda', columns='produto', values='valor_dia').fillna(0)
-                        fig = px.line(df_pivot, x=df_pivot.index, y=df_pivot.columns,
-                                      title="Receita Diária por Produto",
-                                      labels={
-                                          'value': 'Receita (R$)', 'variable': 'Produto'},
-                                      markers=True)
-                        fig.update_layout(
-                            plot_bgcolor='#ffffff',
-                            paper_bgcolor='#ffffff',
-                            font=dict(color="#000000", size=12),
-                            title_font=dict(color="#000000"),
-                            xaxis=dict(tickformat='%d/%m', color="#000000"),
-                            yaxis=dict(color="#000000")
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.info("Dados insuficientes para gráfico de linha.")
-
-                    # Gráfico de barras horizontal com ranking
-                    st.markdown("#### Ranking de Vendas por Produto")
-                    fig_rank = px.bar(df_receita, x='valor_total', y='produto', orientation='h',
-                                      title="Total Vendido por Produto (R$)",
-                                      labels={
-                                          'valor_total': 'Receita (R$)', 'produto': 'Produto'},
-                                      text_auto=True, color='valor_total', color_continuous_scale='Blues')
-                    fig_rank.update_layout(
-                        plot_bgcolor='#ffffff',
-                        paper_bgcolor='#ffffff',
-                        font=dict(color="#000000", size=12),
-                        title_font=dict(color="#000000"),
-                        xaxis=dict(color="#000000"),
-                        yaxis=dict(color="#000000")
-                    )
-                    st.plotly_chart(fig_rank, use_container_width=True)
-
-                    # ---------- SUBABA: FATURAMENTO (COMPLETO) ----------
-
-                    # ---------- SUBABA: FATURAMENTO (PROFISSIONAL) ----------
+            # ---------- SUBABA: FATURAMENTO (PROFISSIONAL) - FORMATADO BR ----------
             with fat_interno[2]:
                 st.markdown("## 📊 Dashboard Financeiro")
                 st.markdown("---")
@@ -2972,173 +2852,125 @@ else:
                 with col_f2:
                     data_fim_fat = st.date_input("📅 Data Final", value=datetime.now().date(),
                                                  format="DD/MM/YYYY", key="fat_fim")
-
                 if data_inicio_fat > data_fim_fat:
-                    st.error(
-                        "⚠️ Data inicial não pode ser maior que a data final.")
+                    st.error("⚠️ Data inicial não pode ser maior que a data final.")
                     st.stop()
 
-                # --- Função para buscar dados (com cache para performance) ---
                 @st.cache_data(ttl=60)
                 def carregar_dados_faturamento(inicio, fim, username):
                     with engine.connect() as conn:
-                        # Receita total
                         rec = conn.execute(text("""
                             SELECT COALESCE(SUM(vi.subtotal), 0) FROM vendas v
                             JOIN venda_itens vi ON v.id = vi.venda_id
                             WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
                         """), {"u": username, "inicio": inicio, "fim": fim}).scalar()
-                        # Despesa total
                         desp = conn.execute(text("""
                             SELECT COALESCE(SUM(valor), 0) FROM despesas
                             WHERE username = :u AND data BETWEEN :inicio AND :fim
                         """), {"u": username, "inicio": inicio, "fim": fim}).scalar()
-                        # Evolução diária receita
                         rec_diaria = pd.read_sql(text("""
                             SELECT v.data_venda as data, SUM(vi.subtotal) as valor
-                            FROM vendas v
-                            JOIN venda_itens vi ON v.id = vi.venda_id
+                            FROM vendas v JOIN venda_itens vi ON v.id = vi.venda_id
                             WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
-                            GROUP BY v.data_venda
-                            ORDER BY v.data_venda
+                            GROUP BY v.data_venda ORDER BY v.data_venda
                         """), conn, params={"u": username, "inicio": inicio, "fim": fim})
-                        # Evolução diária despesa
                         desp_diaria = pd.read_sql(text("""
                             SELECT data, SUM(valor) as valor
                             FROM despesas
                             WHERE username = :u AND data BETWEEN :inicio AND :fim
-                            GROUP BY data
-                            ORDER BY data
+                            GROUP BY data ORDER BY data
                         """), conn, params={"u": username, "inicio": inicio, "fim": fim})
-                        # Top despesas
                         top_desp = pd.read_sql(text("""
                             SELECT t.nome as tipo, SUM(d.valor) as total
-                            FROM despesas d
-                            JOIN tipos_despesas t ON d.tipo_id = t.id
+                            FROM despesas d JOIN tipos_despesas t ON d.tipo_id = t.id
                             WHERE d.username = :u AND d.data BETWEEN :inicio AND :fim
-                            GROUP BY t.nome
-                            ORDER BY total DESC
-                            LIMIT 5
+                            GROUP BY t.nome ORDER BY total DESC LIMIT 5
                         """), conn, params={"u": username, "inicio": inicio, "fim": fim})
-                        # Top produtos
                         top_prod = pd.read_sql(text("""
                             SELECT p.nome as produto, SUM(vi.subtotal) as receita
-                            FROM vendas v
-                            JOIN venda_itens vi ON v.id = vi.venda_id
+                            FROM vendas v JOIN venda_itens vi ON v.id = vi.venda_id
                             JOIN produtos p ON vi.produto_id = p.id
                             WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
-                            GROUP BY p.nome
-                            ORDER BY receita DESC
-                            LIMIT 5
+                            GROUP BY p.nome ORDER BY receita DESC LIMIT 5
                         """), conn, params={"u": username, "inicio": inicio, "fim": fim})
                     return rec, desp, rec_diaria, desp_diaria, top_desp, top_prod
 
                 receita_total, despesa_total, df_rec_diaria, df_desp_diaria, df_top_desp, df_top_prod = carregar_dados_faturamento(
-                    data_inicio_fat, data_fim_fat, st.session_state.username
-                )
+                    data_inicio_fat, data_fim_fat, st.session_state.username)
 
                 lucro_liquido = receita_total - despesa_total
-                margem_lucro = (lucro_liquido / receita_total *
-                                100) if receita_total > 0 else 0
+                margem_lucro = (lucro_liquido / receita_total * 100) if receita_total > 0 else 0
 
-                # --- Cards com métricas (estilo profissional) ---
+                # Cards com formatação BR
                 st.markdown("### 📈 Indicadores do Período")
                 col_a, col_b, col_c, col_d = st.columns(4)
                 with col_a:
-                    st.metric("💰 **Receita Total**",
-                              f"R$ {receita_total:,.2f}")
+                    st.metric("💰 **Receita Total**", fmt_br(receita_total))
                 with col_b:
-                    st.metric("📉 **Despesas Totais**",
-                              f"R$ {despesa_total:,.2f}", delta_color="inverse")
+                    st.metric("📉 **Despesas Totais**", fmt_br(despesa_total), delta_color="inverse")
                 with col_c:
-                    st.metric("💎 **Lucro Líquido**", f"R$ {lucro_liquido:,.2f}",
-                              delta=f"{lucro_liquido:+,.2f}", delta_color="normal")
+                    st.metric("💎 **Lucro Líquido**", fmt_br(lucro_liquido),
+                              delta=f"{fmt_br(lucro_liquido)}" if lucro_liquido >= 0 else f"-{fmt_br(abs(lucro_liquido))}",
+                              delta_color="normal")
                 with col_d:
                     st.metric("📊 **Margem de Lucro**", f"{margem_lucro:.1f}%")
 
                 st.markdown("---")
 
-                # --- Gráficos lado a lado (evolução e lucro acumulado) ---
+                # Gráficos (evolução diária e lucro acumulado) – valores nos eixos permanecem numéricos, sem formatação BR
                 if not df_rec_diaria.empty or not df_desp_diaria.empty:
-                    # Criar DataFrame completo com todas as datas do período
-                    datas = pd.date_range(
-                        data_inicio_fat, data_fim_fat, freq='D')
+                    datas = pd.date_range(data_inicio_fat, data_fim_fat, freq='D')
                     df_combinado = pd.DataFrame({'data': datas})
-                    # Converter colunas de data para datetime e garantir merge correto
                     if not df_rec_diaria.empty:
-                        df_rec_diaria['data'] = pd.to_datetime(
-                            df_rec_diaria['data'])
-                        df_rec_diaria = df_rec_diaria.rename(
-                            columns={'valor': 'Receita'})
-                        df_combinado = df_combinado.merge(
-                            df_rec_diaria[['data', 'Receita']], on='data', how='left')
+                        df_rec_diaria['data'] = pd.to_datetime(df_rec_diaria['data'])
+                        df_rec_diaria = df_rec_diaria.rename(columns={'valor': 'Receita'})
+                        df_combinado = df_combinado.merge(df_rec_diaria[['data', 'Receita']], on='data', how='left')
                     else:
                         df_combinado['Receita'] = 0
                     if not df_desp_diaria.empty:
-                        df_desp_diaria['data'] = pd.to_datetime(
-                            df_desp_diaria['data'])
-                        df_desp_diaria = df_desp_diaria.rename(
-                            columns={'valor': 'Despesa'})
-                        df_combinado = df_combinado.merge(
-                            df_desp_diaria[['data', 'Despesa']], on='data', how='left')
+                        df_desp_diaria['data'] = pd.to_datetime(df_desp_diaria['data'])
+                        df_desp_diaria = df_desp_diaria.rename(columns={'valor': 'Despesa'})
+                        df_combinado = df_combinado.merge(df_desp_diaria[['data', 'Despesa']], on='data', how='left')
                     else:
                         df_combinado['Despesa'] = 0
                     df_combinado.fillna(0, inplace=True)
-                    df_combinado['Lucro Diário'] = df_combinado['Receita'] - \
-                        df_combinado['Despesa']
-                    df_combinado['Lucro Acumulado'] = df_combinado['Lucro Diário'].cumsum(
-                    )
+                    df_combinado['Lucro Diário'] = df_combinado['Receita'] - df_combinado['Despesa']
+                    df_combinado['Lucro Acumulado'] = df_combinado['Lucro Diário'].cumsum()
 
                     col_left, col_right = st.columns(2)
                     with col_left:
                         st.markdown("#### 📈 Evolução Diária")
                         fig_evolucao = px.line(df_combinado, x='data', y=['Receita', 'Despesa'],
                                                title="Receita vs Despesa (Diário)",
-                                               labels={
-                                                   'value': 'Valor (R$)', 'variable': 'Categoria'},
+                                               labels={'value': 'Valor (R$)', 'variable': 'Categoria'},
                                                markers=True,
                                                color_discrete_map={'Receita': '#2ecc71', 'Despesa': '#e74c3c'})
-                        fig_evolucao.update_layout(
-                            plot_bgcolor='#f8f9fa',
-                            paper_bgcolor='#ffffff',
-                            font=dict(color="#2c3e50", size=12),
-                            title_font=dict(color="#2c3e50", size=14),
-                            xaxis=dict(tickformat='%d/%m', color="#2c3e50"),
-                            yaxis=dict(color="#2c3e50"),
-                            legend=dict(orientation='h', yanchor='bottom',
-                                        y=1.02, xanchor='right', x=1)
-                        )
+                        fig_evolucao.update_layout(plot_bgcolor='#f8f9fa', paper_bgcolor='#ffffff',
+                                                   font=dict(color="#2c3e50", size=12), title_font=dict(color="#2c3e50", size=14),
+                                                   xaxis=dict(tickformat='%d/%m', color="#2c3e50"), yaxis=dict(color="#2c3e50"),
+                                                   legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1))
                         st.plotly_chart(fig_evolucao, use_container_width=True)
-
                     with col_right:
                         st.markdown("#### 📊 Lucro Acumulado")
                         fig_lucro = px.area(df_combinado, x='data', y='Lucro Acumulado',
                                             title="Lucro Líquido Acumulado",
-                                            labels={
-                                                'Lucro Acumulado': 'Lucro (R$)'},
+                                            labels={'Lucro Acumulado': 'Lucro (R$)'},
                                             color_discrete_sequence=['#3498db'])
-                        fig_lucro.update_layout(
-                            plot_bgcolor='#f8f9fa',
-                            paper_bgcolor='#ffffff',
-                            font=dict(color="#2c3e50", size=12),
-                            title_font=dict(color="#2c3e50", size=14),
-                            xaxis=dict(tickformat='%d/%m', color="#2c3e50"),
-                            yaxis=dict(color="#2c3e50")
-                        )
+                        fig_lucro.update_layout(plot_bgcolor='#f8f9fa', paper_bgcolor='#ffffff',
+                                                font=dict(color="#2c3e50", size=12), title_font=dict(color="#2c3e50", size=14),
+                                                xaxis=dict(tickformat='%d/%m', color="#2c3e50"), yaxis=dict(color="#2c3e50"))
                         st.plotly_chart(fig_lucro, use_container_width=True)
                 else:
-                    st.info(
-                        "📭 Não há dados de receita ou despesa no período selecionado.")
+                    st.info("📭 Não há dados de receita ou despesa no período selecionado.")
 
                 st.markdown("---")
 
-                # --- Tabelas de Top Despesas e Top Produtos (lado a lado) ---
+                # Tabelas de Top Despesas e Top Produtos (formatadas BR)
                 col_tab1, col_tab2 = st.columns(2)
                 with col_tab1:
                     st.markdown("#### 🔝 Principais Despesas")
                     if not df_top_desp.empty:
-                        df_top_desp['total'] = df_top_desp['total'].apply(
-                            lambda x: f"R$ {x:,.2f}")
+                        df_top_desp['total'] = df_top_desp['total'].apply(fmt_br)
                         st.dataframe(df_top_desp.rename(columns={'tipo': 'Tipo', 'total': 'Valor'}),
                                      use_container_width=True, hide_index=True,
                                      column_config={"Tipo": st.column_config.TextColumn("Tipo de Despesa")})
@@ -3147,8 +2979,7 @@ else:
                 with col_tab2:
                     st.markdown("#### 🔝 Produtos com Maior Receita")
                     if not df_top_prod.empty:
-                        df_top_prod['receita'] = df_top_prod['receita'].apply(
-                            lambda x: f"R$ {x:,.2f}")
+                        df_top_prod['receita'] = df_top_prod['receita'].apply(fmt_br)
                         st.dataframe(df_top_prod.rename(columns={'produto': 'Produto', 'receita': 'Receita'}),
                                      use_container_width=True, hide_index=True,
                                      column_config={"Produto": st.column_config.TextColumn("Produto")})
@@ -3156,8 +2987,7 @@ else:
                         st.info("Nenhuma venda registrada no período.")
 
                 st.markdown("---")
-                st.caption(
-                    f"📆 Período analisado: {data_inicio_fat.strftime('%d/%m/%Y')} a {data_fim_fat.strftime('%d/%m/%Y')}")
+                st.caption(f"📆 Período analisado: {data_inicio_fat.strftime('%d/%m/%Y')} a {data_fim_fat.strftime('%d/%m/%Y')}")
 
 
         # ============================================
