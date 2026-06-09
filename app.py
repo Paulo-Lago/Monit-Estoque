@@ -1845,7 +1845,7 @@ else:
                             valor_pendente_br = fmt_br(valor_devendo_atual)
                             st.info(f"💰 **Valor pendente:** {valor_pendente_br}")
                             with st.form("form_receber_pagamento"):
-                                st.caption("Use **ponto** como separador decimal (ex: 123.45)")
+                                
                                 valor_recebido = st.number_input(
                                     "Valor Recebido agora (R$)",
                                     min_value=0.0,
