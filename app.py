@@ -1983,7 +1983,10 @@ else:
                         tab_pag, tab_edit, tab_del = st.tabs(
                             ["💰 Registrar Pagamento", "✏️ Editar Venda", "🗑️ Excluir Venda"])
                         with tab_pag:
+                            valor_pendente_br = f"R$ {valor_devendo_atual:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                            st.info(f"💰 **Valor pendente:** {valor_pendente_br}")
                             with st.form("form_receber_pagamento"):
+                                st.caption("Use **ponto** como separador decimal (ex: 123.45)")
                                 valor_recebido = st.number_input(
                                     "Valor Recebido agora (R$)",
                                     min_value=0.0,
@@ -1992,7 +1995,7 @@ else:
                                     format="%.2f",
                                     value=min(50.0, float(valor_devendo_atual))
                                 )
-                                if st.form_submit_button("Confirmar Recebimento"):
+                                if st.form_submit_button("Confirmar Recebimento"):                                    
                                     novo_pago = valor_pago_atual + valor_recebido
                                     with engine.connect() as conn:
                                         conn.execute(text("UPDATE vendas SET valor_pago = :novo WHERE id = :id"), {
@@ -2057,6 +2060,7 @@ else:
                                     format_func=lambda x: df_formas_edit[df_formas_edit['id'] == x].iloc[0]['nome'],
                                     index=df_formas_edit[df_formas_edit['id'] == venda_atual['forma_pagamento_id']].index[0] if venda_atual['forma_pagamento_id'] in df_formas_edit['id'].values else 0
                                 )
+                                st.caption("Use **ponto** como separador decimal (ex: 100.50)")
                                 novo_valor_pago = st.number_input("💰 Valor Pago (R$)", min_value=0.0, value=float(venda_atual['valor_pago']), step=0.01, format="%.2f")
                                 novo_recibo = st.text_input("🧾 N° Recibo", value=venda_atual.get('numero_recibo', ''))
 
@@ -2137,12 +2141,15 @@ else:
                             novo_valor_devendo = max(0, total_carrinho - novo_valor_pago)
 
                             colr1, colr2, colr3 = st.columns(3)
+
+                            def fmt_br(valor):
+                                return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                             with colr1:
-                                st.metric("💰 Novo Valor Total", f"R$ {total_carrinho:.2f}")
+                                st.metric("💰 Novo Valor Total", fmt_br(total_carrinho))
                             with colr2:
-                                st.metric("💵 Valor Pago", f"R$ {novo_valor_pago:.2f}")
+                                st.metric("💵 Valor Pago", fmt_br(novo_valor_pago))
                             with colr3:
-                                st.metric("⚠️ Novo Saldo Devedor", f"R$ {novo_valor_devendo:.2f}")
+                                st.metric("⚠️ Novo Saldo Devedor", fmt_br(novo_valor_devendo))
 
                             if st.button("💾 Salvar Todas as Alterações", type="primary", use_container_width=True):
                                 try:
