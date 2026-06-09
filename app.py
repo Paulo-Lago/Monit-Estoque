@@ -2832,7 +2832,7 @@ else:
                                 except Exception as e:
                                     st.error(f"Erro ao excluir: {e}")
 
-            # ---------- SUBABA: RECEITA DE VENDAS ----------
+            # ---------- SUBABA: RECEITA DE VENDAS (FORMATADA BR) ----------
             with fat_interno[1]:
                 st.markdown("### 📊 Receita de Vendas por Período")
 
@@ -2868,40 +2868,33 @@ else:
                 if df_receita.empty:
                     st.info("Nenhuma venda encontrada no período selecionado.")
                 else:
-                    # Totais gerais
+                    # Totais gerais (formatados BR)
                     total_geral_valor = df_receita['valor_total'].sum()
                     total_geral_unidades = df_receita['total_unidades'].sum()
 
                     col_c1, col_c2 = st.columns(2)
                     with col_c1:
-                        st.metric("💰 Receita Total",
-                                  f"R$ {total_geral_valor:,.2f}")
+                        st.metric("💰 Receita Total", fmt_br(total_geral_valor))
                     with col_c2:
-                        st.metric("📦 Total de Itens Vendidos",
-                                  f"{total_geral_unidades:,.0f}")
+                        st.metric("📦 Total de Itens Vendidos", f"{total_geral_unidades:,.0f}")
 
                     st.divider()
 
-                    # Tabela de receita por produto
+                    # Tabela de receita por produto (formatada BR)
                     st.markdown("#### Receita por Tipo de Produto")
                     df_display = df_receita.copy()
-                    df_display['valor_total'] = df_display['valor_total'].apply(
-                        lambda x: f"R$ {x:,.2f}")
+                    df_display['valor_total'] = df_display['valor_total'].apply(fmt_br)
                     df_display = df_display.rename(columns={
                         'produto': 'Produto',
                         'total_unidades': 'Unidades Vendidas',
                         'valor_total': 'Valor Total (R$)'
                     })
-                    st.dataframe(
-                        df_display, use_container_width=True, hide_index=True)
+                    st.dataframe(df_display, use_container_width=True, hide_index=True)
 
                     st.divider()
 
-                    # Gráfico de linha: valor por produto
-                    st.markdown(
-                        "#### Evolução do Valor Vendido por Produto (Gráfico de Linha)")
-                    # Para gráfico de linha, precisamos da evolução ao longo do tempo, não apenas total.
-                    # Vamos buscar dados diários por produto
+                    # Gráfico de linha: evolução diária dos produtos (valores no eixo Y continuam numéricos)
+                    st.markdown("#### Evolução do Valor Vendido por Produto (Gráfico de Linha)")
                     query_evolucao = """
                         SELECT
                             v.data_venda,
@@ -2920,14 +2913,11 @@ else:
                         "inicio": data_inicio_vendas,
                         "fim": data_fim_vendas
                     })
-
                     if not df_evolucao.empty:
-                        df_pivot = df_evolucao.pivot(
-                            index='data_venda', columns='produto', values='valor_dia').fillna(0)
+                        df_pivot = df_evolucao.pivot(index='data_venda', columns='produto', values='valor_dia').fillna(0)
                         fig = px.line(df_pivot, x=df_pivot.index, y=df_pivot.columns,
                                       title="Receita Diária por Produto",
-                                      labels={
-                                          'value': 'Receita (R$)', 'variable': 'Produto'},
+                                      labels={'value': 'Receita (R$)', 'variable': 'Produto'},
                                       markers=True)
                         fig.update_layout(
                             plot_bgcolor='#ffffff',
@@ -2941,21 +2931,22 @@ else:
                     else:
                         st.info("Dados insuficientes para gráfico de linha.")
 
-                    # Gráfico de barras horizontal com ranking
+                    # Gráfico de barras horizontal com ranking (formatado BR no eixo X)
                     st.markdown("#### Ranking de Vendas por Produto")
                     fig_rank = px.bar(df_receita, x='valor_total', y='produto', orientation='h',
                                       title="Total Vendido por Produto (R$)",
-                                      labels={
-                                          'valor_total': 'Receita (R$)', 'produto': 'Produto'},
+                                      labels={'valor_total': 'Receita (R$)', 'produto': 'Produto'},
                                       text_auto=True, color='valor_total', color_continuous_scale='Blues')
                     fig_rank.update_layout(
                         plot_bgcolor='#ffffff',
                         paper_bgcolor='#ffffff',
                         font=dict(color="#000000", size=12),
                         title_font=dict(color="#000000"),
-                        xaxis=dict(color="#000000"),
+                        xaxis=dict(color="#000000", tickformat=",.2f", title="Receita (R$)"),
                         yaxis=dict(color="#000000")
                     )
+                    # Ajusta os valores no texto das barras para formato BR (opcional)
+                    fig_rank.update_traces(texttemplate='%{x:,.2f}', textposition='outside')
                     st.plotly_chart(fig_rank, use_container_width=True)
 
             # ---------- SUBABA: FATURAMENTO (PROFISSIONAL) - FORMATADO BR ----------
