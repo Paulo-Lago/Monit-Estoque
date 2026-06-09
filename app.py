@@ -1570,26 +1570,32 @@ else:
                                                         "subtotal": item['subtotal']
                                                     })
                                                     atualizar_estoque(item['produto_id'], -item['quantidade'])
-                                         # Gerar o PDF do recibo (usando ReportLab)
+
+                                        # Gerar o PDF do recibo (usando ReportLab)
                                         pdf_bytes = gerar_pdf_recibo_reportlab(
                                             dados_venda=dados_venda,
                                             itens=st.session_state.carrinho,
                                             numero_recibo=dados_venda.get('numero_recibo', 'N/A')
                                         )
 
-                                        st.download_button(
-                                            label="📄 Baixar Recibo PDF",
-                                            data=pdf_bytes,
-                                            file_name=f"recibo_{dados_venda.get('numero_recibo', 'venda')}.pdf",
-                                            mime="application/pdf"
-                                        )
-                                        # ===============================================================
-
+                                        # Exibir botões de download e finalização (sem rerun imediato)
                                         st.balloons()
                                         st.success("✅ Venda registrada com sucesso e estoque atualizado!")
-                                        st.session_state.carrinho = []
-                                        st.session_state.mostrar_confirmacao = False
-                                        st.rerun()
+
+                                        col_download, col_finalizar = st.columns(2)
+                                        with col_download:
+                                            st.download_button(
+                                                label="📄 Baixar Recibo PDF",
+                                                data=pdf_bytes,
+                                                file_name=f"recibo_{dados_venda.get('numero_recibo', 'venda')}.pdf",
+                                                mime="application/pdf"
+                                            )
+                                        with col_finalizar:
+                                            if st.button("✅ Finalizar e fazer nova venda"):
+                                                st.session_state.carrinho = []
+                                                st.session_state.mostrar_confirmacao = False
+                                                st.rerun()
+
                                     except Exception as e:
                                         st.error(f"Erro ao registrar venda: {e}")
                             with col_btn2:
