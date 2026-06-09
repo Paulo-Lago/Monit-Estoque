@@ -1747,13 +1747,14 @@ else:
                         query += " AND c.nome ILIKE :busca"
                         params["busca"] = f"%{busca}%"
 
-                    # Agrupa e ordena
+                    # Agrupa e ordena (SEMPRE por último!)
                     query += """
                         GROUP BY v.id, v.data_venda, c.nome, v.numero_recibo, v.valor_pago, v.observacoes
                         ORDER BY v.data_venda DESC
                     """
 
                     df_vendas = pd.read_sql(text(query), engine, params=params)
+
                     # ... restante do código (exibição da tabela)
                     if df_vendas.empty:
                         st.info("Nenhuma venda encontrada.")
