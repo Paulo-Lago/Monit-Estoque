@@ -1708,7 +1708,12 @@ else:
                             c.nome as cliente,
                             COALESCE(
                                 STRING_AGG(
-                                    CONCAT(COALESCE(p.nome, 'Produto sem nome'), ' (', ROUND(vi.quantidade::numeric, 2), ' un)'),
+                                    CONCAT(
+                                        COALESCE(p.nome, 'Produto sem nome'),
+                                        ' (',
+                                        ROUND(vi.quantidade::numeric, 2),
+                                        ' un)'
+                                    ),
                                     ', ' ORDER BY p.nome
                                 ),
                                 'Sem produtos'
@@ -1731,26 +1736,38 @@ else:
                         "fim": data_fim
                     }
 
-                    # Adiciona filtro de cliente
+                    # filtro cliente
                     if cliente_filtro != "Todos":
                         query += " AND c.nome = :cliente"
                         params["cliente"] = cliente_filtro
 
-                    # Adiciona filtro de status (Quitadas / Com Pendência)
+                    # filtro status
                     if status_filtro == "Quitadas":
-                        query += " AND (v.valor_total - v.valor_pago) <= 0"
+                        query += " AND (COALESCE(v.valor_total,0) - v.valor_pago) <= 0"
                     elif status_filtro == "Com Pendência":
-                        query += " AND (v.valor_total - v.valor_pago) > 0"
+                        query += " AND (COALESCE(v.valor_total,0) - v.valor_pago) > 0"
 
-                    # Adiciona busca por texto
+                    # busca texto
                     if busca:
-                        query += " AND c.nome ILIKE :busca"
+                        query += """
+                            AND (
+                                c.nome ILIKE :busca
+                                OR p.nome ILIKE :busca
+                            )
+                        """
                         params["busca"] = f"%{busca}%"
 
-                    # Agrupa e ordena (SEMPRE por último!)
+                    # FINAL DA QUERY
                     query += """
-                        GROUP BY v.id, v.data_venda, c.nome, v.numero_recibo, v.valor_pago, v.observacoes
-                        ORDER BY v.data_venda DESC
+                        GROUP BY
+                            v.id,
+                            v.data_venda,
+                            v.numero_recibo,
+                            c.nome,
+                            v.valor_pago,
+                            v.observacoes
+                        ORDER BY
+                            v.data_venda DESC
                     """
 
                     df_vendas = pd.read_sql(text(query), engine, params=params)
