@@ -2832,12 +2832,131 @@ else:
                                 except Exception as e:
                                     st.error(f"Erro ao excluir: {e}")
 
-            # ---------- SUBABA: RECEITA DE VENDAS (sem alterações, mas mantida) ----------
+            # ---------- SUBABA: RECEITA DE VENDAS ----------
             with fat_interno[1]:
-                # Código original da Receita de Vendas - manter exatamente como está
-                # Apenas se houver exibição de valores, usar fmt_br, mas não é obrigatório.
                 st.markdown("### 📊 Receita de Vendas por Período")
-                # ... (código original) ...
+
+                # Filtros de data
+                col_f1, col_f2 = st.columns(2)
+                with col_f1:
+                    data_inicio_vendas = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=30),
+                                                       format="DD/MM/YYYY", key="receita_inicio")
+                with col_f2:
+                    data_fim_vendas = st.date_input("Data Final", value=datetime.now().date(),
+                                                    format="DD/MM/YYYY", key="receita_fim")
+
+                # Query para obter receita por produto no período
+                query_receita = """
+                    SELECT
+                        p.nome as produto,
+                        SUM(vi.quantidade) as total_unidades,
+                        SUM(vi.subtotal) as valor_total
+                    FROM vendas v
+                    JOIN venda_itens vi ON v.id = vi.venda_id
+                    JOIN produtos p ON vi.produto_id = p.id
+                    WHERE v.username = :u
+                        AND v.data_venda BETWEEN :inicio AND :fim
+                    GROUP BY p.nome
+                    ORDER BY valor_total DESC
+                """
+                df_receita = pd.read_sql(text(query_receita), engine, params={
+                    "u": st.session_state.username,
+                    "inicio": data_inicio_vendas,
+                    "fim": data_fim_vendas
+                })
+
+                if df_receita.empty:
+                    st.info("Nenhuma venda encontrada no período selecionado.")
+                else:
+                    # Totais gerais
+                    total_geral_valor = df_receita['valor_total'].sum()
+                    total_geral_unidades = df_receita['total_unidades'].sum()
+
+                    col_c1, col_c2 = st.columns(2)
+                    with col_c1:
+                        st.metric("💰 Receita Total",
+                                  f"R$ {total_geral_valor:,.2f}")
+                    with col_c2:
+                        st.metric("📦 Total de Itens Vendidos",
+                                  f"{total_geral_unidades:,.0f}")
+
+                    st.divider()
+
+                    # Tabela de receita por produto
+                    st.markdown("#### Receita por Tipo de Produto")
+                    df_display = df_receita.copy()
+                    df_display['valor_total'] = df_display['valor_total'].apply(
+                        lambda x: f"R$ {x:,.2f}")
+                    df_display = df_display.rename(columns={
+                        'produto': 'Produto',
+                        'total_unidades': 'Unidades Vendidas',
+                        'valor_total': 'Valor Total (R$)'
+                    })
+                    st.dataframe(
+                        df_display, use_container_width=True, hide_index=True)
+
+                    st.divider()
+
+                    # Gráfico de linha: valor por produto
+                    st.markdown(
+                        "#### Evolução do Valor Vendido por Produto (Gráfico de Linha)")
+                    # Para gráfico de linha, precisamos da evolução ao longo do tempo, não apenas total.
+                    # Vamos buscar dados diários por produto
+                    query_evolucao = """
+                        SELECT
+                            v.data_venda,
+                            p.nome as produto,
+                            SUM(vi.subtotal) as valor_dia
+                        FROM vendas v
+                        JOIN venda_itens vi ON v.id = vi.venda_id
+                        JOIN produtos p ON vi.produto_id = p.id
+                        WHERE v.username = :u
+                            AND v.data_venda BETWEEN :inicio AND :fim
+                        GROUP BY v.data_venda, p.nome
+                        ORDER BY v.data_venda, p.nome
+                    """
+                    df_evolucao = pd.read_sql(text(query_evolucao), engine, params={
+                        "u": st.session_state.username,
+                        "inicio": data_inicio_vendas,
+                        "fim": data_fim_vendas
+                    })
+
+                    if not df_evolucao.empty:
+                        df_pivot = df_evolucao.pivot(
+                            index='data_venda', columns='produto', values='valor_dia').fillna(0)
+                        fig = px.line(df_pivot, x=df_pivot.index, y=df_pivot.columns,
+                                      title="Receita Diária por Produto",
+                                      labels={
+                                          'value': 'Receita (R$)', 'variable': 'Produto'},
+                                      markers=True)
+                        fig.update_layout(
+                            plot_bgcolor='#ffffff',
+                            paper_bgcolor='#ffffff',
+                            font=dict(color="#000000", size=12),
+                            title_font=dict(color="#000000"),
+                            xaxis=dict(tickformat='%d/%m', color="#000000"),
+                            yaxis=dict(color="#000000")
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("Dados insuficientes para gráfico de linha.")
+
+                    # Gráfico de barras horizontal com ranking
+                    st.markdown("#### Ranking de Vendas por Produto")
+                    fig_rank = px.bar(df_receita, x='valor_total', y='produto', orientation='h',
+                                      title="Total Vendido por Produto (R$)",
+                                      labels={
+                                          'valor_total': 'Receita (R$)', 'produto': 'Produto'},
+                                      text_auto=True, color='valor_total', color_continuous_scale='Blues')
+                    fig_rank.update_layout(
+                        plot_bgcolor='#ffffff',
+                        paper_bgcolor='#ffffff',
+                        font=dict(color="#000000", size=12),
+                        title_font=dict(color="#000000"),
+                        xaxis=dict(color="#000000"),
+                        yaxis=dict(color="#000000")
+                    )
+                    st.plotly_chart(fig_rank, use_container_width=True)
 
             # ---------- SUBABA: FATURAMENTO (PROFISSIONAL) - FORMATADO BR ----------
             with fat_interno[2]:
