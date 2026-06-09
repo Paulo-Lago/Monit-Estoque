@@ -6,7 +6,7 @@ import base64
 from pathlib import Path
 import plotly.express as px
 
-# ==================== FUNÇÃO DE GERAR PDF (REPORTLAB) ====================
+
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.lib import colors
@@ -16,6 +16,68 @@ from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from io import BytesIO
 from pathlib import Path
 
+import requests
+import tempfile
+import os
+
+# ==================== EVOLUTION API ====================
+def get_evolution_config():
+    return {
+        "url": st.secrets.get("evolution", {}).get("url", "http://localhost:8080"),
+        "api_key": st.secrets.get("evolution", {}).get("api_key", ""),
+        "instance": st.secrets.get("evolution", {}).get("instance", "default")
+    }
+
+def enviar_pdf_whatsapp(telefone_cliente, pdf_bytes, nome_cliente, numero_recibo):
+    """
+    Envia PDF pelo WhatsApp usando Evolution API.
+    telefone_cliente: string com DDD e número (pode conter espaços, traços)
+    Retorna (sucesso, mensagem)
+    """
+    if not telefone_cliente:
+        return False, "Cliente sem telefone cadastrado."
+    
+    # Limpa o número: só dígitos
+    numero_limpo = ''.join(filter(str.isdigit, telefone_cliente))
+    if not numero_limpo.startswith('55'):
+        numero_limpo = '55' + numero_limpo
+    
+    config = get_evolution_config()
+    if not config["api_key"]:
+        return False, "Evolution API não configurada (api_key ausente)"
+    
+    try:
+        # Salva PDF temporariamente
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+            tmp.write(pdf_bytes)
+            tmp_path = tmp.name
+        
+        url = f"{config['url']}/instance/{config['instance']}/send-document"
+        headers = {"apikey": config["api_key"]}
+        
+        caption = f"""Olá {nome_cliente}, segue o recibo da sua compra.
+Nº do recibo: {numero_recibo}
+Obrigado pela preferência! 🐔"""
+        
+        with open(tmp_path, 'rb') as f:
+            files = {'file': (f'recibo_{numero_recibo}.pdf', f, 'application/pdf')}
+            data = {
+                'number': numero_limpo,
+                'caption': caption,
+                'options': {'delay': 1200, 'presence': 'composing'}
+            }
+            response = requests.post(url, headers=headers, data=data, files=files, timeout=30)
+        
+        os.unlink(tmp_path)
+        
+        if response.status_code in (200, 201):
+            return True, "Recibo enviado com sucesso!"
+        else:
+            return False, f"Erro Evolution: {response.status_code}"
+    except Exception as e:
+        return False, f"Erro ao enviar: {str(e)}"
+
+# ==================== FUNÇÃO DE GERAR PDF (REPORTLAB) ====================
 def gerar_pdf_recibo_reportlab(dados_venda, itens, numero_recibo):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1.5*cm, bottomMargin=1.5*cm, leftMargin=2*cm, rightMargin=2*cm)
@@ -1582,6 +1644,28 @@ else:
                                         st.balloons()
                                         st.success("✅ Venda registrada com sucesso e estoque atualizado!")
 
+                                        # ----- Envio automático por WhatsApp -----
+                                        if dados_venda.get('enviar_whatsapp', False):
+                                            with engine.connect() as conn:
+                                                telefone = conn.execute(
+                                                    text("SELECT telefone FROM clientes WHERE id = :id"),
+                                                    {"id": dados_venda['cliente_id']}
+                                                ).scalar()
+                                            
+                                            if telefone:
+                                                sucesso, msg = enviar_pdf_whatsapp(
+                                                    telefone_cliente=telefone,
+                                                    pdf_bytes=pdf_bytes,
+                                                    nome_cliente=dados_venda['cliente_nome'],
+                                                    numero_recibo=dados_venda.get('numero_recibo', 'N/A')
+                                                )
+                                                if sucesso:
+                                                    st.success(f"✅ {msg}")
+                                                else:
+                                                    st.warning(f"⚠️ WhatsApp: {msg}")
+                                            else:
+                                                st.info("ℹ️ Cliente sem telefone cadastrado. Recibo não enviado.")
+
                                         col_download, col_finalizar = st.columns(2)
                                         with col_download:
                                             st.download_button(
@@ -1684,6 +1768,7 @@ else:
 
                         numero_recibo = st.text_input("🧾 N° do Recibo (opcional)", key="venda_recibo")
                         observacoes = st.text_area("📝 Observações (opcional)", key="venda_obs", placeholder="Ex: Entrega agendada, troco, etc.")
+                        enviar_whatsapp = st.checkbox("📱 Enviar recibo por WhatsApp", value=True, key="envia_whats")
 
                         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1698,7 +1783,8 @@ else:
                                 "valor_total": valor_total_carrinho,
                                 "valor_devendo": valor_devendo,
                                 "observacoes": observacoes,
-                                "numero_recibo": numero_recibo
+                                "numero_recibo": numero_recibo,
+                                "enviar_whatsapp": enviar_whatsapp   # <--- NOVO
                             }
                             st.session_state.mostrar_confirmacao = True
                             st.rerun()
