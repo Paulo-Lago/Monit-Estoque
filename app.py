@@ -1741,11 +1741,20 @@ else:
                         query += " AND c.nome = :cliente"
                         params["cliente"] = cliente_filtro
 
+                    having_clause = ""
+
                     # filtro status
                     if status_filtro == "Quitadas":
-                        query += " AND (COALESCE(v.valor_total,0) - v.valor_pago) <= 0"
+                        having_clause = """
+                            HAVING
+                            (COALESCE(SUM(vi.subtotal), 0) - v.valor_pago) <= 0
+                        """
+
                     elif status_filtro == "Com Pendência":
-                        query += " AND (COALESCE(v.valor_total,0) - v.valor_pago) > 0"
+                        having_clause = """
+                            HAVING
+                            (COALESCE(SUM(vi.subtotal), 0) - v.valor_pago) > 0
+                        """
 
                     # busca texto
                     if busca:
@@ -1758,7 +1767,7 @@ else:
                         params["busca"] = f"%{busca}%"
 
                     # FINAL DA QUERY
-                    query += """
+                    query += f"""
                         GROUP BY
                             v.id,
                             v.data_venda,
@@ -1766,6 +1775,9 @@ else:
                             c.nome,
                             v.valor_pago,
                             v.observacoes
+
+                        {having_clause}
+
                         ORDER BY
                             v.data_venda DESC
                     """
