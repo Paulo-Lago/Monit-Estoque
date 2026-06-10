@@ -1682,6 +1682,8 @@ else:
                                                 # Força a limpeza de qualquer outro estado residual
                                                 st.session_state.pop("dados_venda", None)
                                                 # Recarrega a página
+                                                import time
+                                                time.sleep(0.1)  # pequeno delay para garantir que o estado seja atualizado
                                                 st.rerun()
 
                                     except Exception as e:
