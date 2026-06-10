@@ -1666,31 +1666,32 @@ else:
                                             else:
                                                 st.info("ℹ️ Cliente sem telefone cadastrado. Recibo não enviado.")
 
-                                        col_download, col_finalizar = st.columns(2)
-                                        with col_download:
-                                            st.download_button(
-                                                label="📄 Baixar Recibo PDF",
-                                                data=pdf_bytes,
-                                                file_name=f"recibo_{dados_venda.get('numero_recibo', 'venda')}.pdf",
-                                                mime="application/pdf"
-                                            )
-                                        with col_finalizar:
-                                            if st.button("✅ Finalizar e fazer nova venda", key="finalizar_nova_venda"):
-                                                st.write("Botão clicado!")  # debug
-                                                # Limpa o carrinho e o modo confirmação
-                                                st.session_state.carrinho = []
-                                                st.session_state.mostrar_confirmacao = False
-                                                # Força a limpeza de qualquer outro estado residual
-                                                st.session_state.pop("dados_venda", None)
-                                                # Recarrega a página
-                                                st.rerun()
-
                                     except Exception as e:
                                         st.error(f"Erro ao registrar venda: {e}")
                             with col_btn2:
                                 if st.button("✏️ Voltar e editar", use_container_width=True):
                                     st.session_state.mostrar_confirmacao = False
                                     st.rerun()
+
+                            # Botões de download e nova venda FORA das colunas, após o processamento
+                            if st.session_state.get("venda_finalizada", False):
+                                col_download, col_finalizar = st.columns(2)
+                                with col_download:
+                                    st.download_button(
+                                        label="📄 Baixar Recibo PDF",
+                                        data=st.session_state.pdf_bytes,
+                                        file_name=f"recibo_{st.session_state.dados_venda.get('numero_recibo', 'venda')}.pdf",
+                                        mime="application/pdf"
+                                    )
+                                with col_finalizar:
+                                    if st.button("✅ Finalizar e fazer nova venda"):
+                                        # Limpa tudo
+                                        st.session_state.carrinho = []
+                                        st.session_state.mostrar_confirmacao = False
+                                        st.session_state.venda_finalizada = False
+                                        st.session_state.pop("pdf_bytes", None)
+                                        st.session_state.pop("dados_venda", None)
+                                        st.rerun()
 
                     # ==================== MODO CARRINHO ====================
                     else:
