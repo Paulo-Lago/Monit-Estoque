@@ -1597,6 +1597,7 @@ else:
                             st.warning("⚠️ Confirme os dados. Após salvar, não será possível editar diretamente.")
 
                             col_btn1, col_btn2 = st.columns(2)
+                            
                             with col_btn1:
                                 if st.button("✅ Confirmar e Registrar", type="primary", use_container_width=True):
                                     try:
@@ -1633,16 +1634,12 @@ else:
                                                     })
                                                     atualizar_estoque(item['produto_id'], -item['quantidade'])
 
-                                        # Gerar o PDF do recibo (usando ReportLab)
+                                        # Gerar o PDF do recibo
                                         pdf_bytes = gerar_pdf_recibo_reportlab(
                                             dados_venda=dados_venda,
                                             itens=st.session_state.carrinho,
                                             numero_recibo=dados_venda.get('numero_recibo', 'N/A')
                                         )
-
-                                        # Exibir botões de download e finalização (sem rerun imediato)
-                                        st.balloons()
-                                        st.success("✅ Venda registrada com sucesso e estoque atualizado!")
 
                                         # ----- Envio automático por WhatsApp -----
                                         if dados_venda.get('enviar_whatsapp', False):
@@ -1651,7 +1648,6 @@ else:
                                                     text("SELECT telefone FROM clientes WHERE id = :id"),
                                                     {"id": dados_venda['cliente_id']}
                                                 ).scalar()
-                                            
                                             if telefone:
                                                 sucesso, msg = enviar_pdf_whatsapp(
                                                     telefone_cliente=telefone,
@@ -1666,32 +1662,48 @@ else:
                                             else:
                                                 st.info("ℹ️ Cliente sem telefone cadastrado. Recibo não enviado.")
 
+                                        # Armazena dados para pós-venda
+                                        st.session_state.venda_finalizada = True
+                                        st.session_state.pdf_bytes = pdf_bytes
+                                        st.session_state.dados_venda_pos = dados_venda
+                                        
+                                        st.balloons()
+                                        st.success("✅ Venda registrada com sucesso e estoque atualizado!")
+                                        
+                                        # Força recarregar para mostrar os botões de download
+                                        st.rerun()
+
                                     except Exception as e:
                                         st.error(f"Erro ao registrar venda: {e}")
+                            
                             with col_btn2:
                                 if st.button("✏️ Voltar e editar", use_container_width=True):
                                     st.session_state.mostrar_confirmacao = False
                                     st.rerun()
 
-                            # Botões de download e nova venda FORA das colunas, após o processamento
-                            if st.session_state.get("venda_finalizada", False):
-                                col_download, col_finalizar = st.columns(2)
-                                with col_download:
-                                    st.download_button(
-                                        label="📄 Baixar Recibo PDF",
-                                        data=st.session_state.pdf_bytes,
-                                        file_name=f"recibo_{st.session_state.dados_venda.get('numero_recibo', 'venda')}.pdf",
-                                        mime="application/pdf"
-                                    )
-                                with col_finalizar:
-                                    if st.button("✅ Finalizar e fazer nova venda"):
-                                        # Limpa tudo
-                                        st.session_state.carrinho = []
-                                        st.session_state.mostrar_confirmacao = False
-                                        st.session_state.venda_finalizada = False
-                                        st.session_state.pop("pdf_bytes", None)
-                                        st.session_state.pop("dados_venda", None)
-                                        st.rerun()
+                    # ==================== BOTÕES DE PÓS-VENDA (FORA DO BLOCO DE CONFIRMAÇÃO) ====================
+                    if st.session_state.get("venda_finalizada", False):
+                        st.divider()
+                        st.markdown("### ✅ Venda concluída com sucesso!")
+                        
+                        col_download, col_finalizar = st.columns(2)
+                        with col_download:
+                            st.download_button(
+                                label="📄 Baixar Recibo PDF",
+                                data=st.session_state.pdf_bytes,
+                                file_name=f"recibo_{st.session_state.dados_venda_pos.get('numero_recibo', 'venda')}.pdf",
+                                mime="application/pdf"
+                            )
+                        with col_finalizar:
+                            if st.button("✅ Finalizar e fazer nova venda", type="primary", use_container_width=True):
+                                # Limpa tudo
+                                st.session_state.carrinho = []
+                                st.session_state.mostrar_confirmacao = False
+                                st.session_state.venda_finalizada = False
+                                st.session_state.pop("pdf_bytes", None)
+                                st.session_state.pop("dados_venda", None)
+                                st.session_state.pop("dados_venda_pos", None)
+                                st.rerun()
 
                     # ==================== MODO CARRINHO ====================
                     else:
