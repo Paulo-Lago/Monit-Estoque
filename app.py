@@ -3107,6 +3107,10 @@ else:
                                                               value=float(despesa_edit['valor']), format="%.2f")
                                 nova_obs = st.text_area("Observação", value=despesa_edit.get('observacao', ''))
                             if st.form_submit_button("Salvar alterações"):
+                                chave_acao = "atualizar_despesa"
+                                payload_acao = (st.session_state.username, despesa_id, nova_data, novo_tipo_id, novo_valor, nova_obs)
+                                if acao_repetida(chave_acao, payload_acao):
+                                    st.stop()
                                 try:
                                     with engine.connect() as conn:
                                         conn.execute(text("""
@@ -3124,8 +3128,8 @@ else:
                                         conn.commit()
                                     registrar_log("UPDATE", "despesas", despesa_id, f"Editou despesa para R$ {novo_valor:.2f}")
                                     st.success("Despesa atualizada!")
-                                    st.rerun()
                                 except Exception as e:
+                                    liberar_acao(chave_acao)
                                     st.error(f"Erro ao atualizar: {e}")
 
                         st.markdown("---")
