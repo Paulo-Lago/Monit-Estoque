@@ -19,6 +19,7 @@ from pathlib import Path
 import requests
 import tempfile
 import os
+import time
 
 # ==================== EVOLUTION API ====================
 def get_evolution_config():
@@ -261,6 +262,25 @@ TIPOS_OVO = ["A", "B", "Jumbo", "Extra"]
 GALPOES = ["Galpão 2", "Galpão 3"]
 CORES = ["Branco", "Vermelho"]
 
+
+def acao_repetida(chave, payload=None, intervalo=8):
+    """Evita que o mesmo envio seja processado duas vezes em poucos segundos."""
+    agora = time.time()
+    assinatura = repr(payload)
+    cache = st.session_state.setdefault("_acoes_recentes", {})
+    ultima = cache.get(chave)
+
+    if ultima and ultima["assinatura"] == assinatura and agora - ultima["quando"] < intervalo:
+        st.warning("Essa ação já foi enviada. Aguarde alguns segundos antes de tentar novamente.")
+        return True
+
+    cache[chave] = {"assinatura": assinatura, "quando": agora}
+    return False
+
+
+def liberar_acao(chave):
+    st.session_state.get("_acoes_recentes", {}).pop(chave, None)
+
 # ==================== LOGIN ====================
 if not st.session_state.logged_in:
     st.markdown("<h1>🐔 Estoque de Ovos Pro</h1>", unsafe_allow_html=True)
@@ -296,6 +316,10 @@ if not st.session_state.logged_in:
     with col2:
         if st.button("Criar Conta", width='stretch'):
             if user and pw:
+                chave_acao = "criar_conta"
+                payload_acao = (user,)
+                if acao_repetida(chave_acao, payload_acao):
+                    st.stop()
                 try:
                     with engine.connect() as conn:
                         conn.execute(
@@ -309,6 +333,7 @@ if not st.session_state.logged_in:
                     if "duplicate key" in str(e).lower() or "unique" in str(e).lower():
                         st.error("Este usuário já existe.")
                     else:
+                        liberar_acao(chave_acao)
                         st.error(f"Erro ao criar conta: {e}")
             else:
                 st.error("Preencha usuário e senha.")
@@ -387,6 +412,10 @@ else:
 
             if st.button("✅ Salvar Colheita", width='stretch'):
                 if qtd_val > 0:
+                    chave_acao = "salvar_colheita"
+                    payload_acao = (st.session_state.username, data_reg, qtd_val, tipo_ovo, galpao, cor)
+                    if acao_repetida(chave_acao, payload_acao):
+                        st.stop()
                     try:
                         with engine.connect() as conn:
                             conn.execute(text("""
@@ -405,6 +434,7 @@ else:
                         st.success(
                             f"✅ {qtd_val} ovos ({tipo_ovo}, {cor}) do {galpao} registrados com sucesso!")
                     except Exception as e:
+                        liberar_acao(chave_acao)
                         st.error(f"Erro ao salvar colheita: {e}")
                 else:
                     st.error("Quantidade deve ser maior que zero.")
@@ -779,6 +809,10 @@ else:
 
                 if st.button("✅ Registrar Aves", width='stretch', type="primary"):
                     if qtd_aves > 0:
+                        chave_acao = "registrar_aves"
+                        payload_acao = (st.session_state.username, data_aves, galpao_aves, qtd_aves)
+                        if acao_repetida(chave_acao, payload_acao):
+                            st.stop()
                         try:
                             with engine.connect() as conn:
                                 conn.execute(text("""
@@ -793,8 +827,8 @@ else:
                                 conn.commit()
                             st.success(
                                 f"✅ {qtd_aves} aves registradas no {galpao_aves}!")
-                            st.rerun()
                         except Exception as e:
+                            liberar_acao(chave_acao)
                             st.error(f"Erro ao registrar aves: {e}")
 
             # ==================== AVES MORTAS ====================
@@ -822,6 +856,10 @@ else:
                                                 format="%d", key="qtd_morta")
 
                 if st.button("✅ Registrar Morte", width='stretch', type="primary"):
+                    chave_acao = "registrar_morte"
+                    payload_acao = (st.session_state.username, data_morta, galpao_morta, qtd_morta)
+                    if acao_repetida(chave_acao, payload_acao):
+                        st.stop()
                     try:
                         with engine.connect() as conn:
                             conn.execute(text("""
@@ -835,8 +873,8 @@ else:
                             })
                             conn.commit()
                         st.success(f"✅ {qtd_morta} aves mortas registradas!")
-                        st.rerun()
                     except Exception as e:
+                        liberar_acao(chave_acao)
                         st.error(f"Erro ao registrar morte: {e}")
 
             # ==================== HISTÓRICO + EDIÇÃO (AVES VIVAS E MORTAS) ====================
@@ -1309,6 +1347,10 @@ else:
 
                 if st.button("✅ Registrar Ovos Quebrados", width='stretch', type="primary"):
                     if qtd_quebrados > 0:
+                        chave_acao = "registrar_ovos_quebrados"
+                        payload_acao = (st.session_state.username, data_quebrados, galpao_quebrados, qtd_quebrados)
+                        if acao_repetida(chave_acao, payload_acao):
+                            st.stop()
                         try:
                             with engine.connect() as conn:
                                 conn.execute(text("""
@@ -1323,8 +1365,8 @@ else:
                                 conn.commit()
                             st.success(
                                 f"✅ {qtd_quebrados} ovos quebrados registrados no {galpao_quebrados}!")
-                            st.rerun()
                         except Exception as e:
+                            liberar_acao(chave_acao)
                             st.error(f"Erro ao registrar: {e}")
 
             # ==================== HISTÓRICO ====================
@@ -1597,6 +1639,22 @@ else:
                         
                         with col_btn1:
                             if st.button("✅ Confirmar e Registrar", type="primary", use_container_width=True):
+                                chave_acao = "confirmar_venda"
+                                payload_acao = (
+                                    st.session_state.username,
+                                    dados_venda.get("cliente_id"),
+                                    dados_venda.get("data_venda"),
+                                    dados_venda.get("forma_id"),
+                                    dados_venda.get("valor_total"),
+                                    dados_venda.get("valor_pago"),
+                                    dados_venda.get("numero_recibo"),
+                                    tuple(
+                                        (item.get("produto_id"), item.get("quantidade"), item.get("preco_unit"), item.get("desconto_unit"))
+                                        for item in st.session_state.get("carrinho", [])
+                                    )
+                                )
+                                if acao_repetida(chave_acao, payload_acao, intervalo=20):
+                                    st.stop()
                                 try:
                                     with engine.connect() as conn:
                                         with conn.begin():
@@ -1670,10 +1728,9 @@ else:
                                     # Limpa o estado de confirmação e carrinho
                                     st.session_state.mostrar_confirmacao = False
                                     st.session_state.carrinho = []
-                                    
-                                    st.rerun()
 
                                 except Exception as e:
+                                    liberar_acao(chave_acao)
                                     st.error(f"Erro ao registrar venda: {e}")
                         
                         with col_btn2:
@@ -1719,7 +1776,6 @@ else:
                                 "desconto_unit": desconto_unit,
                                 "subtotal": subtotal
                             })
-                            st.rerun()
 
                     st.markdown(f'<div class="preco-unitario" style="margin-top: 0;">💰 Preço unitário: {fmt_br(preco_unit)}</div>', unsafe_allow_html=True)
 
@@ -2413,10 +2469,17 @@ else:
 
                     if st.button("➕ Adicionar ao Estoque", type="primary", use_container_width=True):
                         if quantidade_hoje > 0:
-                            incrementar_estoque(produto_id, quantidade_hoje)
-                            st.success(
-                                f"✅ {quantidade_hoje} unidade(s) de '{produto_selecionado}' adicionadas ao estoque.")
-                            st.rerun()
+                            chave_acao = "adicionar_estoque"
+                            payload_acao = (st.session_state.username, produto_id, quantidade_hoje)
+                            if acao_repetida(chave_acao, payload_acao):
+                                st.stop()
+                            try:
+                                incrementar_estoque(produto_id, quantidade_hoje)
+                                st.success(
+                                    f"✅ {quantidade_hoje} unidade(s) de '{produto_selecionado}' adicionadas ao estoque.")
+                            except Exception as e:
+                                liberar_acao(chave_acao)
+                                st.error(f"Erro ao adicionar estoque: {e}")
                         else:
                             st.error("A quantidade deve ser maior que zero.")
 
@@ -2548,6 +2611,10 @@ else:
                                 "Endereço", key="cli_end_novo")
                         if st.form_submit_button("Cadastrar Cliente"):
                             if nome:
+                                chave_acao = "cadastrar_cliente"
+                                payload_acao = (st.session_state.username, nome, cpf_cnpj, telefone, email, endereco)
+                                if acao_repetida(chave_acao, payload_acao):
+                                    st.stop()
                                 try:
                                     with engine.connect() as conn:
                                         conn.execute(text("""
@@ -2557,8 +2624,8 @@ else:
                                                "tel": telefone or None, "email": email or None, "end": endereco or None})
                                         conn.commit()
                                     st.success("✅ Cliente cadastrado!")
-                                    st.rerun()
                                 except Exception as e:
+                                    liberar_acao(chave_acao)
                                     st.error(f"Erro: {e}")
                             else:
                                 st.error("Nome é obrigatório.")
@@ -2627,6 +2694,10 @@ else:
                                 "Preço Atual (R$)", min_value=0.0, step=0.01, format="%.2f", key="prod_preco_novo")
                         if st.form_submit_button("Cadastrar Produto"):
                             if nome_prod:
+                                chave_acao = "cadastrar_produto"
+                                payload_acao = (st.session_state.username, nome_prod, descricao, unidade, preco)
+                                if acao_repetida(chave_acao, payload_acao):
+                                    st.stop()
                                 try:
                                     with engine.connect() as conn:
                                         conn.execute(text("""
@@ -2637,8 +2708,8 @@ else:
                                         conn.commit()
                                     st.success(
                                         "✅ Produto cadastrado com sucesso!")
-                                    st.rerun()
                                 except Exception as e:
+                                    liberar_acao(chave_acao)
                                     st.error(f"Erro ao cadastrar: {e}")
                             else:
                                 st.error("Nome do produto é obrigatório.")
@@ -2774,12 +2845,19 @@ else:
                             "Nome da Forma de Pagamento *", key="forma_nome_novo")
                         if st.form_submit_button("Adicionar"):
                             if nome_forma:
-                                with engine.connect() as conn:
-                                    conn.execute(text("INSERT INTO formas_pagamento (username, nome, ativo) VALUES (:u, :nome, TRUE)"),
-                                                 {"u": st.session_state.username, "nome": nome_forma})
-                                    conn.commit()
-                                st.success("Forma de pagamento adicionada!")
-                                st.rerun()
+                                chave_acao = "adicionar_forma_pagamento"
+                                payload_acao = (st.session_state.username, nome_forma)
+                                if acao_repetida(chave_acao, payload_acao):
+                                    st.stop()
+                                try:
+                                    with engine.connect() as conn:
+                                        conn.execute(text("INSERT INTO formas_pagamento (username, nome, ativo) VALUES (:u, :nome, TRUE)"),
+                                                     {"u": st.session_state.username, "nome": nome_forma})
+                                        conn.commit()
+                                    st.success("Forma de pagamento adicionada!")
+                                except Exception as e:
+                                    liberar_acao(chave_acao)
+                                    st.error(f"Erro ao adicionar: {e}")
                 st.markdown("**Formas de Pagamento Cadastradas**")
                 try:
                     df_fp = pd.read_sql(text("SELECT id, nome, ativo, username FROM formas_pagamento WHERE username = :u OR username IS NULL ORDER BY nome"),
@@ -2906,11 +2984,15 @@ else:
                             desc_tipo = st.text_area("Descrição (opcional)")
                             if st.form_submit_button("Salvar"):
                                 if nome_tipo:
+                                    chave_acao = "adicionar_tipo_despesa"
+                                    payload_acao = (st.session_state.username, nome_tipo, desc_tipo)
+                                    if acao_repetida(chave_acao, payload_acao):
+                                        st.stop()
                                     try:
                                         adicionar_tipo_despesa(nome_tipo, desc_tipo)
                                         st.success("Tipo adicionado!")
-                                        st.rerun()
                                     except Exception as e:
+                                        liberar_acao(chave_acao)
                                         st.error(f"Erro: {e}")
                                 else:
                                     st.error("Nome é obrigatório.")
@@ -2962,9 +3044,16 @@ else:
                                 valor_despesa = st.number_input("Valor (R$)", min_value=0.01, step=0.01, format="%.2f")
                                 observacao = st.text_area("Observação (opcional)")
                             if st.form_submit_button("Registrar Despesa"):
-                                registrar_despesa(data_despesa, tipo_id, valor_despesa, observacao)
-                                st.success("Despesa registrada!")
-                                st.rerun()
+                                chave_acao = "registrar_despesa"
+                                payload_acao = (st.session_state.username, data_despesa, tipo_id, valor_despesa, observacao)
+                                if acao_repetida(chave_acao, payload_acao):
+                                    st.stop()
+                                try:
+                                    registrar_despesa(data_despesa, tipo_id, valor_despesa, observacao)
+                                    st.success("Despesa registrada!")
+                                except Exception as e:
+                                    liberar_acao(chave_acao)
+                                    st.error(f"Erro ao registrar despesa: {e}")
 
                 # Histórico de Despesas (com edição/exclusão)
                 with sub_tabs[2]:
