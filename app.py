@@ -1563,248 +1563,248 @@ else:
                 df_formas = pd.read_sql(text("SELECT id, nome FROM formas_pagamento WHERE (username = :u OR username IS NULL) AND ativo = TRUE ORDER BY nome"),
                                         engine, params={"u": st.session_state.username})
 
-                if df_clientes.empty or df_produtos.empty or df_formas.empty:
-                    st.warning("⚠️ Cadastre pelo menos 1 Cliente, 1 Produto e 1 Forma de Pagamento ativa antes de registrar uma venda.")
-                else:
-                    # ==================== MODO CONFIRMAÇÃO ====================
-                    if st.session_state.mostrar_confirmacao:
-                        with st.container():
-                            st.markdown("### ✅ Confirmar Venda")
-                            st.markdown("Verifique os dados da venda e os itens abaixo")
-                            st.divider()
-
-                            dados_venda = st.session_state.get("dados_venda", {})
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.markdown(f"**📅 Data da Venda**  \n{dados_venda.get('data_venda', '').strftime('%d/%m/%Y') if dados_venda.get('data_venda') else ''}")
-                                st.markdown(f"**🧾 N° Recibo**  \n{dados_venda.get('numero_recibo', 'Não informado')}")
-                                st.markdown(f"**👤 Cliente**  \n{dados_venda.get('cliente_nome', '')}")
-                                st.markdown(f"**💳 Pagamento**  \n{dados_venda.get('forma_nome', '')}")
-                            with col2:
-                                st.markdown(f"**💰 Valor Total**  \n{fmt_br(dados_venda.get('valor_total', 0))}")
-                                st.markdown(f"**💵 Valor Pago**  \n{fmt_br(dados_venda.get('valor_pago', 0))}")
-                                st.markdown(f"**🔻 Ficará Devendo**  \n{fmt_br(dados_venda.get('valor_devendo', 0))}")
-
-                            st.divider()
-                            st.markdown("#### 🛒 Itens da Venda")
-                            for item in st.session_state.carrinho:
-                                st.markdown(f"- **{item['produto_nome']}** | Qtd: {item['quantidade']} | Preço unit.: {fmt_br(item['preco_unit'])} | Desc. unit.: {fmt_br(item['desconto_unit'])} | Subtotal: {fmt_br(item['subtotal'])}")
-
-                            if dados_venda.get('observacoes'):
-                                st.info(f"**📝 Observações:** {dados_venda['observacoes']}")
-
-                            st.divider()
-                            st.warning("⚠️ Confirme os dados. Após salvar, não será possível editar diretamente.")
-
-                            col_btn1, col_btn2 = st.columns(2)
-                            
-                            with col_btn1:
-                                if st.button("✅ Confirmar e Registrar", type="primary", use_container_width=True):
-                                    try:
-                                        with engine.connect() as conn:
-                                            with conn.begin():
-                                                venda_result = conn.execute(text("""
-                                                    INSERT INTO vendas (username, cliente_id, data_venda, forma_pagamento_id, valor_total, valor_pago, observacoes, numero_recibo)
-                                                    VALUES (:u, :cliente_id, :data_venda, :forma_id, :valor_total, :valor_pago, :obs, :recibo)
-                                                    RETURNING id
-                                                """), {
-                                                    "u": st.session_state.username,
-                                                    "cliente_id": dados_venda['cliente_id'],
-                                                    "data_venda": dados_venda['data_venda'],
-                                                    "forma_id": dados_venda['forma_id'],
-                                                    "valor_total": dados_venda['valor_total'],
-                                                    "valor_pago": dados_venda['valor_pago'],
-                                                    "obs": dados_venda.get('observacoes', ''),
-                                                    "recibo": dados_venda.get('numero_recibo', '')
-                                                })
-                                                venda_id = venda_result.fetchone()[0]
-                                                registrar_log("INSERT", "vendas", venda_id, f"Nova venda para {dados_venda['cliente_nome']} no valor de {fmt_br(dados_venda['valor_total'])}")
-
-                                                for item in st.session_state.carrinho:
-                                                    conn.execute(text("""
-                                                        INSERT INTO venda_itens (venda_id, produto_id, quantidade, preco_unitario, desconto_unitario, subtotal)
-                                                        VALUES (:venda_id, :produto_id, :qtd, :preco, :desconto, :subtotal)
-                                                    """), {
-                                                        "venda_id": venda_id,
-                                                        "produto_id": item['produto_id'],
-                                                        "qtd": item['quantidade'],
-                                                        "preco": item['preco_unit'],
-                                                        "desconto": item['desconto_unit'],
-                                                        "subtotal": item['subtotal']
-                                                    })
-                                                    atualizar_estoque(item['produto_id'], -item['quantidade'])
-
-                                        # Gerar o PDF do recibo
-                                        pdf_bytes = gerar_pdf_recibo_reportlab(
-                                            dados_venda=dados_venda,
-                                            itens=st.session_state.carrinho,
-                                            numero_recibo=dados_venda.get('numero_recibo', 'N/A')
-                                        )
-
-                                        # ----- Envio automático por WhatsApp -----
-                                        if dados_venda.get('enviar_whatsapp', False):
-                                            with engine.connect() as conn:
-                                                telefone = conn.execute(
-                                                    text("SELECT telefone FROM clientes WHERE id = :id"),
-                                                    {"id": dados_venda['cliente_id']}
-                                                ).scalar()
-                                            if telefone:
-                                                sucesso, msg = enviar_pdf_whatsapp(
-                                                    telefone_cliente=telefone,
-                                                    pdf_bytes=pdf_bytes,
-                                                    nome_cliente=dados_venda['cliente_nome'],
-                                                    numero_recibo=dados_venda.get('numero_recibo', 'N/A')
-                                                )
-                                                if sucesso:
-                                                    st.success(f"✅ {msg}")
-                                                else:
-                                                    st.warning(f"⚠️ WhatsApp: {msg}")
-                                            else:
-                                                st.info("ℹ️ Cliente sem telefone cadastrado. Recibo não enviado.")
-
-                                        # Armazena dados para pós-venda
-                                        st.session_state.venda_finalizada = True
-                                        st.session_state.pdf_bytes = pdf_bytes
-                                        st.session_state.dados_venda_pos = dados_venda
-                                        
-                                        st.balloons()
-                                        st.success("✅ Venda registrada com sucesso e estoque atualizado!")
-                                        
-                                        # Força recarregar para mostrar os botões de download
-                                        st.rerun()
-
-                                    except Exception as e:
-                                        st.error(f"Erro ao registrar venda: {e}")
-                            
-                            with col_btn2:
-                                if st.button("✏️ Voltar e editar", use_container_width=True):
-                                    st.session_state.mostrar_confirmacao = False
-                                    st.rerun()
-
-                    # ==================== BOTÕES DE PÓS-VENDA (FORA DO BLOCO DE CONFIRMAÇÃO) ====================
-                    if st.session_state.get("venda_finalizada", False):
+                # ==================== MODO CONFIRMAÇÃO ====================
+                if st.session_state.get("mostrar_confirmacao", False):
+                    with st.container():
+                        st.markdown("### ✅ Confirmar Venda")
+                        st.markdown("Verifique os dados da venda e os itens abaixo")
                         st.divider()
-                        st.markdown("### ✅ Venda concluída com sucesso!")
-                        
-                        col_download, col_finalizar = st.columns(2)
-                        with col_download:
-                            st.download_button(
-                                label="📄 Baixar Recibo PDF",
-                                data=st.session_state.pdf_bytes,
-                                file_name=f"recibo_{st.session_state.dados_venda_pos.get('numero_recibo', 'venda')}.pdf",
-                                mime="application/pdf"
-                            )
-                        with col_finalizar:
-                            if st.button("✅ Finalizar e fazer nova venda", type="primary", use_container_width=True):
-                                # Limpa tudo
-                                st.session_state.carrinho = []
-                                st.session_state.mostrar_confirmacao = False
-                                st.session_state.venda_finalizada = False
-                                st.session_state.pop("pdf_bytes", None)
-                                st.session_state.pop("dados_venda", None)
-                                st.session_state.pop("dados_venda_pos", None)
-                                st.rerun()
 
-                    # ==================== MODO CARRINHO ====================
-                    else:
-                        st.markdown('<div class="card-form">', unsafe_allow_html=True)
-
+                        dados_venda = st.session_state.get("dados_venda", {})
                         col1, col2 = st.columns(2)
                         with col1:
-                            data_venda = st.date_input("📅 Data da Venda", value=datetime.now().date(), format="DD/MM/YYYY", key="data_venda")
-                            cliente_nome = st.selectbox("👤 Cliente *", df_clientes['nome'].tolist(), key="venda_cliente")
-                            cliente_id = int(df_clientes[df_clientes['nome'] == cliente_nome].iloc[0]['id'])
+                            st.markdown(f"**📅 Data da Venda**  \n{dados_venda.get('data_venda', '').strftime('%d/%m/%Y') if dados_venda.get('data_venda') else ''}")
+                            st.markdown(f"**🧾 N° Recibo**  \n{dados_venda.get('numero_recibo', 'Não informado')}")
+                            st.markdown(f"**👤 Cliente**  \n{dados_venda.get('cliente_nome', '')}")
+                            st.markdown(f"**💳 Pagamento**  \n{dados_venda.get('forma_nome', '')}")
                         with col2:
-                            forma_nome = st.selectbox("💳 Forma de Pagamento *", df_formas['nome'].tolist(), key="venda_forma")
-                            forma_id = int(df_formas[df_formas['nome'] == forma_nome].iloc[0]['id'])
-                            valor_pago = st.number_input("💰 Valor Pago agora (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_valor_pago")
+                            st.markdown(f"**💰 Valor Total**  \n{fmt_br(dados_venda.get('valor_total', 0))}")
+                            st.markdown(f"**💵 Valor Pago**  \n{fmt_br(dados_venda.get('valor_pago', 0))}")
+                            st.markdown(f"**🔻 Ficará Devendo**  \n{fmt_br(dados_venda.get('valor_devendo', 0))}")
 
                         st.divider()
-                        st.markdown("#### ➕ Adicionar Produto ao Carrinho")
-                        col_add1, col_add2, col_add3, col_add4 = st.columns([2, 1, 1, 1])
-                        with col_add1:
-                            produto_nome = st.selectbox("Produto", df_produtos['nome'].tolist(), key="produto_carrinho")
-                            produto_row = df_produtos[df_produtos['nome'] == produto_nome].iloc[0]
-                            produto_id = int(produto_row['id'])
-                            preco_unit = float(produto_row['preco_atual'])
-                        with col_add2:
-                            quantidade = st.number_input("Quantidade", min_value=0.1, step=0.1, value=1.0, format="%.2f", key="qtd_carrinho")
-                        with col_add3:
-                            desconto_unit = st.number_input("Desconto (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="desc_carrinho")
-                        with col_add4:
-                            if st.button("➕ Adicionar ao Carrinho", use_container_width=True):
-                                preco_com_desconto = max(0.0, preco_unit - desconto_unit)
-                                subtotal = quantidade * preco_com_desconto
-                                st.session_state.carrinho.append({
-                                    "produto_id": produto_id,
-                                    "produto_nome": produto_nome,
-                                    "quantidade": quantidade,
-                                    "preco_unit": preco_unit,
-                                    "desconto_unit": desconto_unit,
-                                    "subtotal": subtotal
-                                })
+                        st.markdown("#### 🛒 Itens da Venda")
+                        for item in st.session_state.get("carrinho", []):
+                            st.markdown(f"- **{item['produto_nome']}** | Qtd: {item['quantidade']} | Preço unit.: {fmt_br(item['preco_unit'])} | Desc. unit.: {fmt_br(item['desconto_unit'])} | Subtotal: {fmt_br(item['subtotal'])}")
+
+                        if dados_venda.get('observacoes'):
+                            st.info(f"**📝 Observações:** {dados_venda['observacoes']}")
+
+                        st.divider()
+                        st.warning("⚠️ Confirme os dados. Após salvar, não será possível editar diretamente.")
+
+                        col_btn1, col_btn2 = st.columns(2)
+                        
+                        with col_btn1:
+                            if st.button("✅ Confirmar e Registrar", type="primary", use_container_width=True):
+                                try:
+                                    with engine.connect() as conn:
+                                        with conn.begin():
+                                            venda_result = conn.execute(text("""
+                                                INSERT INTO vendas (username, cliente_id, data_venda, forma_pagamento_id, valor_total, valor_pago, observacoes, numero_recibo)
+                                                VALUES (:u, :cliente_id, :data_venda, :forma_id, :valor_total, :valor_pago, :obs, :recibo)
+                                                RETURNING id
+                                            """), {
+                                                "u": st.session_state.username,
+                                                "cliente_id": dados_venda['cliente_id'],
+                                                "data_venda": dados_venda['data_venda'],
+                                                "forma_id": dados_venda['forma_id'],
+                                                "valor_total": dados_venda['valor_total'],
+                                                "valor_pago": dados_venda['valor_pago'],
+                                                "obs": dados_venda.get('observacoes', ''),
+                                                "recibo": dados_venda.get('numero_recibo', '')
+                                            })
+                                            venda_id = venda_result.fetchone()[0]
+                                            registrar_log("INSERT", "vendas", venda_id, f"Nova venda para {dados_venda['cliente_nome']} no valor de {fmt_br(dados_venda['valor_total'])}")
+
+                                            for item in st.session_state.get("carrinho", []):
+                                                conn.execute(text("""
+                                                    INSERT INTO venda_itens (venda_id, produto_id, quantidade, preco_unitario, desconto_unitario, subtotal)
+                                                    VALUES (:venda_id, :produto_id, :qtd, :preco, :desconto, :subtotal)
+                                                """), {
+                                                    "venda_id": venda_id,
+                                                    "produto_id": item['produto_id'],
+                                                    "qtd": item['quantidade'],
+                                                    "preco": item['preco_unit'],
+                                                    "desconto": item['desconto_unit'],
+                                                    "subtotal": item['subtotal']
+                                                })
+                                                atualizar_estoque(item['produto_id'], -item['quantidade'])
+
+                                    # Gerar o PDF do recibo
+                                    pdf_bytes = gerar_pdf_recibo_reportlab(
+                                        dados_venda=dados_venda,
+                                        itens=st.session_state.get("carrinho", []),
+                                        numero_recibo=dados_venda.get('numero_recibo', 'N/A')
+                                    )
+
+                                    # Envio automático por WhatsApp
+                                    if dados_venda.get('enviar_whatsapp', False):
+                                        with engine.connect() as conn:
+                                            telefone = conn.execute(
+                                                text("SELECT telefone FROM clientes WHERE id = :id"),
+                                                {"id": dados_venda['cliente_id']}
+                                            ).scalar()
+                                        if telefone:
+                                            sucesso, msg = enviar_pdf_whatsapp(
+                                                telefone_cliente=telefone,
+                                                pdf_bytes=pdf_bytes,
+                                                nome_cliente=dados_venda['cliente_nome'],
+                                                numero_recibo=dados_venda.get('numero_recibo', 'N/A')
+                                            )
+                                            if sucesso:
+                                                st.success(f"✅ {msg}")
+                                            else:
+                                                st.warning(f"⚠️ WhatsApp: {msg}")
+                                        else:
+                                            st.info("ℹ️ Cliente sem telefone cadastrado. Recibo não enviado.")
+
+                                    # Armazena dados para pós-venda
+                                    st.session_state.venda_finalizada = True
+                                    st.session_state.pdf_bytes = pdf_bytes
+                                    st.session_state.dados_venda_pos = dados_venda
+                                    
+                                    st.balloons()
+                                    st.success("✅ Venda registrada com sucesso e estoque atualizado!")
+                                    
+                                    # Limpa o estado de confirmação e carrinho
+                                    st.session_state.mostrar_confirmacao = False
+                                    st.session_state.carrinho = []
+                                    
+                                    st.rerun()
+
+                                except Exception as e:
+                                    st.error(f"Erro ao registrar venda: {e}")
+                        
+                        with col_btn2:
+                            if st.button("✏️ Voltar e editar", use_container_width=True):
+                                st.session_state.mostrar_confirmacao = False
                                 st.rerun()
 
-                        st.markdown(f'<div class="preco-unitario" style="margin-top: 0;">💰 Preço unitário: {fmt_br(preco_unit)}</div>', unsafe_allow_html=True)
+                # ==================== MODO CARRINHO (NOVA VENDA) ====================
+                elif not st.session_state.get("venda_finalizada", False):
+                    st.markdown('<div class="card-form">', unsafe_allow_html=True)
 
-                        st.divider()
-                        st.markdown("#### 🛒 Carrinho de Produtos")
-                        if not st.session_state.carrinho:
-                            st.info("Nenhum produto adicionado. Adicione produtos ao carrinho.")
-                        else:
-                            df_carrinho = pd.DataFrame(st.session_state.carrinho)
-                            df_display = df_carrinho[["produto_nome", "quantidade", "preco_unit", "desconto_unit", "subtotal"]].copy()
-                            df_display = df_display.rename(columns={
-                                "produto_nome": "Produto",
-                                "quantidade": "Qtd",
-                                "preco_unit": "Preço Unit.",
-                                "desconto_unit": "Desc. Unit.",
-                                "subtotal": "Subtotal"
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        data_venda = st.date_input("📅 Data da Venda", value=datetime.now().date(), format="DD/MM/YYYY", key="data_venda")
+                        cliente_nome = st.selectbox("👤 Cliente *", df_clientes['nome'].tolist(), key="venda_cliente")
+                        cliente_id = int(df_clientes[df_clientes['nome'] == cliente_nome].iloc[0]['id'])
+                    with col2:
+                        forma_nome = st.selectbox("💳 Forma de Pagamento *", df_formas['nome'].tolist(), key="venda_forma")
+                        forma_id = int(df_formas[df_formas['nome'] == forma_nome].iloc[0]['id'])
+                        valor_pago = st.number_input("💰 Valor Pago agora (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_valor_pago")
+
+                    st.divider()
+                    st.markdown("#### ➕ Adicionar Produto ao Carrinho")
+                    col_add1, col_add2, col_add3, col_add4 = st.columns([2, 1, 1, 1])
+                    with col_add1:
+                        produto_nome = st.selectbox("Produto", df_produtos['nome'].tolist(), key="produto_carrinho")
+                        produto_row = df_produtos[df_produtos['nome'] == produto_nome].iloc[0]
+                        produto_id = int(produto_row['id'])
+                        preco_unit = float(produto_row['preco_atual'])
+                    with col_add2:
+                        quantidade = st.number_input("Quantidade", min_value=0.1, step=0.1, value=1.0, format="%.2f", key="qtd_carrinho")
+                    with col_add3:
+                        desconto_unit = st.number_input("Desconto (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="desc_carrinho")
+                    with col_add4:
+                        if st.button("➕ Adicionar ao Carrinho", use_container_width=True):
+                            preco_com_desconto = max(0.0, preco_unit - desconto_unit)
+                            subtotal = quantidade * preco_com_desconto
+                            st.session_state.carrinho.append({
+                                "produto_id": produto_id,
+                                "produto_nome": produto_nome,
+                                "quantidade": quantidade,
+                                "preco_unit": preco_unit,
+                                "desconto_unit": desconto_unit,
+                                "subtotal": subtotal
                             })
-                            df_display["Preço Unit."] = df_display["Preço Unit."].apply(fmt_br)
-                            df_display["Desc. Unit."] = df_display["Desc. Unit."].apply(fmt_br)
-                            df_display["Subtotal"] = df_display["Subtotal"].apply(fmt_br)
-                            st.dataframe(df_display, use_container_width=True, hide_index=True)
+                            st.rerun()
 
-                            st.markdown("**Remover item do carrinho:**")
-                            item_remover = st.selectbox("Selecione o produto para remover", df_carrinho["produto_nome"].tolist(), key="remover_item")
-                            if st.button("🗑️ Remover Produto", use_container_width=True):
-                                st.session_state.carrinho = [item for item in st.session_state.carrinho if item["produto_nome"] != item_remover]
-                                st.rerun()
+                    st.markdown(f'<div class="preco-unitario" style="margin-top: 0;">💰 Preço unitário: {fmt_br(preco_unit)}</div>', unsafe_allow_html=True)
 
-                        st.divider()
-                        valor_total_carrinho = sum(item["subtotal"] for item in st.session_state.carrinho)
-                        valor_devendo = max(0, valor_total_carrinho - valor_pago)
+                    st.divider()
+                    st.markdown("#### 🛒 Carrinho de Produtos")
+                    if not st.session_state.get("carrinho", []):
+                        st.info("Nenhum produto adicionado. Adicione produtos ao carrinho.")
+                    else:
+                        df_carrinho = pd.DataFrame(st.session_state.carrinho)
+                        df_display = df_carrinho[["produto_nome", "quantidade", "preco_unit", "desconto_unit", "subtotal"]].copy()
+                        df_display = df_display.rename(columns={
+                            "produto_nome": "Produto",
+                            "quantidade": "Qtd",
+                            "preco_unit": "Preço Unit.",
+                            "desconto_unit": "Desc. Unit.",
+                            "subtotal": "Subtotal"
+                        })
+                        df_display["Preço Unit."] = df_display["Preço Unit."].apply(fmt_br)
+                        df_display["Desc. Unit."] = df_display["Desc. Unit."].apply(fmt_br)
+                        df_display["Subtotal"] = df_display["Subtotal"].apply(fmt_br)
+                        st.dataframe(df_display, use_container_width=True, hide_index=True)
 
-                        col_r1, col_r2, col_r3 = st.columns(3)
-                        with col_r1:
-                            st.metric("💰 Total do Carrinho", fmt_br(valor_total_carrinho))
-                        with col_r2:
-                            st.metric("💵 Valor Pago", fmt_br(valor_pago))
-                        with col_r3:
-                            st.metric("🔻 Ficará Devendo", fmt_br(valor_devendo))
+                        st.markdown("**Remover item do carrinho:**")
+                        item_remover = st.selectbox("Selecione o produto para remover", df_carrinho["produto_nome"].tolist(), key="remover_item")
+                        if st.button("🗑️ Remover Produto", use_container_width=True):
+                            st.session_state.carrinho = [item for item in st.session_state.carrinho if item["produto_nome"] != item_remover]
+                            st.rerun()
 
-                        numero_recibo = st.text_input("🧾 N° do Recibo (opcional)", key="venda_recibo")
-                        observacoes = st.text_area("📝 Observações (opcional)", key="venda_obs", placeholder="Ex: Entrega agendada, troco, etc.")
-                        enviar_whatsapp = st.checkbox("📱 Enviar recibo por WhatsApp", value=True, key="envia_whats")
+                    st.divider()
+                    valor_total_carrinho = sum(item["subtotal"] for item in st.session_state.get("carrinho", []))
+                    valor_devendo = max(0, valor_total_carrinho - valor_pago)
 
-                        st.markdown('</div>', unsafe_allow_html=True)
+                    col_r1, col_r2, col_r3 = st.columns(3)
+                    with col_r1:
+                        st.metric("💰 Total do Carrinho", fmt_br(valor_total_carrinho))
+                    with col_r2:
+                        st.metric("💵 Valor Pago", fmt_br(valor_pago))
+                    with col_r3:
+                        st.metric("🔻 Ficará Devendo", fmt_br(valor_devendo))
 
-                        if st.button("💸 Finalizar Venda", type="primary", use_container_width=True, disabled=len(st.session_state.carrinho) == 0):
-                            st.session_state.dados_venda = {
-                                "cliente_id": cliente_id,
-                                "cliente_nome": cliente_nome,
-                                "data_venda": data_venda,
-                                "forma_id": forma_id,
-                                "forma_nome": forma_nome,
-                                "valor_pago": valor_pago,
-                                "valor_total": valor_total_carrinho,
-                                "valor_devendo": valor_devendo,
-                                "observacoes": observacoes,
-                                "numero_recibo": numero_recibo,
-                                "enviar_whatsapp": enviar_whatsapp   # <--- NOVO
-                            }
-                            st.session_state.mostrar_confirmacao = True
+                    numero_recibo = st.text_input("🧾 N° do Recibo (opcional)", key="venda_recibo")
+                    observacoes = st.text_area("📝 Observações (opcional)", key="venda_obs", placeholder="Ex: Entrega agendada, troco, etc.")
+                    enviar_whatsapp = st.checkbox("📱 Enviar recibo por WhatsApp", value=True, key="envia_whats")
+
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+                    if st.button("💸 Finalizar Venda", type="primary", use_container_width=True, disabled=len(st.session_state.get("carrinho", [])) == 0):
+                        st.session_state.dados_venda = {
+                            "cliente_id": cliente_id,
+                            "cliente_nome": cliente_nome,
+                            "data_venda": data_venda,
+                            "forma_id": forma_id,
+                            "forma_nome": forma_nome,
+                            "valor_pago": valor_pago,
+                            "valor_total": valor_total_carrinho,
+                            "valor_devendo": valor_devendo,
+                            "observacoes": observacoes,
+                            "numero_recibo": numero_recibo,
+                            "enviar_whatsapp": enviar_whatsapp
+                        }
+                        st.session_state.mostrar_confirmacao = True
+                        st.rerun()
+
+                # ==================== BOTÕES DE PÓS-VENDA ====================
+                if st.session_state.get("venda_finalizada", False):
+                    st.divider()
+                    st.markdown("### ✅ Venda concluída com sucesso!")
+                    
+                    col_download, col_finalizar = st.columns(2)
+                    with col_download:
+                        st.download_button(
+                            label="📄 Baixar Recibo PDF",
+                            data=st.session_state.pdf_bytes,
+                            file_name=f"recibo_{st.session_state.dados_venda_pos.get('numero_recibo', 'venda')}.pdf",
+                            mime="application/pdf"
+                        )
+                    with col_finalizar:
+                        if st.button("✅ Finalizar e fazer nova venda", type="primary", use_container_width=True):
+                            # Limpa tudo
+                            st.session_state.carrinho = []
+                            st.session_state.mostrar_confirmacao = False
+                            st.session_state.venda_finalizada = False
+                            st.session_state.pop("pdf_bytes", None)
+                            st.session_state.pop("dados_venda", None)
+                            st.session_state.pop("dados_venda_pos", None)
                             st.rerun()
 
             # -------------------- REGISTROS DE VENDAS --------------------
