@@ -1675,9 +1675,15 @@ else:
                                                 mime="application/pdf"
                                             )
                                         with col_finalizar:
-                                            if st.button("✅ Finalizar e fazer nova venda"):
+                                            if st.button("✅ Finalizar e fazer nova venda", key="btn_finalizar_nova"):
+                                                # Zera os estados críticos
                                                 st.session_state.carrinho = []
                                                 st.session_state.mostrar_confirmacao = False
+                                                if "dados_venda" in st.session_state:
+                                                    del st.session_state.dados_venda
+                                                # Pequeno delay para garantir (opcional)
+                                                import time
+                                                time.sleep(0.1)
                                                 st.rerun()
 
                                     except Exception as e:
