@@ -1676,14 +1676,13 @@ else:
                                             )
                                         with col_finalizar:
                                             if st.button("✅ Finalizar e fazer nova venda", key="finalizar_nova_venda"):
+                                                st.write("Botão clicado!")  # debug
                                                 # Limpa o carrinho e o modo confirmação
                                                 st.session_state.carrinho = []
                                                 st.session_state.mostrar_confirmacao = False
                                                 # Força a limpeza de qualquer outro estado residual
                                                 st.session_state.pop("dados_venda", None)
                                                 # Recarrega a página
-                                                import time
-                                                time.sleep(0.1)  # pequeno delay para garantir que o estado seja atualizado
                                                 st.rerun()
 
                                     except Exception as e:
