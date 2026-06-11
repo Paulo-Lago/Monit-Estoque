@@ -218,7 +218,6 @@ def render_modulo_faturamento(
                                             "recibo": dados_venda.get('numero_recibo', '')
                                         })
                                         venda_id = venda_result.fetchone()[0]
-                                        registrar_log("INSERT", "vendas", venda_id, f"Nova venda para {dados_venda['cliente_nome']} no valor de {fmt_br(dados_venda['valor_total'])}")
 
                                         for item in st.session_state.get("carrinho", []):
                                             conn.execute(text("""
@@ -233,6 +232,11 @@ def render_modulo_faturamento(
                                                 "subtotal": item['subtotal']
                                             })
                                             atualizar_estoque(item['produto_id'], -item['quantidade'])
+
+                                registrar_log(
+                                    "INSERT", "vendas", venda_id,
+                                    f"Nova venda para {dados_venda['cliente_nome']} no valor de {fmt_br(dados_venda['valor_total'])}"
+                                )
 
                                 # Gerar o PDF do recibo
                                 pdf_bytes = gerar_pdf_recibo_reportlab(
@@ -690,8 +694,12 @@ def render_modulo_faturamento(
                                             novo_pago = valor_pago_atual + valor_recebido
                                             with engine.connect() as conn:
                                                 conn.execute(text("UPDATE vendas SET valor_pago = :novo WHERE id = :id"),
-                                                             {"novo": novo_pago, "id": venda_id})
+                                                 {"novo": novo_pago, "id": venda_id})
                                                 conn.commit()
+                                            registrar_log(
+                                                "UPDATE", "vendas", venda_id,
+                                                f"Registrou pagamento de {fmt_br(valor_recebido)}; total pago: {fmt_br(novo_pago)}"
+                                            )
                                             st.success(f"Pagamento de {fmt_br(valor_recebido)} registrado!")
                                         except Exception as e:
                                             liberar_acao(chave_acao)
@@ -887,6 +895,10 @@ def render_modulo_faturamento(
                                                 "subtotal": item['subtotal']
                                             })
 
+                                registrar_log(
+                                    "UPDATE", "vendas", venda_id,
+                                    f"Atualizou venda; novo total: {fmt_br(total_carrinho)}"
+                                )
                                 del st.session_state[f"edit_items_{venda_id}"]
                                 del st.session_state[f"edit_removed_{venda_id}"]
 
@@ -904,7 +916,6 @@ def render_modulo_faturamento(
 
                         if st.button("🗑️ Excluir Venda Permanentemente", type="primary", disabled=not confirm):
                             try:
-                                registrar_log("DELETE", "vendas", venda_id, f"Excluiu venda do cliente {venda['cliente']} no valor de {fmt_br(venda['valor_total'])}")
                                 with engine.connect() as conn:
                                     with conn.begin():
                                         itens = conn.execute(text("SELECT produto_id, quantidade FROM venda_itens WHERE venda_id = :vid"), {"vid": venda_id}).fetchall()
@@ -912,6 +923,10 @@ def render_modulo_faturamento(
                                             atualizar_estoque(item[0], item[1])
                                         conn.execute(text("DELETE FROM venda_itens WHERE venda_id = :vid"), {"vid": venda_id})
                                         conn.execute(text("DELETE FROM vendas WHERE id = :id"), {"id": venda_id})
+                                registrar_log(
+                                    "DELETE", "vendas", venda_id,
+                                    f"Excluiu venda do cliente {venda['cliente']} no valor de {fmt_br(venda['valor_total'])}"
+                                )
                                 st.success("Venda excluída e estoque restaurado com sucesso!")
                                 st.rerun()
                             except Exception as e:
@@ -1034,6 +1049,10 @@ def render_modulo_faturamento(
                         if not acao_repetida(chave_acao, payload_acao):
                             try:
                                 incrementar_estoque(produto_id, quantidade_hoje)
+                                registrar_log(
+                                    "INSERT", "estoque", int(produto_id),
+                                    f"Adicionou {quantidade_hoje:g} unidade(s) de '{produto_selecionado}' ao estoque"
+                                )
                                 st.success(
                                     f"✅ {quantidade_hoje} unidade(s) de '{produto_selecionado}' adicionadas ao estoque.")
                             except Exception as e:
@@ -1101,6 +1120,10 @@ def render_modulo_faturamento(
                             if not acao_repetida(chave_acao, payload_acao):
                                 try:
                                     definir_estoque(produto_id_edit, nova_qtd_total)
+                                    registrar_log(
+                                        "UPDATE", "estoque", produto_id_edit,
+                                        f"Alterou estoque de '{produto_editar}' de {qtd_atual_edit} para {nova_qtd_total}"
+                                    )
                                     mensagem_estoque_editado = (
                                         f"Estoque do produto '{produto_editar}' atualizado para {nova_qtd_total} unidades.")
                                     df_estoque = obter_estoque()
@@ -1149,6 +1172,10 @@ def render_modulo_faturamento(
                                 if not acao_repetida(chave_acao, payload_acao):
                                     try:
                                         excluir_estoque(produto_id_excluir)
+                                        registrar_log(
+                                            "DELETE", "estoque", produto_id_excluir,
+                                            f"Removeu do estoque o produto '{produto_excluir}'"
+                                        )
                                         mensagem_estoque_excluido = (
                                             f"Registro de estoque para '{produto_excluir}' removido.")
                                         df_estoque = obter_estoque()
@@ -1241,6 +1268,10 @@ def render_modulo_faturamento(
                                     """), {"u": st.session_state.username, "nome": nome, "cpf": cpf_cnpj or None,
                                            "tel": telefone or None, "email": email or None, "end": endereco or None})
                                     conn.commit()
+                                registrar_log(
+                                    "INSERT", "clientes",
+                                    detalhes=f"Cadastrou cliente '{nome}'"
+                                )
                                 st.success("✅ Cliente cadastrado!")
                             except Exception as e:
                                 liberar_acao(chave_acao)
@@ -1291,6 +1322,10 @@ def render_modulo_faturamento(
                                             conn.execute(text("UPDATE clientes SET nome=:nome, cpf_cnpj=:cpf, telefone=:tel, email=:email, endereco=:end WHERE id=:id"),
                                                          {"nome": n_nome, "cpf": n_cpf or None, "tel": n_tel or None, "email": n_email or None, "end": n_end or None, "id": cliente_id_editar})
                                             conn.commit()
+                                        registrar_log(
+                                            "UPDATE", "clientes", cliente_id_editar,
+                                            f"Atualizou cliente '{n_nome}'"
+                                        )
                                         area_editar_cliente.empty()
                                         mensagem_editar_cliente.success("Cliente atualizado!")
                                     except Exception as e:
@@ -1321,11 +1356,14 @@ def render_modulo_faturamento(
                                     st.error("Marque a confirmação antes de excluir.")
                                 else:
                                     try:
-                                        registrar_log("DELETE", "clientes", cliente_id_excluir, f"Excluiu cliente '{opcoes_clientes[cliente_id_excluir]}'")
                                         with engine.connect() as conn:
                                             conn.execute(text("DELETE FROM clientes WHERE id = :id"), {
                                                          "id": cliente_id_excluir})
                                             conn.commit()
+                                        registrar_log(
+                                            "DELETE", "clientes", cliente_id_excluir,
+                                            f"Excluiu cliente '{opcoes_clientes[cliente_id_excluir]}'"
+                                        )
                                         area_excluir_cliente.empty()
                                         mensagem_excluir_cliente.success("Cliente excluído!")
                                     except Exception as e:
@@ -1365,6 +1403,10 @@ def render_modulo_faturamento(
                                     """), {"u": st.session_state.username, "nome": nome_prod,
                                            "desc": descricao or None, "un": unidade, "preco": preco})
                                     conn.commit()
+                                registrar_log(
+                                    "INSERT", "produtos",
+                                    detalhes=f"Cadastrou produto '{nome_prod}' por {fmt_br(preco)}"
+                                )
                                 st.success(
                                     "✅ Produto cadastrado com sucesso!")
                             except Exception as e:
@@ -1460,6 +1502,10 @@ def render_modulo_faturamento(
                                                         "u": st.session_state.username
                                                     })
                                                     conn.commit()
+                                                registrar_log(
+                                                    "UPDATE", "produtos", produto_id_editar,
+                                                    f"Atualizou produto '{novo_nome}' para {fmt_br(novo_preco)}"
+                                                )
                                                 area_editar_produto.empty()
                                                 mensagem_editar_produto.success("✅ Produto atualizado com sucesso!")
                                             except Exception as e:
@@ -1502,13 +1548,16 @@ def render_modulo_faturamento(
                                         st.error("Marque a confirmação antes de excluir.")
                                     else:
                                         try:
-                                            registrar_log("DELETE", "produtos", produto_id_excluir, f"Excluiu produto '{produto_excluir_nome}'")
                                             with engine.connect() as conn:
                                                 with conn.begin():
                                                     conn.execute(text("DELETE FROM estoque WHERE username = :u AND produto_id = :p"),
                                                                  {"u": st.session_state.username, "p": produto_id_excluir})
                                                     conn.execute(text("DELETE FROM produtos WHERE id = :id AND username = :u"),
                                                                  {"id": produto_id_excluir, "u": st.session_state.username})
+                                            registrar_log(
+                                                "DELETE", "produtos", produto_id_excluir,
+                                                f"Excluiu produto '{produto_excluir_nome}' e seu estoque"
+                                            )
                                             area_excluir_produto.empty()
                                             mensagem_excluir_produto.success(
                                                 f"✅ Produto '{produto_excluir_nome}' e seus registros de estoque foram removidos.")
@@ -1540,6 +1589,10 @@ def render_modulo_faturamento(
                                     conn.execute(text("INSERT INTO formas_pagamento (username, nome, ativo) VALUES (:u, :nome, TRUE)"),
                                                  {"u": st.session_state.username, "nome": nome_forma})
                                     conn.commit()
+                                registrar_log(
+                                    "INSERT", "formas_pagamento",
+                                    detalhes=f"Adicionou forma de pagamento '{nome_forma}'"
+                                )
                                 st.success("Forma de pagamento adicionada!")
                             except Exception as e:
                                 liberar_acao(chave_acao)
@@ -1567,6 +1620,10 @@ def render_modulo_faturamento(
                                         conn.execute(text("UPDATE formas_pagamento SET ativo = :ativo WHERE id = :id"), {
                                                      "ativo": ativo, "id": row['id']})
                                         conn.commit()
+                                    registrar_log(
+                                        "UPDATE", "formas_pagamento", int(row['id']),
+                                        f"{'Ativou' if ativo else 'Desativou'} a forma de pagamento '{row['nome']}'"
+                                    )
                                     st.success("Atualizado!")
             except Exception as e:
                 st.error(f"Erro: {e}")
@@ -1675,6 +1732,10 @@ def render_modulo_faturamento(
                                     st.stop()
                                 try:
                                     adicionar_tipo_despesa(nome_tipo, desc_tipo)
+                                    registrar_log(
+                                        "INSERT", "tipos_despesas",
+                                        detalhes=f"Cadastrou tipo de despesa '{nome_tipo}'"
+                                    )
                                     st.success("Tipo adicionado!")
                                 except Exception as e:
                                     liberar_acao(chave_acao)
@@ -1719,6 +1780,10 @@ def render_modulo_faturamento(
                                     if not acao_repetida(chave_acao, payload_acao):
                                         try:
                                             atualizar_tipo_despesa(tipo_id_editar, novo_nome, nova_desc)
+                                            registrar_log(
+                                                "UPDATE", "tipos_despesas", tipo_id_editar,
+                                                f"Atualizou tipo de despesa para '{novo_nome}'"
+                                            )
                                             area_editar_tipo.empty()
                                             mensagem_editar_tipo.success("Tipo atualizado!")
                                         except Exception as e:
@@ -1751,6 +1816,10 @@ def render_modulo_faturamento(
                                     else:
                                         try:
                                             excluir_tipo_despesa(tipo_id_excluir)
+                                            registrar_log(
+                                                "DELETE", "tipos_despesas", tipo_id_excluir,
+                                                f"Excluiu tipo de despesa '{opcoes_tipos[tipo_id_excluir]}'"
+                                            )
                                             area_excluir_tipo.empty()
                                             mensagem_excluir_tipo.success("Tipo excluído!")
                                         except Exception as e:
@@ -1779,6 +1848,13 @@ def render_modulo_faturamento(
                                 st.stop()
                             try:
                                 registrar_despesa(data_despesa, tipo_id, valor_despesa, observacao)
+                                registrar_log(
+                                    "INSERT", "despesas",
+                                    detalhes=(
+                                        f"Registrou despesa de {tipo_despesa} no valor de "
+                                        f"{fmt_br(valor_despesa)} em {data_despesa.strftime('%d/%m/%Y')}"
+                                    )
+                                )
                                 st.success("Despesa registrada!")
                             except Exception as e:
                                 liberar_acao(chave_acao)
@@ -2199,59 +2275,214 @@ def render_modulo_faturamento(
     # ABA 4 → LOGS
     # ============================================
     with fat_tabs[4]:
-        st.subheader("📋 Registro de Ações (Logs)")
-        st.caption("Histórico de alterações, exclusões e inserções feitas pelos usuários.")
+        st.subheader("📋 Histórico de Ações")
+        st.caption(
+            "Consulte inclusões, alterações e exclusões realizadas na sua conta.")
 
-        col_f1, col_f2, col_f3, col_f4 = st.columns(4)
-        with col_f1:
-            data_log_inicio = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=30),
-                                            format="DD/MM/YYYY", key="log_inicio")
-        with col_f2:
-            data_log_fim = st.date_input("Data Final", value=datetime.now().date(),
-                                         format="DD/MM/YYYY", key="log_fim")
-        with col_f3:
-            acoes = ["Todas", "INSERT", "UPDATE", "DELETE"]
-            filtro_acao = st.selectbox("Ação", acoes)
-        with col_f4:
-            tabelas = ["Todas", "vendas", "produtos", "clientes", "despesas", "aves", "producao", "tipos_despesas", "venda_itens"]
-            filtro_tabela = st.selectbox("Tabela", tabelas)
-
-        query_logs = """
-            SELECT id, username, acao, tabela, registro_id, detalhes, data_hora
-            FROM logs_acoes
-            WHERE username = :u
-            AND data_hora BETWEEN :inicio AND :fim
-        """
-        params = {
-            "u": st.session_state.username,
-            "inicio": data_log_inicio,
-            "fim": data_log_fim
+        nomes_acoes = {
+            "INSERT": "Inclusão",
+            "UPDATE": "Alteração",
+            "DELETE": "Exclusão",
         }
-        if filtro_acao != "Todas":
-            query_logs += " AND acao = :acao"
-            params["acao"] = filtro_acao
-        if filtro_tabela != "Todas":
-            query_logs += " AND tabela = :tabela"
-            params["tabela"] = filtro_tabela
-        query_logs += " ORDER BY data_hora DESC"
+        nomes_tabelas = {
+            "aves": "Aves",
+            "aves_mortas": "Aves mortas",
+            "clientes": "Clientes",
+            "despesas": "Despesas",
+            "estoque": "Estoque",
+            "formas_pagamento": "Formas de pagamento",
+            "ovos_geral_galpao": "Ovos gerais por galpão",
+            "ovos_quebrados": "Ovos quebrados",
+            "producao": "Produção",
+            "produtos": "Produtos",
+            "tipos_despesas": "Tipos de despesa",
+            "usuarios": "Conta do usuário",
+            "vendas": "Vendas",
+        }
 
         try:
-            df_logs = pd.read_sql(text(query_logs), engine, params=params)
-            if df_logs.empty:
-                st.info("Nenhum registro de log encontrado no período.")
+            acoes_disponiveis = list(nomes_acoes.keys())
+            tabelas_disponiveis = sorted(
+                nomes_tabelas.keys(),
+                key=lambda nome: nomes_tabelas.get(nome, nome).lower()
+            )
+
+            col_data_inicio, col_data_fim = st.columns(2)
+            with col_data_inicio:
+                data_log_inicio = st.date_input(
+                    "Data inicial",
+                    value=datetime.now().date() - pd.Timedelta(days=30),
+                    format="DD/MM/YYYY",
+                    key="log_inicio",
+                )
+            with col_data_fim:
+                data_log_fim = st.date_input(
+                    "Data final",
+                    value=datetime.now().date(),
+                    format="DD/MM/YYYY",
+                    key="log_fim",
+                )
+
+            col_acao, col_tabela, col_limite = st.columns([1, 1.4, 0.8])
+            with col_acao:
+                filtro_acao = st.selectbox(
+                    "Tipo de ação",
+                    ["Todas"] + acoes_disponiveis,
+                    format_func=lambda valor: "Todas" if valor == "Todas" else nomes_acoes.get(valor, valor.title()),
+                    key="log_acao",
+                )
+            with col_tabela:
+                filtro_tabela = st.selectbox(
+                    "Área",
+                    ["Todas"] + tabelas_disponiveis,
+                    format_func=lambda valor: "Todas" if valor == "Todas" else nomes_tabelas.get(valor, valor.replace('_', ' ').title()),
+                    key="log_tabela",
+                )
+            with col_limite:
+                limite_logs = st.selectbox(
+                    "Exibir",
+                    [100, 250, 500, 1000],
+                    format_func=lambda valor: f"{valor} registros",
+                    key="log_limite",
+                )
+
+            busca_log = st.text_input(
+                "Buscar no histórico",
+                placeholder="Digite parte da descrição ou o ID do registro",
+                key="log_busca",
+            ).strip()
+
+            if data_log_inicio > data_log_fim:
+                st.warning("A data inicial deve ser anterior ou igual à data final.")
             else:
-                df_display = df_logs.copy()
-                df_display['data_hora'] = pd.to_datetime(df_display['data_hora']).dt.strftime('%d/%m/%Y %H:%M:%S')
-                df_display = df_display.rename(columns={
-                    'username': 'Usuário',
-                    'acao': 'Ação',
-                    'tabela': 'Tabela',
-                    'registro_id': 'ID Registro',
-                    'detalhes': 'Detalhes',
-                    'data_hora': 'Data/Hora'
-                })
-                st.dataframe(df_display[['Data/Hora', 'Usuário', 'Ação', 'Tabela', 'ID Registro', 'Detalhes']],
-                             use_container_width=True, hide_index=True)
-                st.caption(f"Mostrando {len(df_logs)} registros.")
+                inicio_periodo = pd.Timestamp(data_log_inicio)
+                fim_periodo_exclusivo = pd.Timestamp(data_log_fim) + pd.Timedelta(days=1)
+                filtros_sql = [
+                    "username = :u",
+                    "data_hora >= :inicio",
+                    "data_hora < :fim",
+                ]
+                params_logs = {
+                    "u": st.session_state.username,
+                    "inicio": inicio_periodo,
+                    "fim": fim_periodo_exclusivo,
+                }
+
+                if filtro_acao != "Todas":
+                    filtros_sql.append("acao = :acao")
+                    params_logs["acao"] = filtro_acao
+                if filtro_tabela != "Todas":
+                    filtros_sql.append("tabela = :tabela")
+                    params_logs["tabela"] = filtro_tabela
+                if busca_log:
+                    filtros_sql.append("""
+                        (
+                            COALESCE(detalhes, '') ILIKE :busca
+                            OR COALESCE(CAST(registro_id AS TEXT), '') ILIKE :busca
+                        )
+                    """)
+                    params_logs["busca"] = f"%{busca_log}%"
+
+                clausula_where = " AND ".join(filtros_sql)
+                query_logs = f"""
+                    SELECT
+                        data_hora,
+                        acao,
+                        tabela,
+                        registro_id,
+                        detalhes,
+                        COUNT(*) OVER () AS total_filtrado,
+                        COUNT(*) FILTER (WHERE acao = 'INSERT') OVER () AS total_inclusoes,
+                        COUNT(*) FILTER (WHERE acao = 'UPDATE') OVER () AS total_alteracoes,
+                        COUNT(*) FILTER (WHERE acao = 'DELETE') OVER () AS total_exclusoes
+                    FROM logs_acoes
+                    WHERE {clausula_where}
+                    ORDER BY data_hora DESC, id DESC
+                    LIMIT :limite
+                """
+                params_consulta = dict(params_logs)
+                params_consulta["limite"] = limite_logs
+
+                df_logs = pd.read_sql(
+                    text(query_logs), engine, params=params_consulta)
+
+                if df_logs.empty:
+                    resumo_logs = {
+                        'total_filtrado': 0,
+                        'total_inclusoes': 0,
+                        'total_alteracoes': 0,
+                        'total_exclusoes': 0,
+                    }
+                else:
+                    resumo_logs = df_logs.iloc[0]
+
+                col_total, col_insert, col_update, col_delete = st.columns(4)
+                col_total.metric("Total", int(resumo_logs['total_filtrado']))
+                col_insert.metric("Inclusões", int(resumo_logs['total_inclusoes']))
+                col_update.metric("Alterações", int(resumo_logs['total_alteracoes']))
+                col_delete.metric("Exclusões", int(resumo_logs['total_exclusoes']))
+
+                st.divider()
+
+                if df_logs.empty:
+                    st.info("Nenhuma ação encontrada com os filtros selecionados.")
+                else:
+                    df_display = df_logs.drop(columns=[
+                        'total_filtrado',
+                        'total_inclusoes',
+                        'total_alteracoes',
+                        'total_exclusoes',
+                    ]).copy()
+                    df_display['data_hora'] = pd.to_datetime(
+                        df_display['data_hora'])
+                    df_display['acao'] = df_display['acao'].map(
+                        lambda valor: nomes_acoes.get(valor, valor.title()))
+                    df_display['tabela'] = df_display['tabela'].map(
+                        lambda valor: nomes_tabelas.get(
+                            valor, valor.replace('_', ' ').title()))
+                    df_display['detalhes'] = df_display['detalhes'].fillna(
+                        "Sem detalhes")
+                    df_display['registro_id'] = pd.to_numeric(
+                        df_display['registro_id'], errors='coerce').astype('Int64')
+                    df_display = df_display.rename(columns={
+                        'data_hora': 'Data e hora',
+                        'acao': 'Ação',
+                        'tabela': 'Área',
+                        'registro_id': 'ID',
+                        'detalhes': 'Descrição',
+                    })
+
+                    st.dataframe(
+                        df_display[['Data e hora', 'Ação', 'Área', 'ID', 'Descrição']],
+                        use_container_width=True,
+                        hide_index=True,
+                        height=min(650, 80 + len(df_display) * 35),
+                        column_config={
+                            "Data e hora": st.column_config.DatetimeColumn(
+                                "Data e hora", format="DD/MM/YYYY HH:mm:ss", width="medium"),
+                            "Ação": st.column_config.TextColumn("Ação", width="small"),
+                            "Área": st.column_config.TextColumn("Área", width="medium"),
+                            "ID": st.column_config.NumberColumn("ID", format="%d", width="small"),
+                            "Descrição": st.column_config.TextColumn("Descrição", width="large"),
+                        },
+                    )
+
+                    total_filtrado = int(resumo_logs['total_filtrado'])
+                    st.caption(
+                        f"Exibindo {len(df_logs)} de {total_filtrado} ação(ões), das mais recentes para as mais antigas.")
+
+                    csv_logs = df_display.to_csv(
+                        index=False, sep=';', date_format='%d/%m/%Y %H:%M:%S'
+                    ).encode('utf-8-sig')
+                    st.download_button(
+                        "Baixar histórico em CSV",
+                        data=csv_logs,
+                        file_name=(
+                            f"historico_acoes_{data_log_inicio.strftime('%Y%m%d')}_"
+                            f"{data_log_fim.strftime('%Y%m%d')}.csv"
+                        ),
+                        mime="text/csv",
+                        use_container_width=True,
+                    )
         except Exception as e:
-            st.error(f"Erro ao carregar logs: {e}")
+            st.error(f"Erro ao carregar o histórico de ações: {e}")

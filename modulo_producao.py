@@ -81,6 +81,13 @@ def render_modulo_producao(
                             "cor": cor
                         })
                         conn.commit()
+                    registrar_log(
+                        "INSERT", "producao",
+                        detalhes=(
+                            f"Registrou {qtd_val} ovos ({tipo_ovo}, {cor}) "
+                            f"no {galpao} em {data_reg.strftime('%d/%m/%Y')}"
+                        )
+                    )
                     st.balloons()
                     st.success(
                         f"✅ {qtd_val} ovos ({tipo_ovo}, {cor}) do {galpao} registrados com sucesso!")
@@ -484,6 +491,14 @@ def render_modulo_producao(
                                         }
                                     )
                                     conn.commit()
+                                registrar_log(
+                                    "UPDATE", "producao", selected_id,
+                                    detalhes=(
+                                        f"Atualizou colheita para {novo_val} ovos "
+                                        f"({novo_tipo}, {nova_cor}) no {novo_galpao} "
+                                        f"em {nova_data.strftime('%d/%m/%Y')}"
+                                    )
+                                )
                                 area_editar_colheita.empty()
                                 mensagem_editar_colheita.success("✅ Registro atualizado com sucesso!")
                             except Exception as e:
@@ -522,13 +537,16 @@ def render_modulo_producao(
                                     st.error("Marque a confirmação antes de excluir.")
                                 else:
                                     try:
-                                        registrar_log("DELETE", "producao", selected_id_excluir, f"Excluiu colheita de {registro_excluir['quantidade']} ovos")
                                         with engine.connect() as conn:
                                             conn.execute(
                                                 text("DELETE FROM producao WHERE id = :id AND username = :username"),
                                                 {"id": selected_id_excluir, "username": st.session_state.username}
                                             )
                                             conn.commit()
+                                        registrar_log(
+                                            "DELETE", "producao", selected_id_excluir,
+                                            f"Excluiu colheita de {registro_excluir['quantidade']} ovos"
+                                        )
                                         area_excluir_colheita.empty()
                                         mensagem_excluir_colheita.success("✅ Registro excluído com sucesso!")
                                     except Exception as e:
@@ -610,6 +628,13 @@ def render_modulo_producao(
                                 "data": data_aves
                             })
                             conn.commit()
+                        registrar_log(
+                            "INSERT", "aves",
+                            detalhes=(
+                                f"Registrou {qtd_aves} aves no {galpao_aves} "
+                                f"em {data_aves.strftime('%d/%m/%Y')}"
+                            )
+                        )
                         st.success(
                             f"✅ {qtd_aves} aves registradas no {galpao_aves}!")
                     except Exception as e:
@@ -661,6 +686,13 @@ def render_modulo_producao(
                             "data": data_morta
                         })
                         conn.commit()
+                    registrar_log(
+                        "INSERT", "aves_mortas",
+                        detalhes=(
+                            f"Registrou {qtd_morta} aves mortas no {galpao_morta} "
+                            f"em {data_morta.strftime('%d/%m/%Y')}"
+                        )
+                    )
                     st.success(f"✅ {qtd_morta} aves mortas registradas!")
                 except Exception as e:
                     liberar_acao(chave_acao)
@@ -772,6 +804,13 @@ def render_modulo_producao(
                                             "username": st.session_state.username
                                         })
                                         conn.commit()
+                                    registrar_log(
+                                        "UPDATE", "aves", selected_id,
+                                        detalhes=(
+                                            f"Atualizou registro para {nova_qtd} aves no {novo_galpao} "
+                                            f"em {nova_data.strftime('%d/%m/%Y')}"
+                                        )
+                                    )
                                     area_editar_ave.empty()
                                     mensagem_editar_ave.success("✅ Registro atualizado com sucesso!")
                                 except Exception as e:
@@ -807,6 +846,10 @@ def render_modulo_producao(
                                                     WHERE id = :id AND username = :username
                                                 """), {"id": selected_id_excluir, "username": st.session_state.username})
                                                 conn.commit()
+                                            registrar_log(
+                                                "DELETE", "aves", selected_id_excluir,
+                                                f"Excluiu registro de aves: {opcoes[selected_id_excluir]}"
+                                            )
                                             area_excluir_ave.empty()
                                             mensagem_excluir_ave.success("Registro excluído!")
                                         except Exception as e:
@@ -883,14 +926,19 @@ def render_modulo_producao(
                                     st.error("Marque a confirmação antes de excluir.")
                                 else:
                                     try:
-                                        registrar_log("DELETE", "aves_mortas", selected_id_morta,
-                                                    f"Excluiu registro de morte de {df_mortas[df_mortas['id']==selected_id_morta].iloc[0]['Quantidade']} aves")
+                                        quantidade_morta_excluida = df_mortas[
+                                            df_mortas['id'] == selected_id_morta
+                                        ].iloc[0]['Quantidade']
                                         with engine.connect() as conn:
                                             conn.execute(text("""
                                                 DELETE FROM aves_mortas
                                                 WHERE id = :id AND username = :username
                                             """), {"id": selected_id_morta, "username": st.session_state.username})
                                             conn.commit()
+                                        registrar_log(
+                                            "DELETE", "aves_mortas", selected_id_morta,
+                                            f"Excluiu registro de morte de {quantidade_morta_excluida} aves"
+                                        )
                                         area_excluir_ave_morta.empty()
                                         mensagem_excluir_ave_morta.success("✅ Registro de morte excluído com sucesso!")
                                     except Exception as e:
@@ -1311,6 +1359,13 @@ def render_modulo_producao(
                                 "data": data_quebrados
                             })
                             conn.commit()
+                        registrar_log(
+                            "INSERT", "ovos_quebrados",
+                            detalhes=(
+                                f"Registrou {qtd_quebrados} ovos quebrados no {galpao_quebrados} "
+                                f"em {data_quebrados.strftime('%d/%m/%Y')}"
+                            )
+                        )
                         st.success(
                             f"✅ {qtd_quebrados} ovos quebrados registrados no {galpao_quebrados}!")
                     except Exception as e:
@@ -1407,6 +1462,10 @@ def render_modulo_producao(
                                     WHERE username = :u
                                 """), {"new_pw": new_pw, "u": st.session_state.username})
                                 conn.commit()
+                                registrar_log(
+                                    "UPDATE", "usuarios",
+                                    detalhes="Alterou a senha da conta"
+                                )
                                 st.success("✅ Senha alterada com sucesso!")
                             else:
                                 st.error("Senha atual incorreta.")

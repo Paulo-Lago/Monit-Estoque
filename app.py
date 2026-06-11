@@ -97,48 +97,65 @@ def get_engine():
 
 engine = get_engine()
 
-# ==================== TABELA DE LOGS ====================
-with engine.connect() as conn:
-    conn.execute(text("""
-        CREATE TABLE IF NOT EXISTS logs_acoes (
-            id SERIAL PRIMARY KEY,
-            username TEXT NOT NULL,
-            acao TEXT NOT NULL,
-            tabela TEXT NOT NULL,
-            registro_id INTEGER,
-            detalhes TEXT,
-            data_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """))
-    conn.commit()
+# ==================== ESTRUTURA DO BANCO ====================
+@st.cache_resource
+def inicializar_estrutura_banco(_engine):
+    with _engine.connect() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS logs_acoes (
+                id SERIAL PRIMARY KEY,
+                username TEXT NOT NULL,
+                acao TEXT NOT NULL,
+                tabela TEXT NOT NULL,
+                registro_id INTEGER,
+                detalhes TEXT,
+                data_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_logs_acoes_usuario_data
+            ON logs_acoes (username, data_hora DESC)
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_logs_acoes_usuario_acao_tabela
+            ON logs_acoes (username, acao, tabela)
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS ovos_geral_galpao (
+                id SERIAL PRIMARY KEY,
+                username TEXT NOT NULL,
+                data DATE NOT NULL,
+                galpao TEXT NOT NULL,
+                quantidade INTEGER NOT NULL CHECK (quantidade >= 0),
+                data_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (username, data, galpao)
+            )
+        """))
+        conn.commit()
+    return True
 
-with engine.connect() as conn:
-    conn.execute(text("""
-        CREATE TABLE IF NOT EXISTS ovos_geral_galpao (
-            id SERIAL PRIMARY KEY,
-            username TEXT NOT NULL,
-            data DATE NOT NULL,
-            galpao TEXT NOT NULL,
-            quantidade INTEGER NOT NULL CHECK (quantidade >= 0),
-            data_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE (username, data, galpao)
-        )
-    """))
-    conn.commit()
+
+inicializar_estrutura_banco(engine)
 
 def registrar_log(acao, tabela, registro_id=None, detalhes=None):
-    with engine.connect() as conn:
-        conn.execute(text("""
-            INSERT INTO logs_acoes (username, acao, tabela, registro_id, detalhes)
-            VALUES (:u, :a, :t, :rid, :d)
-        """), {
-            "u": st.session_state.username,
-            "a": acao,
-            "t": tabela,
-            "rid": registro_id,
-            "d": detalhes
-        })
-        conn.commit()
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("""
+                INSERT INTO logs_acoes (username, acao, tabela, registro_id, detalhes)
+                VALUES (:u, :a, :t, :rid, :d)
+            """), {
+                "u": st.session_state.username,
+                "a": acao,
+                "t": tabela,
+                "rid": registro_id,
+                "d": detalhes
+            })
+            conn.commit()
+        return True
+    except Exception:
+        st.warning(
+            "A operação foi concluída, mas não foi possível registrá-la no histórico de ações.")
+        return False
 
 # ==================== ESTILO ====================
 BASE_DIR = Path(__file__).parent
