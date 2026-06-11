@@ -42,7 +42,7 @@ def gerar_pdf_recibo_reportlab(dados_venda, itens, numero_recibo):
 
     # ==================== CORES ====================
     cor_primaria = colors.HexColor("#2E7D32")
-    cor_primaria_escura = colors.HexColor("#ffd983")
+    cor_primaria_escura = colors.HexColor("#FFD983")
     cor_fundo = colors.HexColor("#F6FAF7")
     cor_fundo_linha = colors.HexColor("#FAFAFA")
     cor_linha = colors.HexColor("#D7E3DA")
