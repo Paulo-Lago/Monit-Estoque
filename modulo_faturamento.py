@@ -168,7 +168,7 @@ def render_modulo_faturamento(
                         })
                         st.dataframe(
                             itens_confirmacao,
-                            use_container_width=True,
+                            width="stretch",
                             hide_index=True,
                             height=altura_tabela(itens_confirmacao, 300),
                             column_config={
@@ -189,7 +189,7 @@ def render_modulo_faturamento(
                     col_btn1, col_btn2 = st.columns(2)
                     
                     with col_btn1:
-                        if st.button("✅ Confirmar e Registrar", type="primary", use_container_width=True):
+                        if st.button("✅ Confirmar e Registrar", type="primary", width="stretch"):
                             if not str(dados_venda.get('numero_recibo', '')).strip():
                                 st.error("Informe o número do recibo antes de registrar a venda.")
                                 st.stop()
@@ -292,7 +292,7 @@ def render_modulo_faturamento(
                                 st.error(f"Erro ao registrar venda: {e}")
                     
                     with col_btn2:
-                        if st.button("✏️ Voltar e editar", use_container_width=True):
+                        if st.button("✏️ Voltar e editar", width="stretch"):
                             st.session_state.mostrar_confirmacao = False
                             st.rerun()
 
@@ -342,7 +342,7 @@ def render_modulo_faturamento(
                             f"Preço: {fmt_br(preco_unit)} | Após desconto: {fmt_br(preco_com_desconto)}")
                         if st.button(
                             "➕ Adicionar item", type="secondary",
-                            use_container_width=True, key="adicionar_item_venda"):
+                            width="stretch", key="adicionar_item_venda"):
                             st.session_state.carrinho.append({
                                 "produto_id": produto_id,
                                 "produto_nome": produto_nome,
@@ -373,7 +373,7 @@ def render_modulo_faturamento(
                             })
                             st.dataframe(
                                 df_display,
-                                use_container_width=True,
+                                width="stretch",
                                 hide_index=True,
                                 height=min(310, 74 + len(df_display) * 35),
                                 column_config={
@@ -400,7 +400,7 @@ def render_modulo_faturamento(
                             with col_remover:
                                 if st.button(
                                     "🗑️", help="Remover item do carrinho",
-                                    use_container_width=True, key="remover_item_venda"):
+                                    width="stretch", key="remover_item_venda"):
                                     st.session_state.carrinho.pop(indice_remover)
                                     st.rerun()
 
@@ -422,7 +422,7 @@ def render_modulo_faturamento(
                         enviar_whatsapp = st.checkbox(
                             "Enviar recibo por WhatsApp", value=True, key="envia_whats")
 
-                if st.button("Finalizar venda", type="primary", use_container_width=True, disabled=len(st.session_state.get("carrinho", [])) == 0):
+                if st.button("Finalizar venda", type="primary", width="stretch", disabled=len(st.session_state.get("carrinho", [])) == 0):
                     numero_recibo_limpo = numero_recibo.strip()
                     if not numero_recibo_limpo:
                         st.error("O número do recibo é obrigatório para finalizar a venda.")
@@ -457,7 +457,7 @@ def render_modulo_faturamento(
                         mime="application/pdf"
                     )
                 with col_finalizar:
-                    if st.button("✅ Finalizar e fazer nova venda", type="primary", use_container_width=True):
+                    if st.button("✅ Finalizar e fazer nova venda", type="primary", width="stretch"):
                         # Limpa tudo
                         st.session_state.carrinho = []
                         st.session_state.mostrar_confirmacao = False
@@ -872,7 +872,7 @@ def render_modulo_faturamento(
                         with col_add3:
                             novo_desc_unit = st.number_input("Desconto unit. (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="add_desc_edit")
                         with col_add4:
-                            if st.button("➕ Adicionar", key="add_item_btn_edit", use_container_width=True):
+                            if st.button("➕ Adicionar", key="add_item_btn_edit", width="stretch"):
                                 preco_final = novo_preco_unit - novo_desc_unit
                                 subtotal = nova_qtd * max(0, preco_final)
                                 items_edit.append({
@@ -898,7 +898,7 @@ def render_modulo_faturamento(
                         with colr3:
                             st.metric("⚠️ Novo Saldo Devedor", fmt_br(novo_valor_devendo))
 
-                        if st.button("💾 Salvar Todas as Alterações", type="primary", use_container_width=True):
+                        if st.button("💾 Salvar Todas as Alterações", type="primary", width="stretch"):
                             if not novo_recibo.strip():
                                 st.error("O número do recibo é obrigatório.")
                                 st.stop()
@@ -1104,7 +1104,7 @@ def render_modulo_faturamento(
                         )
 
                     adicionar_estoque = st.form_submit_button(
-                        "➕ Adicionar ao Estoque", type="primary", use_container_width=True)
+                        "➕ Adicionar ao Estoque", type="primary", width="stretch")
 
                 if adicionar_estoque:
                     if quantidade_hoje <= 0:
@@ -1176,7 +1176,7 @@ def render_modulo_faturamento(
                                     key="estoque_nova_qtd"
                                 )
                                 substituir_estoque = st.form_submit_button(
-                                    "✅ Substituir", type="primary", use_container_width=True)
+                                    "✅ Substituir", type="primary", width="stretch")
                         else:
                             produto_id_edit = None
                             nova_qtd_total = 0
@@ -1224,7 +1224,7 @@ def render_modulo_faturamento(
                                 confirmar_exclusao_estoque = st.checkbox(
                                     "Confirmo que quero excluir", key="confirmar_exclusao_estoque")
                                 excluir_estoque_submit = st.form_submit_button(
-                                    "🗑️ Excluir estoque", type="primary", use_container_width=True,
+                                    "🗑️ Excluir estoque", type="primary", width="stretch",
                                     disabled=False
                                 )
                         else:
@@ -1699,7 +1699,7 @@ def render_modulo_faturamento(
                             "Formas padrão disponíveis para todas as contas")
                         st.dataframe(
                             formas_padrao[['nome']].rename(columns={'nome': 'Forma de pagamento'}),
-                            use_container_width=True,
+                            width="stretch",
                             hide_index=True,
                             height=altura_tabela(formas_padrao, 240),
                         )
@@ -1710,7 +1710,7 @@ def render_modulo_faturamento(
                         editor_formas['ativo'] = editor_formas['ativo'].astype(bool)
                         formas_editadas = st.data_editor(
                             editor_formas,
-                            use_container_width=True,
+                            width="stretch",
                             hide_index=True,
                             disabled=['id', 'nome'],
                             height=altura_tabela(editor_formas, 300),
@@ -1725,7 +1725,7 @@ def render_modulo_faturamento(
                         )
                         if st.button(
                             "Salvar alterações", type="primary",
-                            use_container_width=True, key="salvar_formas_pagamento"):
+                            width="stretch", key="salvar_formas_pagamento"):
                             alteracoes_formas = []
                             for _, forma_editada in formas_editadas.iterrows():
                                 forma_original = formas_usuario[
@@ -1878,7 +1878,7 @@ def render_modulo_faturamento(
                 else:
                     st.dataframe(
                         df_tipos[['nome', 'descricao']],
-                        use_container_width=True,
+                        width="stretch",
                         hide_index=True,
                         height=altura_tabela(df_tipos, 350),
                     )
@@ -2020,7 +2020,7 @@ def render_modulo_faturamento(
                     df_totais = formatar_moeda_tabela(
                         df_totais, ['Total (R$)'])
                     st.dataframe(
-                        df_totais, use_container_width=True, hide_index=True,
+                        df_totais, width="stretch", hide_index=True,
                         height=altura_tabela(df_totais, 300),
                         column_config={
                             'Tipo de Despesa': st.column_config.TextColumn(width='large'),
@@ -2035,7 +2035,7 @@ def render_modulo_faturamento(
                         df_display, ['Valor'])
                     st.dataframe(
                         df_display[['Data', 'Tipo', 'Valor', 'Observação']],
-                        use_container_width=True, hide_index=True,
+                        width="stretch", hide_index=True,
                         height=altura_tabela(df_display, 420),
                         column_config={
                             'Data': st.column_config.DateColumn(format='DD/MM/YYYY'),
@@ -2050,10 +2050,10 @@ def render_modulo_faturamento(
                     col_ajuste_editar, col_ajuste_excluir = painel_ajustes_despesa.columns(2)
                     opcoes = {
                         row['id']: (
-                            f"{pd.to_datetime(row['Data']).strftime('%d/%m/%Y')} - "
-                            f"{row['Tipo']} - {fmt_br(row['Valor'])}"
+                            f"{pd.to_datetime(row['data']).strftime('%d/%m/%Y')} - "
+                            f"{row['tipo']} - {fmt_br(row['valor'])}"
                         )
-                        for _, row in df_display.iterrows()
+                        for _, row in df_despesas.iterrows()
                     }
                     with col_ajuste_editar:
                         st.markdown("##### Editar")
@@ -2223,7 +2223,7 @@ def render_modulo_faturamento(
                     'valor_total': 'Valor Total (R$)'
                 })
                 st.dataframe(
-                    df_display, use_container_width=True, hide_index=True,
+                    df_display, width="stretch", hide_index=True,
                     height=altura_tabela(df_display, 420))
 
                 st.divider()
@@ -2262,7 +2262,7 @@ def render_modulo_faturamento(
                         xaxis=dict(tickformat='%d/%m', color="#000000"),
                         yaxis=dict(color="#000000")
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width="stretch")
                 else:
                     st.info("Dados insuficientes para gráfico de linha.")
 
@@ -2282,7 +2282,7 @@ def render_modulo_faturamento(
                 )
                 # Ajusta os valores no texto das barras para formato BR (opcional)
                 fig_rank.update_traces(texttemplate='%{x:,.2f}', textposition='outside')
-                st.plotly_chart(fig_rank, use_container_width=True)
+                st.plotly_chart(fig_rank, width="stretch")
 
         # ---------- SUBABA: FATURAMENTO (PROFISSIONAL) - FORMATADO BR ----------
         with fat_interno[2]:
@@ -2481,7 +2481,7 @@ def render_modulo_faturamento(
                                                font=dict(color="#2c3e50", size=12), title_font=dict(color="#2c3e50", size=14),
                                                xaxis=dict(tickformat='%d/%m', color="#2c3e50"), yaxis=dict(color="#2c3e50"),
                                                legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1))
-                    st.plotly_chart(fig_evolucao, use_container_width=True)
+                    st.plotly_chart(fig_evolucao, width="stretch")
                 with col_right:
                     st.markdown("#### Resultado de caixa acumulado")
                     fig_lucro = px.area(
@@ -2492,7 +2492,7 @@ def render_modulo_faturamento(
                     fig_lucro.update_layout(plot_bgcolor='#f8f9fa', paper_bgcolor='#ffffff',
                                             font=dict(color="#2c3e50", size=12), title_font=dict(color="#2c3e50", size=14),
                                             xaxis=dict(tickformat='%d/%m', color="#2c3e50"), yaxis=dict(color="#2c3e50"))
-                    st.plotly_chart(fig_lucro, use_container_width=True)
+                    st.plotly_chart(fig_lucro, width="stretch")
 
                 st.markdown("#### Recebimentos e despesas")
                 fig_caixa = px.bar(
@@ -2506,7 +2506,7 @@ def render_modulo_faturamento(
                     plot_bgcolor='#ffffff', paper_bgcolor='#ffffff',
                     xaxis=dict(tickformat='%d/%m'),
                     legend=dict(orientation='h', y=1.02, x=0))
-                st.plotly_chart(fig_caixa, use_container_width=True)
+                st.plotly_chart(fig_caixa, width="stretch")
             else:
                 st.info("Não há vendas ou despesas no período selecionado.")
 
@@ -2521,7 +2521,7 @@ def render_modulo_faturamento(
                     df_top_desp_display = formatar_moeda_tabela(
                         df_top_desp_display, ['Valor'])
                     st.dataframe(df_top_desp_display,
-                                 use_container_width=True, hide_index=True,
+                                 width="stretch", hide_index=True,
                                  height=altura_tabela(df_top_desp_display, 280),
                                  column_config={
                                      "Tipo": st.column_config.TextColumn("Tipo de Despesa"),
@@ -2540,7 +2540,7 @@ def render_modulo_faturamento(
                     df_top_prod_display = formatar_moeda_tabela(
                         df_top_prod_display, ['Vendido', 'Recebido'])
                     st.dataframe(df_top_prod_display,
-                                 use_container_width=True, hide_index=True,
+                                 width="stretch", hide_index=True,
                                  height=altura_tabela(df_top_prod_display, 280),
                                  column_config={
                                      "Produto": st.column_config.TextColumn(width="large"),
@@ -2737,7 +2737,7 @@ def render_modulo_faturamento(
 
                     st.dataframe(
                         df_display[['Data e hora', 'Ação', 'Área', 'ID', 'Descrição']],
-                        use_container_width=True,
+                        width="stretch",
                         hide_index=True,
                         height=min(650, 80 + len(df_display) * 35),
                         column_config={
@@ -2765,7 +2765,7 @@ def render_modulo_faturamento(
                             f"{data_log_fim.strftime('%Y%m%d')}.csv"
                         ),
                         mime="text/csv",
-                        use_container_width=True,
+                        width="stretch",
                     )
         except Exception as e:
             st.error(f"Erro ao carregar o histórico de ações: {e}")

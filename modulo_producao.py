@@ -62,7 +62,7 @@ def render_modulo_producao(
                     "🏠 Galpão", GALPOES, key="galpao_colheita")
 
             cor = st.selectbox("🎨 Cor do Ovo", CORES, key="cor_ovo")
-            salvar_colheita = st.form_submit_button("✅ Salvar Colheita", use_container_width=True)
+            salvar_colheita = st.form_submit_button("✅ Salvar Colheita", width="stretch")
 
         if salvar_colheita:
             if qtd_val > 0:
@@ -127,7 +127,7 @@ def render_modulo_producao(
             salvar_ovos_geral = st.form_submit_button(
                 "✅ Salvar Totais por Galpão",
                 type="primary",
-                use_container_width=True
+                width="stretch"
             )
 
         if salvar_ovos_geral:
@@ -261,7 +261,7 @@ def render_modulo_producao(
                                         'galpao': 'Galpão',
                                         'quantidade': 'Total Geral de Ovos'
                                     }),
-                                    use_container_width=True,
+                                    width="stretch",
                                     hide_index=True,
                                     height=altura_tabela(detalhes_gerais, 320),
                                     column_config={
@@ -406,7 +406,7 @@ def render_modulo_producao(
                         st.markdown("#### 📋 Registros do Período")
                         st.dataframe(
                             df_display[['Data', 'Quantidade', 'Tipo', 'Galpão', 'Cor']],
-                            use_container_width=True,
+                            width="stretch",
                             hide_index=True,
                             height=altura_tabela(df_display, 420),
                             column_config={
@@ -476,10 +476,10 @@ def render_modulo_producao(
                                         "Corrigir cor:", CORES,
                                         index=CORES.index(registro['cor']), key="edit_cor")
                                 salvar_colheita_editada = st.form_submit_button(
-                                    "✅ Confirmar Alteração", type="primary", use_container_width=True)
+                                    "✅ Confirmar Alteração", type="primary", width="stretch")
                             else:
                                 salvar_colheita_editada = st.form_submit_button(
-                                    "✅ Confirmar Alteração", type="primary", use_container_width=True, disabled=True)
+                                    "✅ Confirmar Alteração", type="primary", width="stretch", disabled=True)
 
                         if salvar_colheita_editada and selected_id is not None:
                             try:
@@ -629,7 +629,7 @@ def render_modulo_producao(
                                                format="%d", key="qtd_aves_reg")
 
                 registrar_aves = st.form_submit_button(
-                    "✅ Registrar Aves", type="primary", use_container_width=True)
+                    "✅ Registrar Aves", type="primary", width="stretch")
 
             if registrar_aves:
                 if qtd_aves > 0:
@@ -688,7 +688,7 @@ def render_modulo_producao(
                                                 format="%d", key="qtd_morta")
 
                 registrar_morte = st.form_submit_button(
-                    "✅ Registrar Morte", type="primary", use_container_width=True)
+                    "✅ Registrar Morte", type="primary", width="stretch")
 
             if registrar_morte:
                 chave_acao = "registrar_morte"
@@ -769,7 +769,7 @@ def render_modulo_producao(
                         df_aves['Data'] = pd.to_datetime(df_aves['Data'])
                         st.dataframe(
                             df_aves[['Data', 'Galpão', 'Quantidade']],
-                            use_container_width=True, hide_index=True,
+                            width="stretch", hide_index=True,
                             height=altura_tabela(df_aves, 380))
 
                         # ---- Edição/Exclusão de Aves Vivas ----
@@ -810,10 +810,10 @@ def render_modulo_producao(
                                         "Data", value=pd.to_datetime(registro['data_registro']).date(),
                                         format="DD/MM/YYYY", key="edit_data_ave")
                                     salvar_ave = st.form_submit_button(
-                                        "✅ Salvar Alterações", use_container_width=True, type="primary")
+                                        "✅ Salvar Alterações", width="stretch", type="primary")
                                 else:
                                     salvar_ave = st.form_submit_button(
-                                        "✅ Salvar Alterações", use_container_width=True, type="primary", disabled=True)
+                                        "✅ Salvar Alterações", width="stretch", type="primary", disabled=True)
 
                             if salvar_ave and selected_id is not None:
                                 try:
@@ -923,7 +923,7 @@ def render_modulo_producao(
                         df_mortas['Data'] = pd.to_datetime(df_mortas['Data'])
                         st.dataframe(
                             df_mortas[['Data', 'Galpão', 'Quantidade']],
-                            use_container_width=True, hide_index=True,
+                            width="stretch", hide_index=True,
                             height=altura_tabela(df_mortas, 380))
 
                         painel_aves_mortas = st.expander(
@@ -1128,7 +1128,7 @@ def render_modulo_producao(
                                     yaxis=dict(color="#000000")
                                 )
                                 st.plotly_chart(
-                                    fig, use_container_width=True)
+                                    fig, width="stretch")
                             st.divider()
 
                         st.markdown("#### Total Diário e Percentual de Postura por Galpão")
@@ -1248,7 +1248,7 @@ def render_modulo_producao(
                                 secondary_y=True,
                             )
                             st.plotly_chart(
-                                fig_desempenho, use_container_width=True)
+                                fig_desempenho, width="stretch")
                             st.divider()
 
             # ==================== OVOS QUEBRADOS ====================
@@ -1296,7 +1296,7 @@ def render_modulo_producao(
                                            color="#000000"),
                                 yaxis=dict(color="#000000")
                             )
-                            st.plotly_chart(fig, use_container_width=True)
+                            st.plotly_chart(fig, width="stretch")
                             st.divider()
 
             # ==================== AVES MORTAS ====================
@@ -1344,7 +1344,7 @@ def render_modulo_producao(
                                            color="#000000"),
                                 yaxis=dict(color="#000000")
                             )
-                            st.plotly_chart(fig, use_container_width=True)
+                            st.plotly_chart(fig, width="stretch")
                             st.divider()
 
         except Exception as e:
@@ -1373,7 +1373,7 @@ def render_modulo_producao(
                                                     format="%d", key="qtd_quebrados_reg")
 
                 registrar_ovos_quebrados = st.form_submit_button(
-                    "✅ Registrar Ovos Quebrados", type="primary", use_container_width=True)
+                    "✅ Registrar Ovos Quebrados", type="primary", width="stretch")
 
             if registrar_ovos_quebrados:
                 if qtd_quebrados > 0:
