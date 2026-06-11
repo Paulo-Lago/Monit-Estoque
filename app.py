@@ -396,21 +396,23 @@ else:
         with tabs[0]:
             st.markdown("### 📝 Registrar Nova Colheita")
 
-            col1, col2 = st.columns(2)
-            with col1:
-                data_reg = st.date_input("📅 Data da Colheita", value=datetime.now(
-                ).date(), format="DD/MM/YYYY", key="data_colheita")
-                qtd_val = st.number_input(
-                    "🥚 Quantidade de Ovos", min_value=0, step=1, format="%d", key="qtd_colheita")
-            with col2:
-                tipo_ovo = st.selectbox(
-                    "🏷️ Tipo de Ovo", TIPOS_OVO, key="tipo_ovo")
-                galpao = st.selectbox(
-                    "🏠 Galpão", GALPOES, key="galpao_colheita")
+            with st.form("form_salvar_colheita", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    data_reg = st.date_input("📅 Data da Colheita", value=datetime.now(
+                    ).date(), format="DD/MM/YYYY", key="data_colheita")
+                    qtd_val = st.number_input(
+                        "🥚 Quantidade de Ovos", min_value=0, step=1, format="%d", key="qtd_colheita")
+                with col2:
+                    tipo_ovo = st.selectbox(
+                        "🏷️ Tipo de Ovo", TIPOS_OVO, key="tipo_ovo")
+                    galpao = st.selectbox(
+                        "🏠 Galpão", GALPOES, key="galpao_colheita")
 
-            cor = st.selectbox("🎨 Cor do Ovo", CORES, key="cor_ovo")
+                cor = st.selectbox("🎨 Cor do Ovo", CORES, key="cor_ovo")
+                salvar_colheita = st.form_submit_button("✅ Salvar Colheita", use_container_width=True)
 
-            if st.button("✅ Salvar Colheita", width='stretch'):
+            if salvar_colheita:
                 if qtd_val > 0:
                     chave_acao = "salvar_colheita"
                     payload_acao = (st.session_state.username, data_reg, qtd_val, tipo_ovo, galpao, cor)
@@ -655,51 +657,44 @@ else:
                                 row['id']: f"📅 {row['data_fmt']} | {row['quantidade']} ovos | {row['tipo']} | {row['cor']} | {row['galpao']}"
                                 for _, row in df_edit.iterrows()
                             }
-                            selecao = st.selectbox(
-                                "Escolha um registro para corrigir ou excluir:",
-                                list(opcoes.values()),
+                            selected_id = st.selectbox(
+                                "Escolha um registro para corrigir:",
+                                options=list(opcoes.keys()),
+                                format_func=lambda x: opcoes[x],
+                                index=None,
+                                placeholder="Selecione um registro",
                                 key="edit_select"
                             )
-                            selected_id = [k for k, v in opcoes.items() if v == selecao][0]
-                            registro = df_edit[df_edit['id'] == selected_id].iloc[0]
+                            mensagem_editar_colheita = st.empty()
+                            area_editar_colheita = st.empty()
+                            with area_editar_colheita.container(), st.form("form_editar_colheita", clear_on_submit=True):
+                                if selected_id is not None:
+                                    registro = df_edit[df_edit['id'] == selected_id].iloc[0]
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        novo_val = st.number_input(
+                                            "Corrigir quantidade:", min_value=0, step=1,
+                                            value=int(registro['quantidade']), key="edit_qtd")
+                                        novo_tipo = st.selectbox(
+                                            "Corrigir tipo:", TIPOS_OVO,
+                                            index=TIPOS_OVO.index(registro['tipo']), key="edit_tipo")
+                                        nova_data = st.date_input(
+                                            "📅 Data da Colheita", value=pd.to_datetime(registro['data']).date(),
+                                            format="DD/MM/YYYY", key="edit_data")
+                                    with col2:
+                                        novo_galpao = st.selectbox(
+                                            "Corrigir galpão:", GALPOES,
+                                            index=GALPOES.index(registro['galpao']), key="edit_galpao")
+                                        nova_cor = st.selectbox(
+                                            "Corrigir cor:", CORES,
+                                            index=CORES.index(registro['cor']), key="edit_cor")
+                                    salvar_colheita_editada = st.form_submit_button(
+                                        "✅ Confirmar Alteração", type="primary", use_container_width=True)
+                                else:
+                                    salvar_colheita_editada = st.form_submit_button(
+                                        "✅ Confirmar Alteração", type="primary", use_container_width=True, disabled=True)
 
-                            # Formulário de edição
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                novo_val = st.number_input(
-                                    "Corrigir quantidade:",
-                                    min_value=0,
-                                    step=1,
-                                    value=int(registro['quantidade']),
-                                    key="edit_qtd"
-                                )
-                                novo_tipo = st.selectbox(
-                                    "Corrigir tipo:",
-                                    TIPOS_OVO,
-                                    index=TIPOS_OVO.index(registro['tipo']),
-                                    key="edit_tipo"
-                                )
-                                nova_data = st.date_input(
-                                    "📅 Data da Colheita",
-                                    value=pd.to_datetime(registro['data']).date(),
-                                    format="DD/MM/YYYY",
-                                    key="edit_data"
-                                )
-                            with col2:
-                                novo_galpao = st.selectbox(
-                                    "Corrigir galpão:",
-                                    GALPOES,
-                                    index=GALPOES.index(registro['galpao']),
-                                    key="edit_galpao"
-                                )
-                                nova_cor = st.selectbox(
-                                    "Corrigir cor:",
-                                    CORES,
-                                    index=CORES.index(registro['cor']),
-                                    key="edit_cor"
-                                )
-
-                            if st.button("✅ Confirmar Alteração", use_container_width=True):
+                            if salvar_colheita_editada and selected_id is not None:
                                 try:
                                     with engine.connect() as conn:
                                         conn.execute(
@@ -723,8 +718,8 @@ else:
                                             }
                                         )
                                         conn.commit()
-                                    st.success("✅ Registro atualizado com sucesso!")
-                                    st.rerun()
+                                    area_editar_colheita.empty()
+                                    mensagem_editar_colheita.success("✅ Registro atualizado com sucesso!")
                                 except Exception as e:
                                     st.error(f"Erro ao atualizar: {e}")
 
@@ -733,23 +728,40 @@ else:
                             # Exclusão
                             st.markdown("#### 🗑️ Excluir Registro")
                             st.caption("Esta ação é irreversível e removerá permanentemente o registro do histórico.")
-                            with st.popover("🗑️ Excluir este registro", use_container_width=True):
-                                st.warning(
-                                    f"Tem certeza que deseja excluir o registro de {registro['quantidade']} ovos "
-                                    f"({registro['tipo']}, {registro['cor']}) do {registro['galpao']}?"
-                                )
-                                confirmar = st.checkbox("Sim, quero excluir permanentemente este registro.")
-                                if st.button("Excluir agora", type="primary", disabled=not confirmar):
+                            selected_id_excluir = st.selectbox(
+                                "Escolha um registro para excluir:",
+                                options=list(opcoes.keys()),
+                                format_func=lambda x: opcoes[x],
+                                index=None,
+                                placeholder="Selecione um registro",
+                                key="delete_select_colheita"
+                            )
+                            mensagem_excluir_colheita = st.empty()
+                            area_excluir_colheita = st.empty()
+                            with area_excluir_colheita.container(), st.form("form_excluir_colheita", clear_on_submit=True):
+                                if selected_id_excluir is not None:
+                                    registro_excluir = df_edit[df_edit['id'] == selected_id_excluir].iloc[0]
+                                    st.warning(
+                                        f"Tem certeza que deseja excluir o registro de {registro_excluir['quantidade']} ovos "
+                                        f"({registro_excluir['tipo']}, {registro_excluir['cor']}) do {registro_excluir['galpao']}?")
+                                    confirmar = st.checkbox("Sim, quero excluir permanentemente este registro.")
+                                else:
+                                    registro_excluir = None
+                                    confirmar = False
+                                excluir_colheita = st.form_submit_button(
+                                    "Excluir agora", type="primary", disabled=not confirmar)
+
+                                if excluir_colheita and selected_id_excluir is not None:
                                     try:
-                                        registrar_log("DELETE", "producao", selected_id, f"Excluiu colheita de {registro['quantidade']} ovos")
+                                        registrar_log("DELETE", "producao", selected_id_excluir, f"Excluiu colheita de {registro_excluir['quantidade']} ovos")
                                         with engine.connect() as conn:
                                             conn.execute(
                                                 text("DELETE FROM producao WHERE id = :id AND username = :username"),
-                                                {"id": selected_id, "username": st.session_state.username}
+                                                {"id": selected_id_excluir, "username": st.session_state.username}
                                             )
                                             conn.commit()
-                                        st.success("✅ Registro excluído com sucesso!")
-                                        st.rerun()
+                                        area_excluir_colheita.empty()
+                                        mensagem_excluir_colheita.success("✅ Registro excluído com sucesso!")
                                     except Exception as e:
                                         st.error(f"Erro ao excluir: {e}")
 
@@ -797,17 +809,21 @@ else:
             # ==================== REGISTRAR NOVAS AVES ====================
             with tab_reg_aves:
                 st.markdown("#### ➕ Adicionar Novas Aves")
-                col1, col2 = st.columns(2)
-                with col1:
-                    data_aves = st.date_input("📅 Data", value=datetime.now().date(),
-                                              format="DD/MM/YYYY", key="data_aves_reg")
-                    galpao_aves = st.selectbox(
-                        "🏠 Galpão", GALPOES, key="galpao_aves_reg")
-                with col2:
-                    qtd_aves = st.number_input("🐔 Quantidade de Aves", min_value=1, step=1,
-                                               format="%d", key="qtd_aves_reg")
+                with st.form("form_registrar_aves", clear_on_submit=True):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        data_aves = st.date_input("📅 Data", value=datetime.now().date(),
+                                                  format="DD/MM/YYYY", key="data_aves_reg")
+                        galpao_aves = st.selectbox(
+                            "🏠 Galpão", GALPOES, key="galpao_aves_reg")
+                    with col2:
+                        qtd_aves = st.number_input("🐔 Quantidade de Aves", min_value=1, step=1,
+                                                   format="%d", key="qtd_aves_reg")
 
-                if st.button("✅ Registrar Aves", width='stretch', type="primary"):
+                    registrar_aves = st.form_submit_button(
+                        "✅ Registrar Aves", type="primary", use_container_width=True)
+
+                if registrar_aves:
                     if qtd_aves > 0:
                         chave_acao = "registrar_aves"
                         payload_acao = (st.session_state.username, data_aves, galpao_aves, qtd_aves)
@@ -845,17 +861,21 @@ else:
                 else:
                     st.markdown("#### ⚠️ Registrar Aves Mortas")
                 
-                col1, col2 = st.columns(2)
-                with col1:
-                    data_morta = st.date_input("📅 Data", value=datetime.now().date(),
-                                               format="DD/MM/YYYY", key="data_morta")
-                    galpao_morta = st.selectbox(
-                        "🏠 Galpão", GALPOES, key="galpao_morta")
-                with col2:
-                    qtd_morta = st.number_input("🪦 Quantidade de Aves Mortas", min_value=1, step=1,
-                                                format="%d", key="qtd_morta")
+                with st.form("form_registrar_morte", clear_on_submit=True):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        data_morta = st.date_input("📅 Data", value=datetime.now().date(),
+                                                   format="DD/MM/YYYY", key="data_morta")
+                        galpao_morta = st.selectbox(
+                            "🏠 Galpão", GALPOES, key="galpao_morta")
+                    with col2:
+                        qtd_morta = st.number_input("🪦 Quantidade de Aves Mortas", min_value=1, step=1,
+                                                    format="%d", key="qtd_morta")
 
-                if st.button("✅ Registrar Morte", width='stretch', type="primary"):
+                    registrar_morte = st.form_submit_button(
+                        "✅ Registrar Morte", type="primary", use_container_width=True)
+
+                if registrar_morte:
                     chave_acao = "registrar_morte"
                     payload_acao = (st.session_state.username, data_morta, galpao_morta, qtd_morta)
                     if acao_repetida(chave_acao, payload_acao):
@@ -933,40 +953,40 @@ else:
                                 row['id']: f"📅 {row['Data']} | {row['Galpão']} | {row['Quantidade']} aves"
                                 for _, row in df_aves.iterrows()
                             }
-                            selecao = st.selectbox(
-                                "Selecione um registro para editar ou excluir:",
-                                list(opcoes.values()),
-                                key="select_ave_viva"
-                            )
-                            selected_id = [k for k, v in opcoes.items() if v == selecao][0]
-                            # Buscar dados completos do registro selecionado
-                            registro = pd.read_sql(text("""
-                                SELECT data_registro, galpao, quantidade_total
-                                FROM aves WHERE id = :id
-                            """), engine, params={"id": selected_id}).iloc[0]
-
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                novo_galpao = st.selectbox(
-                                    "Galpão", GALPOES,
-                                    index=GALPOES.index(registro['galpao']),
-                                    key="edit_galpao_ave"
-                                )
-                                nova_qtd = st.number_input(
-                                    "Quantidade", min_value=1, step=1,
-                                    value=int(registro['quantidade_total']),
-                                    key="edit_qtd_ave"
-                                )
-                            with col2:
-                                nova_data = st.date_input(
-                                    "Data", value=pd.to_datetime(registro['data_registro']).date(),
-                                    format="DD/MM/YYYY",
-                                    key="edit_data_ave"
-                                )
-
                             col_btn1, col_btn2 = st.columns(2)
                             with col_btn1:
-                                if st.button("✅ Salvar Alterações", use_container_width=True, type="primary"):
+                                selected_id = st.selectbox(
+                                    "Selecione um registro para editar:",
+                                    options=list(opcoes.keys()),
+                                    format_func=lambda x: opcoes[x],
+                                    index=None,
+                                    placeholder="Selecione um registro",
+                                    key="select_ave_viva"
+                                )
+                                mensagem_editar_ave = st.empty()
+                                area_editar_ave = st.empty()
+                                with area_editar_ave.container(), st.form("form_editar_ave", clear_on_submit=True):
+                                    if selected_id is not None:
+                                        registro = pd.read_sql(text("""
+                                            SELECT data_registro, galpao, quantidade_total
+                                            FROM aves WHERE id = :id
+                                        """), engine, params={"id": selected_id}).iloc[0]
+                                        novo_galpao = st.selectbox(
+                                            "Galpão", GALPOES,
+                                            index=GALPOES.index(registro['galpao']), key="edit_galpao_ave")
+                                        nova_qtd = st.number_input(
+                                            "Quantidade", min_value=1, step=1,
+                                            value=int(registro['quantidade_total']), key="edit_qtd_ave")
+                                        nova_data = st.date_input(
+                                            "Data", value=pd.to_datetime(registro['data_registro']).date(),
+                                            format="DD/MM/YYYY", key="edit_data_ave")
+                                        salvar_ave = st.form_submit_button(
+                                            "✅ Salvar Alterações", use_container_width=True, type="primary")
+                                    else:
+                                        salvar_ave = st.form_submit_button(
+                                            "✅ Salvar Alterações", use_container_width=True, type="primary", disabled=True)
+
+                                if salvar_ave and selected_id is not None:
                                     try:
                                         with engine.connect() as conn:
                                             conn.execute(text("""
@@ -983,23 +1003,40 @@ else:
                                                 "username": st.session_state.username
                                             })
                                             conn.commit()
-                                        st.success("✅ Registro atualizado com sucesso!")
-                                        st.rerun()
+                                        area_editar_ave.empty()
+                                        mensagem_editar_ave.success("✅ Registro atualizado com sucesso!")
                                     except Exception as e:
                                         st.error(f"Erro ao atualizar: {e}")
                             with col_btn2:
-                                with st.popover("🗑️ Excluir", use_container_width=True):
-                                    st.warning("⚠️ Esta ação não pode ser desfeita!")
-                                    if st.button("Sim, excluir permanentemente", type="primary", key=f"del_ave_{selected_id}"):
+                                selected_id_excluir = st.selectbox(
+                                    "Selecione um registro para excluir:",
+                                    options=list(opcoes.keys()),
+                                    format_func=lambda x: opcoes[x],
+                                    index=None,
+                                    placeholder="Selecione um registro",
+                                    key="delete_ave_viva"
+                                )
+                                mensagem_excluir_ave = st.empty()
+                                area_excluir_ave = st.empty()
+                                with area_excluir_ave.container(), st.form("form_excluir_ave", clear_on_submit=True):
+                                    if selected_id_excluir is not None:
+                                        st.warning("⚠️ Esta ação não pode ser desfeita!")
+                                        confirmar_ave = st.checkbox("Confirmo que quero excluir este registro")
+                                    else:
+                                        confirmar_ave = False
+                                    excluir_ave = st.form_submit_button(
+                                        "Sim, excluir permanentemente", type="primary", disabled=not confirmar_ave)
+
+                                    if excluir_ave and selected_id_excluir is not None:
                                         try:
                                             with engine.connect() as conn:
                                                 conn.execute(text("""
                                                     DELETE FROM aves
                                                     WHERE id = :id AND username = :username
-                                                """), {"id": selected_id, "username": st.session_state.username})
+                                                """), {"id": selected_id_excluir, "username": st.session_state.username})
                                                 conn.commit()
-                                            st.success("Registro excluído!")
-                                            st.rerun()
+                                            area_excluir_ave.empty()
+                                            mensagem_excluir_ave.success("Registro excluído!")
                                         except Exception as e:
                                             st.error(f"Erro ao excluir: {e}")
                     except Exception as e:
@@ -1049,25 +1086,27 @@ else:
                                 row['id']: f"📅 {row['Data']} | {row['Galpão']} | {row['Quantidade']} aves"
                                 for _, row in df_mortas.iterrows()
                             }
-                            selecao_morta = st.selectbox(
+                            selected_id_morta = st.selectbox(
                                 "Selecione um registro para excluir:",
-                                list(opcoes_mortas.values()),
+                                options=list(opcoes_mortas.keys()),
+                                format_func=lambda x: opcoes_mortas[x],
+                                index=None,
+                                placeholder="Selecione um registro",
                                 key="select_ave_morta"
                             )
-                            selected_id_morta = [k for k, v in opcoes_mortas.items() if v == selecao_morta][0]
+                            mensagem_excluir_ave_morta = st.empty()
+                            area_excluir_ave_morta = st.empty()
+                            with area_excluir_ave_morta.container(), st.form("form_excluir_ave_morta", clear_on_submit=True):
+                                if selected_id_morta is not None:
+                                    st.warning("⚠️ Esta ação é irreversível e removerá permanentemente o registro de morte.")
+                                    confirmar_morta = st.checkbox(
+                                        "Sim, quero excluir permanentemente este registro.")
+                                else:
+                                    confirmar_morta = False
+                                excluir_ave_morta = st.form_submit_button(
+                                    "Excluir agora", type="primary", disabled=not confirmar_morta)
 
-                            with st.popover("🗑️ Excluir este registro", use_container_width=True):
-                                st.warning("⚠️ Esta ação é irreversível e removerá permanentemente o registro de morte.")
-                                confirmar_morta = st.checkbox(
-                                    "Sim, quero excluir permanentemente este registro.",
-                                    key=f"confirma_morta_{selected_id_morta}"
-                                )
-                                if st.button(
-                                    "Excluir agora",
-                                    type="primary",
-                                    disabled=not confirmar_morta,
-                                    key=f"btn_excluir_morta_{selected_id_morta}"
-                                ):
+                                if excluir_ave_morta and selected_id_morta is not None:
                                     try:
                                         registrar_log("DELETE", "aves_mortas", selected_id_morta,
                                                     f"Excluiu registro de morte de {df_mortas[df_mortas['id']==selected_id_morta].iloc[0]['Quantidade']} aves")
@@ -1077,8 +1116,8 @@ else:
                                                 WHERE id = :id AND username = :username
                                             """), {"id": selected_id_morta, "username": st.session_state.username})
                                             conn.commit()
-                                        st.success("✅ Registro de morte excluído com sucesso!")
-                                        st.rerun()
+                                        area_excluir_ave_morta.empty()
+                                        mensagem_excluir_ave_morta.success("✅ Registro de morte excluído com sucesso!")
                                     except Exception as e:
                                         st.error(f"Erro ao excluir: {e}")
                     except Exception as e:
@@ -1335,17 +1374,21 @@ else:
             with tab_registrar:
                 st.markdown("#### ➕ Registrar Ovos Quebrados")
 
-                col1, col2 = st.columns(2)
-                with col1:
-                    data_quebrados = st.date_input("📅 Data", value=datetime.now().date(),
-                                                   format="DD/MM/YYYY", key="data_quebrados_reg")
-                    galpao_quebrados = st.selectbox(
-                        "🏠 Galpão", GALPOES, key="galpao_quebrados_reg")
-                with col2:
-                    qtd_quebrados = st.number_input("🔨 Quantidade de Ovos Quebrados", min_value=1, step=1,
-                                                    format="%d", key="qtd_quebrados_reg")
+                with st.form("form_registrar_ovos_quebrados", clear_on_submit=True):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        data_quebrados = st.date_input("📅 Data", value=datetime.now().date(),
+                                                       format="DD/MM/YYYY", key="data_quebrados_reg")
+                        galpao_quebrados = st.selectbox(
+                            "🏠 Galpão", GALPOES, key="galpao_quebrados_reg")
+                    with col2:
+                        qtd_quebrados = st.number_input("🔨 Quantidade de Ovos Quebrados", min_value=1, step=1,
+                                                        format="%d", key="qtd_quebrados_reg")
 
-                if st.button("✅ Registrar Ovos Quebrados", width='stretch', type="primary"):
+                    registrar_ovos_quebrados = st.form_submit_button(
+                        "✅ Registrar Ovos Quebrados", type="primary", use_container_width=True)
+
+                if registrar_ovos_quebrados:
                     if qtd_quebrados > 0:
                         chave_acao = "registrar_ovos_quebrados"
                         payload_acao = (st.session_state.username, data_quebrados, galpao_quebrados, qtd_quebrados)
@@ -2124,7 +2167,7 @@ else:
                         with tab_pag:
                             valor_pendente_br = fmt_br(valor_devendo_atual)
                             st.info(f"💰 **Valor pendente:** {valor_pendente_br}")
-                            with st.form("form_receber_pagamento"):
+                            with st.form("form_receber_pagamento", clear_on_submit=True):
                                 
                                 valor_recebido = st.number_input(
                                     "Valor Recebido agora (R$)",
@@ -2135,13 +2178,22 @@ else:
                                     value=0.0
                                 )
                                 if st.form_submit_button("Confirmar Recebimento"):
-                                    novo_pago = valor_pago_atual + valor_recebido
-                                    with engine.connect() as conn:
-                                        conn.execute(text("UPDATE vendas SET valor_pago = :novo WHERE id = :id"),
-                                                     {"novo": novo_pago, "id": venda_id})
-                                        conn.commit()
-                                    st.success(f"Pagamento de {fmt_br(valor_recebido)} registrado!")
-                                    st.rerun()
+                                    if valor_recebido <= 0:
+                                        st.error("Informe um valor maior que zero.")
+                                    else:
+                                        chave_acao = "registrar_pagamento_venda"
+                                        payload_acao = (st.session_state.username, venda_id, valor_recebido)
+                                        if not acao_repetida(chave_acao, payload_acao):
+                                            try:
+                                                novo_pago = valor_pago_atual + valor_recebido
+                                                with engine.connect() as conn:
+                                                    conn.execute(text("UPDATE vendas SET valor_pago = :novo WHERE id = :id"),
+                                                                 {"novo": novo_pago, "id": venda_id})
+                                                    conn.commit()
+                                                st.success(f"Pagamento de {fmt_br(valor_recebido)} registrado!")
+                                            except Exception as e:
+                                                liberar_acao(chave_acao)
+                                                st.error(f"Erro ao registrar pagamento: {e}")
 
                         with tab_edit:
                             st.warning("⚠️ Editar uma venda afetará o estoque. Você pode modificar produtos, quantidades, descontos e outros dados.")
@@ -2450,38 +2502,41 @@ else:
                     st.warning(
                         "⚠️ Nenhum produto cadastrado. Cadastre produtos na aba 'Cadastros' primeiro.")
                 else:
-                    col1, col2 = st.columns([2, 1])
-                    with col1:
-                        produto_selecionado = st.selectbox(
-                            "📦 Produto",
-                            df_produtos_estoque['nome'].tolist(),
-                            key="estoque_produto_add"
-                        )
-                        produto_id = df_produtos_estoque[df_produtos_estoque['nome']
-                                                         == produto_selecionado].iloc[0]['id']
+                    with st.form("form_adicionar_estoque", clear_on_submit=True):
+                        col1, col2 = st.columns([2, 1])
+                        with col1:
+                            produto_selecionado = st.selectbox(
+                                "📦 Produto",
+                                df_produtos_estoque['nome'].tolist(),
+                                key="estoque_produto_add"
+                            )
+                            produto_id = df_produtos_estoque[df_produtos_estoque['nome']
+                                                             == produto_selecionado].iloc[0]['id']
 
-                    with col2:
-                        quantidade_hoje = st.number_input(
-                            "➕ Quantidade a adicionar (hoje)",
-                            min_value=0.0, step=0.1, value=0.0, format="%.2f",
-                            key="estoque_qtd_add"
-                        )
+                        with col2:
+                            quantidade_hoje = st.number_input(
+                                "➕ Quantidade a adicionar (hoje)",
+                                min_value=0.0, step=0.1, value=0.0, format="%.2f",
+                                key="estoque_qtd_add"
+                            )
 
-                    if st.button("➕ Adicionar ao Estoque", type="primary", use_container_width=True):
-                        if quantidade_hoje > 0:
+                        adicionar_estoque = st.form_submit_button(
+                            "➕ Adicionar ao Estoque", type="primary", use_container_width=True)
+
+                    if adicionar_estoque:
+                        if quantidade_hoje <= 0:
+                            st.error("A quantidade deve ser maior que zero.")
+                        else:
                             chave_acao = "adicionar_estoque"
                             payload_acao = (st.session_state.username, produto_id, quantidade_hoje)
-                            if acao_repetida(chave_acao, payload_acao):
-                                st.stop()
-                            try:
-                                incrementar_estoque(produto_id, quantidade_hoje)
-                                st.success(
-                                    f"✅ {quantidade_hoje} unidade(s) de '{produto_selecionado}' adicionadas ao estoque.")
-                            except Exception as e:
-                                liberar_acao(chave_acao)
-                                st.error(f"Erro ao adicionar estoque: {e}")
-                        else:
-                            st.error("A quantidade deve ser maior que zero.")
+                            if not acao_repetida(chave_acao, payload_acao):
+                                try:
+                                    incrementar_estoque(produto_id, quantidade_hoje)
+                                    st.success(
+                                        f"✅ {quantidade_hoje} unidade(s) de '{produto_selecionado}' adicionadas ao estoque.")
+                                except Exception as e:
+                                    liberar_acao(chave_acao)
+                                    st.error(f"Erro ao adicionar estoque: {e}")
 
             st.divider()
 
@@ -2493,6 +2548,115 @@ else:
                 st.info(
                     "Nenhum produto cadastrado. Cadastre produtos na aba 'Cadastros'.")
             else:
+                # ----- Editar ou Excluir Estoque (correção manual) -----
+                st.markdown("### ✏️ Editar ou 🗑️ Excluir Estoque")
+                st.caption(
+                    "Caso tenha registrado um valor incorreto, você pode **substituir a quantidade total** ou remover o produto do estoque.")
+
+                produtos_com_estoque = df_estoque[df_estoque['quantidade'] > 0]['nome'].tolist(
+                )
+                if not produtos_com_estoque:
+                    st.info(
+                        "Nenhum produto com estoque positivo. Adicione estoque para algum produto primeiro.")
+                else:
+                    placeholder_estoque = "Selecione um produto"
+                    opcoes_estoque = [placeholder_estoque] + produtos_com_estoque
+
+                    col_edit, col_del = st.columns(2)
+                    with col_edit:
+                        area_editar_estoque = st.empty()
+                        mensagem_estoque_editado = None
+                        with area_editar_estoque.container():
+                            produto_editar = st.selectbox(
+                                "Produto para editar",
+                                opcoes_estoque,
+                                key="estoque_editar_produto"
+                            )
+
+                            if produto_editar != placeholder_estoque:
+                                linha = df_estoque[df_estoque['nome']
+                                                   == produto_editar].iloc[0]
+                                produto_id_edit = int(linha['id'])
+                                qtd_atual_edit = int(linha['quantidade'])
+                                with st.form("form_editar_estoque", clear_on_submit=True):
+                                    nova_qtd_total = st.number_input(
+                                        "Nova quantidade total",
+                                        min_value=0,
+                                        step=1,
+                                        value=qtd_atual_edit,
+                                        key="estoque_nova_qtd"
+                                    )
+                                    substituir_estoque = st.form_submit_button(
+                                        "✅ Substituir", type="primary", use_container_width=True)
+                            else:
+                                produto_id_edit = None
+                                nova_qtd_total = 0
+                                substituir_estoque = False
+
+                            if substituir_estoque and produto_id_edit is not None:
+                                chave_acao = "substituir_estoque"
+                                payload_acao = (st.session_state.username, produto_id_edit, nova_qtd_total)
+                                if not acao_repetida(chave_acao, payload_acao):
+                                    try:
+                                        definir_estoque(produto_id_edit, nova_qtd_total)
+                                        mensagem_estoque_editado = (
+                                            f"Estoque do produto '{produto_editar}' atualizado para {nova_qtd_total} unidades.")
+                                        df_estoque = obter_estoque()
+                                    except Exception as e:
+                                        liberar_acao(chave_acao)
+                                        st.error(f"Erro ao atualizar estoque: {e}")
+
+                        if mensagem_estoque_editado:
+                            area_editar_estoque.empty()
+                            st.success(mensagem_estoque_editado)
+
+                    with col_del:
+                        area_excluir_estoque = st.empty()
+                        mensagem_estoque_excluido = None
+                        with area_excluir_estoque.container():
+                            produto_excluir = st.selectbox(
+                                "Produto para excluir do estoque",
+                                opcoes_estoque,
+                                key="estoque_excluir_produto"
+                            )
+                            if produto_excluir != placeholder_estoque:
+                                linha_excluir = df_estoque[df_estoque['nome']
+                                                          == produto_excluir].iloc[0]
+                                produto_id_excluir = int(linha_excluir['id'])
+                                with st.form("form_excluir_estoque", clear_on_submit=True):
+                                    st.warning(
+                                        f"Tem certeza que deseja remover o produto '{produto_excluir}' do estoque?")
+                                    st.caption(
+                                        "Isso não exclui o produto cadastrado, apenas remove sua contagem do estoque.")
+                                    confirmar_exclusao_estoque = st.checkbox(
+                                        "Confirmo que quero excluir", key="confirmar_exclusao_estoque")
+                                    excluir_estoque_submit = st.form_submit_button(
+                                        "🗑️ Excluir estoque", type="primary", use_container_width=True,
+                                        disabled=not confirmar_exclusao_estoque
+                                    )
+                            else:
+                                produto_id_excluir = None
+                                excluir_estoque_submit = False
+
+                            if excluir_estoque_submit and produto_id_excluir is not None:
+                                chave_acao = "excluir_estoque"
+                                payload_acao = (st.session_state.username, produto_id_excluir)
+                                if not acao_repetida(chave_acao, payload_acao):
+                                    try:
+                                        excluir_estoque(produto_id_excluir)
+                                        mensagem_estoque_excluido = (
+                                            f"Registro de estoque para '{produto_excluir}' removido.")
+                                        df_estoque = obter_estoque()
+                                    except Exception as e:
+                                        liberar_acao(chave_acao)
+                                        st.error(f"Erro ao excluir estoque: {e}")
+
+                        if mensagem_estoque_excluido:
+                            area_excluir_estoque.empty()
+                            st.success(mensagem_estoque_excluido)
+
+                st.divider()
+
                 # Calcular valor total do estoque
                 df_estoque['valor_total'] = df_estoque['quantidade'] * \
                     df_estoque['preco_atual']
@@ -2532,57 +2696,6 @@ else:
                     width='stretch',
                     hide_index=True
                 )
-
-                st.divider()
-
-                # ----- Editar ou Excluir Estoque (correção manual) -----
-                st.markdown("### ✏️ Editar ou 🗑️ Excluir Estoque")
-                st.caption(
-                    "Caso tenha registrado um valor incorreto, você pode **substituir a quantidade total** ou remover o produto do estoque.")
-
-                produtos_com_estoque = df_estoque[df_estoque['quantidade'] > 0]['nome'].tolist(
-                )
-                if not produtos_com_estoque:
-                    st.info(
-                        "Nenhum produto com estoque positivo. Adicione estoque para algum produto primeiro.")
-                else:
-                    produto_editar = st.selectbox(
-                        "Selecione o produto",
-                        produtos_com_estoque,
-                        key="estoque_editar_produto"
-                    )
-
-                    linha = df_estoque[df_estoque['nome']
-                                       == produto_editar].iloc[0]
-                    produto_id_edit = int(linha['id'])  # já converte
-                    qtd_atual_edit = int(linha['quantidade'])
-
-                    col_edit1, col_edit2, col_edit3 = st.columns([2, 1, 1])
-                    with col_edit1:
-                        nova_qtd_total = st.number_input(
-                            "Nova quantidade total (substitui o valor atual)",
-                            min_value=0,
-                            step=1,
-                            value=qtd_atual_edit,
-                            key="estoque_nova_qtd"
-                        )
-                    with col_edit2:
-                        if st.button("✅ Substituir", use_container_width=True, key="btn_atualizar_estoque"):
-                            definir_estoque(produto_id_edit, nova_qtd_total)
-                            st.success(
-                                f"Estoque do produto '{produto_editar}' atualizado para {nova_qtd_total} unidades.")
-                            st.rerun()
-                    with col_edit3:
-                        with st.popover("🗑️ Excluir", use_container_width=True):
-                            st.warning(
-                                f"Tem certeza que deseja remover o produto '{produto_editar}' do estoque?")
-                            st.caption(
-                                "Isso não exclui o produto cadastrado, apenas remove sua contagem do estoque.")
-                            if st.button("Sim, excluir permanentemente", type="primary", key="btn_excluir_estoque"):
-                                excluir_estoque(produto_id_edit)
-                                st.success(
-                                    f"Registro de estoque para '{produto_editar}' removido.")
-                                st.rerun()
         # ============================================
         # ABA 2 → CADASTROS
         # ============================================
@@ -2638,39 +2751,77 @@ else:
                     else:
                         st.dataframe(df_cli[['nome', 'cpf_cnpj', 'telefone', 'email', 'endereco']].rename(
                             columns={'nome': 'Nome', 'cpf_cnpj': 'CPF/CNPJ'}), width='stretch', hide_index=True)
-                        cliente_nome = st.selectbox(
-                            "Selecione um cliente para editar/excluir:", df_cli['nome'].tolist(), key="sel_cliente")
-                        cliente = df_cli[df_cli['nome'] ==
-                                         cliente_nome].iloc[0].to_dict()
-                        with st.expander("✏️ Editar Cliente"):
-                            with st.form("form_editar_cliente"):
-                                n_nome = st.text_input(
-                                    "Nome", value=cliente['nome'])
-                                n_cpf = st.text_input(
-                                    "CPF/CNPJ", value=cliente.get('cpf_cnpj', ''))
-                                n_tel = st.text_input(
-                                    "Telefone", value=cliente.get('telefone', ''))
-                                n_email = st.text_input(
-                                    "Email", value=cliente.get('email', ''))
-                                n_end = st.text_area(
-                                    "Endereço", value=cliente.get('endereco', ''))
-                                if st.form_submit_button("Salvar Alterações"):
-                                    with engine.connect() as conn:
-                                        conn.execute(text("UPDATE clientes SET nome=:nome, cpf_cnpj=:cpf, telefone=:tel, email=:email, endereco=:end WHERE id=:id"),
-                                                     {"nome": n_nome, "cpf": n_cpf or None, "tel": n_tel or None, "email": n_email or None, "end": n_end or None, "id": cliente['id']})
-                                        conn.commit()
-                                    st.success("Cliente atualizado!")
-                                    st.rerun()
-                        with st.expander("🗑️ Excluir Cliente"):
-                            st.warning("⚠️ Esta ação não pode ser desfeita!")
-                            if st.button("Excluir Cliente", type="primary"):
-                                registrar_log("DELETE", "clientes", cliente['id'], f"Excluiu cliente '{cliente['nome']}'")
-                                with engine.connect() as conn:
-                                    conn.execute(text("DELETE FROM clientes WHERE id = :id"), {
-                                                 "id": cliente['id']})
-                                    conn.commit()
-                                st.success("Cliente excluído!")
-                                st.rerun()
+                        opcoes_clientes = {
+                            int(row['id']): row['nome'] for _, row in df_cli.iterrows()
+                        }
+                        mensagem_editar_cliente = st.empty()
+                        area_editar_cliente = st.empty()
+                        with area_editar_cliente.container(), st.expander("✏️ Editar Cliente"):
+                            cliente_id_editar = st.selectbox(
+                                "Selecione um cliente",
+                                options=list(opcoes_clientes.keys()),
+                                format_func=lambda x: opcoes_clientes[x],
+                                index=None,
+                                placeholder="Selecione um cliente",
+                                key="sel_cliente_editar"
+                            )
+                            with st.form("form_editar_cliente", clear_on_submit=True):
+                                if cliente_id_editar is not None:
+                                    cliente = df_cli[df_cli['id'] == cliente_id_editar].iloc[0].to_dict()
+                                    n_nome = st.text_input("Nome", value=cliente['nome'])
+                                    n_cpf = st.text_input("CPF/CNPJ", value=cliente.get('cpf_cnpj', '') or '')
+                                    n_tel = st.text_input("Telefone", value=cliente.get('telefone', '') or '')
+                                    n_email = st.text_input("Email", value=cliente.get('email', '') or '')
+                                    n_end = st.text_area("Endereço", value=cliente.get('endereco', '') or '')
+                                    salvar_cliente = st.form_submit_button("Salvar Alterações", type="primary")
+                                else:
+                                    salvar_cliente = st.form_submit_button("Salvar Alterações", type="primary", disabled=True)
+
+                                if salvar_cliente and cliente_id_editar is not None:
+                                    chave_acao = "atualizar_cliente"
+                                    payload_acao = (st.session_state.username, cliente_id_editar, n_nome, n_cpf, n_tel, n_email, n_end)
+                                    if not acao_repetida(chave_acao, payload_acao):
+                                        try:
+                                            with engine.connect() as conn:
+                                                conn.execute(text("UPDATE clientes SET nome=:nome, cpf_cnpj=:cpf, telefone=:tel, email=:email, endereco=:end WHERE id=:id"),
+                                                             {"nome": n_nome, "cpf": n_cpf or None, "tel": n_tel or None, "email": n_email or None, "end": n_end or None, "id": cliente_id_editar})
+                                                conn.commit()
+                                            area_editar_cliente.empty()
+                                            mensagem_editar_cliente.success("Cliente atualizado!")
+                                        except Exception as e:
+                                            liberar_acao(chave_acao)
+                                            st.error(f"Erro ao atualizar cliente: {e}")
+                        mensagem_excluir_cliente = st.empty()
+                        area_excluir_cliente = st.empty()
+                        with area_excluir_cliente.container(), st.expander("🗑️ Excluir Cliente"):
+                            cliente_id_excluir = st.selectbox(
+                                "Selecione um cliente",
+                                options=list(opcoes_clientes.keys()),
+                                format_func=lambda x: opcoes_clientes[x],
+                                index=None,
+                                placeholder="Selecione um cliente",
+                                key="sel_cliente_excluir"
+                            )
+                            with st.form("form_excluir_cliente", clear_on_submit=True):
+                                if cliente_id_excluir is not None:
+                                    st.warning("⚠️ Esta ação não pode ser desfeita!")
+                                    confirmar_cliente = st.checkbox("Confirmo que quero excluir este cliente")
+                                else:
+                                    confirmar_cliente = False
+                                excluir_cliente = st.form_submit_button(
+                                    "Excluir Cliente", type="primary", disabled=not confirmar_cliente)
+
+                                if excluir_cliente and cliente_id_excluir is not None:
+                                    try:
+                                        registrar_log("DELETE", "clientes", cliente_id_excluir, f"Excluiu cliente '{opcoes_clientes[cliente_id_excluir]}'")
+                                        with engine.connect() as conn:
+                                            conn.execute(text("DELETE FROM clientes WHERE id = :id"), {
+                                                         "id": cliente_id_excluir})
+                                            conn.commit()
+                                        area_excluir_cliente.empty()
+                                        mensagem_excluir_cliente.success("Cliente excluído!")
+                                    except Exception as e:
+                                        st.error(f"Erro ao excluir cliente: {e}")
                 except Exception as e:
                     st.error(f"Erro: {e}")
 
@@ -2747,91 +2898,115 @@ else:
                         st.caption(
                             "Selecione um produto abaixo para editar seus dados ou excluí-lo permanentemente.")
 
-                        # Select para escolher o produto
-                        produto_selecionado = st.selectbox(
-                            "Selecione o produto",
-                            df_produtos_lista['nome'].tolist(),
-                            key="select_produto_edit"
-                        )
-                        produto_row = df_produtos_lista[df_produtos_lista['nome']
-                                                        == produto_selecionado].iloc[0]
-                        produto_id = int(produto_row['id'])
+                        opcoes_produtos = {
+                            int(row['id']): row['nome'] for _, row in df_produtos_lista.iterrows()
+                        }
 
                         col_edit, col_del = st.columns(2)
 
                         # --- Editar produto ---
                         with col_edit:
-                            with st.expander("✏️ Editar Produto", expanded=False):
-                                with st.form("form_editar_produto"):
-                                    novo_nome = st.text_input(
-                                        "Nome do Produto", value=produto_row['nome'], key="edit_prod_nome")
-                                    nova_desc = st.text_area("Descrição", value=produto_row.get(
-                                        'descricao', '') or '', key="edit_prod_desc")
-                                    nova_unidade = st.text_input(
-                                        "Unidade de Medida", value=produto_row['unidade'], key="edit_prod_un")
-                                    novo_preco = st.number_input("Preço (R$)", value=float(
-                                        produto_row['preco_atual']), step=0.01, format="%.2f", key="edit_prod_preco")
+                            mensagem_editar_produto = st.empty()
+                            area_editar_produto = st.empty()
+                            with area_editar_produto.container(), st.expander("✏️ Editar Produto", expanded=False):
+                                produto_id_editar = st.selectbox(
+                                    "Selecione o produto",
+                                    options=list(opcoes_produtos.keys()),
+                                    format_func=lambda x: opcoes_produtos[x],
+                                    index=None,
+                                    placeholder="Selecione um produto",
+                                    key="select_produto_editar"
+                                )
+                                with st.form("form_editar_produto", clear_on_submit=True):
+                                    if produto_id_editar is not None:
+                                        produto_row = df_produtos_lista[df_produtos_lista['id'] == produto_id_editar].iloc[0]
+                                        novo_nome = st.text_input(
+                                            "Nome do Produto", value=produto_row['nome'], key="edit_prod_nome")
+                                        nova_desc = st.text_area("Descrição", value=produto_row.get(
+                                            'descricao', '') or '', key="edit_prod_desc")
+                                        nova_unidade = st.text_input(
+                                            "Unidade de Medida", value=produto_row['unidade'], key="edit_prod_un")
+                                        novo_preco = st.number_input("Preço (R$)", value=float(
+                                            produto_row['preco_atual']), step=0.01, format="%.2f", key="edit_prod_preco")
+                                        salvar_produto = st.form_submit_button("✅ Salvar Alterações", type="primary")
+                                    else:
+                                        salvar_produto = st.form_submit_button("✅ Salvar Alterações", type="primary", disabled=True)
 
-                                    if st.form_submit_button("✅ Salvar Alterações"):
+                                    if salvar_produto and produto_id_editar is not None:
                                         if novo_nome:
-                                            try:
-                                                with engine.connect() as conn:
-                                                    conn.execute(text("""
-                                                        UPDATE produtos 
-                                                        SET nome = :nome, descricao = :desc, unidade = :un, preco_atual = :preco
-                                                        WHERE id = :id AND username = :u
-                                                    """), {
-                                                        "nome": novo_nome,
-                                                        "desc": nova_desc or None,
-                                                        "un": nova_unidade,
-                                                        "preco": novo_preco,
-                                                        "id": produto_id,
-                                                        "u": st.session_state.username
-                                                    })
-                                                    conn.commit()
-                                                st.success(
-                                                    "✅ Produto atualizado com sucesso!")
-                                                st.rerun()
-                                            except Exception as e:
-                                                st.error(
-                                                    f"Erro ao atualizar: {e}")
+                                            chave_acao = "atualizar_produto"
+                                            payload_acao = (st.session_state.username, produto_id_editar, novo_nome, nova_desc, nova_unidade, novo_preco)
+                                            if not acao_repetida(chave_acao, payload_acao):
+                                                try:
+                                                    with engine.connect() as conn:
+                                                        conn.execute(text("""
+                                                            UPDATE produtos
+                                                            SET nome = :nome, descricao = :desc, unidade = :un, preco_atual = :preco
+                                                            WHERE id = :id AND username = :u
+                                                        """), {
+                                                            "nome": novo_nome,
+                                                            "desc": nova_desc or None,
+                                                            "un": nova_unidade,
+                                                            "preco": novo_preco,
+                                                            "id": produto_id_editar,
+                                                            "u": st.session_state.username
+                                                        })
+                                                        conn.commit()
+                                                    area_editar_produto.empty()
+                                                    mensagem_editar_produto.success("✅ Produto atualizado com sucesso!")
+                                                except Exception as e:
+                                                    liberar_acao(chave_acao)
+                                                    st.error(f"Erro ao atualizar: {e}")
                                         else:
-                                            st.error(
-                                                "O nome do produto é obrigatório.")
+                                            st.error("O nome do produto é obrigatório.")
 
                         # --- Excluir produto ---
                         with col_del:
-                            with st.expander("🗑️ Excluir Produto", expanded=False):
-                                st.warning(
-                                    f"⚠️ Tem certeza que deseja excluir o produto **'{produto_selecionado}'**?")
-                                st.caption(
-                                    "Esta ação **não pode ser desfeita** e também afetará:\n- Registros de vendas (tornará o produto inválido)\n- Registros de estoque (serão removidos)")
+                            mensagem_excluir_produto = st.empty()
+                            area_excluir_produto = st.empty()
+                            with area_excluir_produto.container(), st.expander("🗑️ Excluir Produto", expanded=False):
+                                produto_id_excluir = st.selectbox(
+                                    "Selecione o produto",
+                                    options=list(opcoes_produtos.keys()),
+                                    format_func=lambda x: opcoes_produtos[x],
+                                    index=None,
+                                    placeholder="Selecione um produto",
+                                    key="select_produto_excluir"
+                                )
+                                with st.form("form_excluir_produto", clear_on_submit=True):
+                                    if produto_id_excluir is not None:
+                                        produto_excluir_nome = opcoes_produtos[produto_id_excluir]
+                                        st.warning(
+                                            f"⚠️ Tem certeza que deseja excluir o produto **'{produto_excluir_nome}'**?")
+                                        st.caption(
+                                            "Esta ação **não pode ser desfeita** e também removerá seus registros de estoque.")
+                                        confirm_excluir = st.checkbox(
+                                            "Sim, entendo que esta ação é irreversível", key="confirm_excluir_produto")
+                                    else:
+                                        produto_excluir_nome = ""
+                                        confirm_excluir = False
 
-                                confirm_excluir = st.checkbox(
-                                    "Sim, entendo que esta ação é irreversível", key="confirm_excluir_produto")
-                                if st.button("🗑️ Excluir Permanentemente", type="primary", disabled=not confirm_excluir):
-                                    try:
-                                        registrar_log("DELETE", "produtos", produto_id, f"Excluiu produto '{produto_selecionado}'")
-                                        with engine.connect() as conn:
-                                            # Inicia transação para garantir consistência
-                                            with conn.begin():
-                                                # Remove registros de estoque relacionados
-                                                conn.execute(text("DELETE FROM estoque WHERE username = :u AND produto_id = :p"),
-                                                             {"u": st.session_state.username, "p": produto_id})
-                                                # Remove o produto (cascade para vendas se configurado, senão pode dar erro)
-                                                # Se a tabela vendas tiver ON DELETE RESTRICT, será impedido.
-                                                # Tentamos excluir o produto; se houver vendas, o banco pode barrar.
-                                                conn.execute(text("DELETE FROM produtos WHERE id = :id AND username = :u"),
-                                                             {"id": produto_id, "u": st.session_state.username})
-                                        st.success(
-                                            f"✅ Produto '{produto_selecionado}' e seus registros de estoque foram removidos.")
-                                        st.rerun()
-                                    except Exception as e:
-                                        if "foreign key constraint" in str(e).lower():
-                                            st.error(
-                                                "❌ Não é possível excluir o produto porque existem vendas associadas a ele. Primeiro exclua as vendas ou cancele essa operação.")
-                                        else:
-                                            st.error(f"Erro ao excluir: {e}")
+                                    excluir_produto = st.form_submit_button(
+                                        "🗑️ Excluir Permanentemente", type="primary", disabled=not confirm_excluir)
+
+                                    if excluir_produto and produto_id_excluir is not None:
+                                        try:
+                                            registrar_log("DELETE", "produtos", produto_id_excluir, f"Excluiu produto '{produto_excluir_nome}'")
+                                            with engine.connect() as conn:
+                                                with conn.begin():
+                                                    conn.execute(text("DELETE FROM estoque WHERE username = :u AND produto_id = :p"),
+                                                                 {"u": st.session_state.username, "p": produto_id_excluir})
+                                                    conn.execute(text("DELETE FROM produtos WHERE id = :id AND username = :u"),
+                                                                 {"id": produto_id_excluir, "u": st.session_state.username})
+                                            area_excluir_produto.empty()
+                                            mensagem_excluir_produto.success(
+                                                f"✅ Produto '{produto_excluir_nome}' e seus registros de estoque foram removidos.")
+                                        except Exception as e:
+                                            if "foreign key constraint" in str(e).lower():
+                                                st.error(
+                                                    "❌ Não é possível excluir o produto porque existem vendas associadas a ele. Primeiro exclua as vendas ou cancele essa operação.")
+                                            else:
+                                                st.error(f"Erro ao excluir: {e}")
 
                 except Exception as e:
                     st.error(f"Erro ao carregar produtos: {e}")
@@ -2882,7 +3057,6 @@ else:
                                                          "ativo": ativo, "id": row['id']})
                                             conn.commit()
                                         st.success("Atualizado!")
-                                        st.rerun()
                 except Exception as e:
                     st.error(f"Erro: {e}")
 
@@ -2979,7 +3153,7 @@ else:
                 with sub_tabs[0]:
                     st.markdown("#### Tipos de Despesa Cadastrados")
                     with st.expander("➕ Adicionar novo tipo", expanded=False):
-                        with st.form("form_novo_tipo"):
+                        with st.form("form_novo_tipo", clear_on_submit=True):
                             nome_tipo = st.text_input("Nome *")
                             desc_tipo = st.text_area("Descrição (opcional)")
                             if st.form_submit_button("Salvar"):
@@ -3003,29 +3177,70 @@ else:
                         st.dataframe(df_tipos[['nome', 'descricao']], use_container_width=True, hide_index=True)
                         st.markdown("---")
                         st.markdown("#### ✏️ Editar ou 🗑️ Excluir Tipo")
-                        tipo_selecionado = st.selectbox("Selecione um tipo", df_tipos['nome'].tolist(), key="tipo_select")
-                        tipo_row = df_tipos[df_tipos['nome'] == tipo_selecionado].iloc[0]
-                        tipo_id = int(tipo_row['id'])
+                        opcoes_tipos = {
+                            int(row['id']): row['nome'] for _, row in df_tipos.iterrows()
+                        }
                         col_edit, col_del = st.columns(2)
                         with col_edit:
-                            with st.expander("✏️ Editar"):
-                                with st.form("form_edit_tipo"):
-                                    novo_nome = st.text_input("Nome", value=tipo_row['nome'])
-                                    nova_desc = st.text_area("Descrição", value=tipo_row.get('descricao', ''))
-                                    if st.form_submit_button("Salvar alterações"):
-                                        atualizar_tipo_despesa(tipo_id, novo_nome, nova_desc)
-                                        st.success("Tipo atualizado!")
-                                        st.rerun()
+                            mensagem_editar_tipo = st.empty()
+                            area_editar_tipo = st.empty()
+                            with area_editar_tipo.container(), st.expander("✏️ Editar"):
+                                tipo_id_editar = st.selectbox(
+                                    "Selecione um tipo",
+                                    options=list(opcoes_tipos.keys()),
+                                    format_func=lambda x: opcoes_tipos[x],
+                                    index=None,
+                                    placeholder="Selecione um tipo",
+                                    key="tipo_editar_select"
+                                )
+                                with st.form("form_edit_tipo", clear_on_submit=True):
+                                    if tipo_id_editar is not None:
+                                        tipo_row = df_tipos[df_tipos['id'] == tipo_id_editar].iloc[0]
+                                        novo_nome = st.text_input("Nome", value=tipo_row['nome'])
+                                        nova_desc = st.text_area("Descrição", value=tipo_row.get('descricao', '') or '')
+                                        salvar_tipo = st.form_submit_button("Salvar alterações", type="primary")
+                                    else:
+                                        salvar_tipo = st.form_submit_button("Salvar alterações", type="primary", disabled=True)
+
+                                    if salvar_tipo and tipo_id_editar is not None:
+                                        chave_acao = "atualizar_tipo_despesa"
+                                        payload_acao = (st.session_state.username, tipo_id_editar, novo_nome, nova_desc)
+                                        if not acao_repetida(chave_acao, payload_acao):
+                                            try:
+                                                atualizar_tipo_despesa(tipo_id_editar, novo_nome, nova_desc)
+                                                area_editar_tipo.empty()
+                                                mensagem_editar_tipo.success("Tipo atualizado!")
+                                            except Exception as e:
+                                                liberar_acao(chave_acao)
+                                                st.error(f"Erro ao atualizar tipo: {e}")
                         with col_del:
-                            with st.expander("🗑️ Excluir"):
-                                st.warning(f"Excluir permanentemente o tipo '{tipo_selecionado}'?")
-                                if st.button("Sim, excluir"):
-                                    try:
-                                        excluir_tipo_despesa(tipo_id)
-                                        st.success("Tipo excluído!")
-                                        st.rerun()
-                                    except Exception as e:
-                                        st.error(str(e))
+                            mensagem_excluir_tipo = st.empty()
+                            area_excluir_tipo = st.empty()
+                            with area_excluir_tipo.container(), st.expander("🗑️ Excluir"):
+                                tipo_id_excluir = st.selectbox(
+                                    "Selecione um tipo",
+                                    options=list(opcoes_tipos.keys()),
+                                    format_func=lambda x: opcoes_tipos[x],
+                                    index=None,
+                                    placeholder="Selecione um tipo",
+                                    key="tipo_excluir_select"
+                                )
+                                with st.form("form_excluir_tipo", clear_on_submit=True):
+                                    if tipo_id_excluir is not None:
+                                        st.warning(f"Excluir permanentemente o tipo '{opcoes_tipos[tipo_id_excluir]}'?")
+                                        confirmar_tipo = st.checkbox("Confirmo que quero excluir este tipo")
+                                    else:
+                                        confirmar_tipo = False
+                                    excluir_tipo = st.form_submit_button(
+                                        "Sim, excluir", type="primary", disabled=not confirmar_tipo)
+
+                                    if excluir_tipo and tipo_id_excluir is not None:
+                                        try:
+                                            excluir_tipo_despesa(tipo_id_excluir)
+                                            area_excluir_tipo.empty()
+                                            mensagem_excluir_tipo.success("Tipo excluído!")
+                                        except Exception as e:
+                                            st.error(str(e))
 
                 # Nova Despesa
                 with sub_tabs[1]:
@@ -3034,7 +3249,7 @@ else:
                     if df_tipos.empty:
                         st.warning("Cadastre pelo menos um tipo de despesa antes de registrar.")
                     else:
-                        with st.form("form_nova_despesa"):
+                        with st.form("form_nova_despesa", clear_on_submit=True):
                             col1, col2 = st.columns(2)
                             with col1:
                                 data_despesa = st.date_input("Data", value=datetime.now().date(), format="DD/MM/YYYY")
@@ -3090,64 +3305,110 @@ else:
                         st.markdown("---")
                         st.markdown("#### ✏️ Editar Despesa")
                         opcoes = {row['id']: f"{row['Data']} - {row['Tipo']} - {row['Valor']}" for _, row in df_display.iterrows()}
-                        despesa_id = st.selectbox("Selecione a despesa para editar", options=list(opcoes.keys()), format_func=lambda x: opcoes[x], key="edit_despesa_select")
-                        despesa_edit = df_despesas[df_despesas['id'] == despesa_id].iloc[0]
+                        despesa_id = st.selectbox(
+                            "Selecione a despesa para editar",
+                            options=list(opcoes.keys()),
+                            format_func=lambda x: opcoes[x],
+                            index=None,
+                            placeholder="Selecione uma despesa",
+                            key="edit_despesa_select"
+                        )
+                        area_editar_despesa = st.empty()
+                        mensagem_despesa_editada = None
+                        with area_editar_despesa.container():
+                            with st.form("form_editar_despesa", clear_on_submit=True):
 
-                        with st.form("form_editar_despesa"):
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                nova_data = st.date_input("Data", value=despesa_edit['data'], format="DD/MM/YYYY")
-                                df_tipos_edit = obter_tipos_despesas()
-                                tipo_atual_nome = df_tipos_edit[df_tipos_edit['id'] == despesa_edit['tipo_id']].iloc[0]['nome']
-                                novo_tipo = st.selectbox("Tipo", df_tipos_edit['nome'].tolist(),
-                                                         index=df_tipos_edit['nome'].tolist().index(tipo_atual_nome))
-                                novo_tipo_id = int(df_tipos_edit[df_tipos_edit['nome'] == novo_tipo].iloc[0]['id'])
-                            with col2:
-                                novo_valor = st.number_input("Valor (R$)", min_value=0.01, step=0.01,
-                                                              value=float(despesa_edit['valor']), format="%.2f")
-                                nova_obs = st.text_area("Observação", value=despesa_edit.get('observacao', ''))
-                            if st.form_submit_button("Salvar alterações"):
-                                chave_acao = "atualizar_despesa"
-                                payload_acao = (st.session_state.username, despesa_id, nova_data, novo_tipo_id, novo_valor, nova_obs)
-                                if acao_repetida(chave_acao, payload_acao):
-                                    st.stop()
-                                try:
-                                    with engine.connect() as conn:
-                                        conn.execute(text("""
-                                            UPDATE despesas
-                                            SET data = :data, tipo_id = :tipo_id, valor = :valor, observacao = :obs
-                                            WHERE id = :id AND username = :u
-                                        """), {
-                                            "data": nova_data,
-                                            "tipo_id": novo_tipo_id,
-                                            "valor": novo_valor,
-                                            "obs": nova_obs,
-                                            "id": despesa_id,
-                                            "u": st.session_state.username
-                                        })
-                                        conn.commit()
-                                    registrar_log("UPDATE", "despesas", despesa_id, f"Editou despesa para R$ {novo_valor:.2f}")
-                                    st.success("Despesa atualizada!")
-                                except Exception as e:
-                                    liberar_acao(chave_acao)
-                                    st.error(f"Erro ao atualizar: {e}")
+                                if despesa_id is not None:
+                                    despesa_edit = df_despesas[df_despesas['id'] == despesa_id].iloc[0]
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        nova_data = st.date_input("Data", value=despesa_edit['data'], format="DD/MM/YYYY")
+                                        df_tipos_edit = obter_tipos_despesas()
+                                        tipo_atual_nome = df_tipos_edit[df_tipos_edit['id'] == despesa_edit['tipo_id']].iloc[0]['nome']
+                                        novo_tipo = st.selectbox("Tipo", df_tipos_edit['nome'].tolist(),
+                                                                 index=df_tipos_edit['nome'].tolist().index(tipo_atual_nome))
+                                        novo_tipo_id = int(df_tipos_edit[df_tipos_edit['nome'] == novo_tipo].iloc[0]['id'])
+                                    with col2:
+                                        novo_valor = st.number_input("Valor (R$)", min_value=0.01, step=0.01,
+                                                                      value=float(despesa_edit['valor']), format="%.2f")
+                                        nova_obs = st.text_area("Observação", value=despesa_edit.get('observacao', ''))
+                                    salvar_despesa = st.form_submit_button("Salvar alterações", type="primary")
+                                else:
+                                    nova_data = None
+                                    novo_tipo_id = None
+                                    novo_valor = 0
+                                    nova_obs = ""
+                                    salvar_despesa = st.form_submit_button("Salvar alterações", type="primary", disabled=True)
+
+                                if salvar_despesa and despesa_id is not None:
+                                    chave_acao = "atualizar_despesa"
+                                    payload_acao = (st.session_state.username, despesa_id, nova_data, novo_tipo_id, novo_valor, nova_obs)
+                                    if acao_repetida(chave_acao, payload_acao):
+                                        st.stop()
+                                    try:
+                                        with engine.connect() as conn:
+                                            conn.execute(text("""
+                                                UPDATE despesas
+                                                SET data = :data, tipo_id = :tipo_id, valor = :valor, observacao = :obs
+                                                WHERE id = :id AND username = :u
+                                            """), {
+                                                "data": nova_data,
+                                                "tipo_id": novo_tipo_id,
+                                                "valor": novo_valor,
+                                                "obs": nova_obs,
+                                                "id": despesa_id,
+                                                "u": st.session_state.username
+                                            })
+                                            conn.commit()
+                                        registrar_log("UPDATE", "despesas", despesa_id, f"Editou despesa para R$ {novo_valor:.2f}")
+                                        mensagem_despesa_editada = "Despesa atualizada!"
+                                    except Exception as e:
+                                        liberar_acao(chave_acao)
+                                        st.error(f"Erro ao atualizar: {e}")
+
+                        if mensagem_despesa_editada:
+                            area_editar_despesa.empty()
+                            st.success(mensagem_despesa_editada)
 
                         st.markdown("---")
                         st.markdown("#### 🗑️ Excluir Despesa")
-                        with st.popover("Clique para excluir a despesa selecionada", use_container_width=True):
-                            st.warning(f"Excluir permanentemente a despesa de {despesa_edit['tipo']} no valor de {fmt_br(despesa_edit['valor'])}?")
-                            confirm_excluir = st.checkbox("Confirmo que quero excluir", key="confirma_excluir_despesa")
-                            if st.button("Excluir agora", type="primary", disabled=not confirm_excluir):
-                                try:
-                                    with engine.connect() as conn:
-                                        conn.execute(text("DELETE FROM despesas WHERE id = :id AND username = :u"),
-                                                     {"id": despesa_id, "u": st.session_state.username})
-                                        conn.commit()
-                                    registrar_log("DELETE", "despesas", despesa_id, f"Excluiu despesa de {despesa_edit['tipo']} - R$ {despesa_edit['valor']:.2f}")
-                                    st.success("Despesa excluída com sucesso!")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Erro ao excluir: {e}")
+                        despesa_excluir_id = st.selectbox(
+                            "Selecione a despesa para excluir",
+                            options=list(opcoes.keys()),
+                            format_func=lambda x: opcoes[x],
+                            index=None,
+                            placeholder="Selecione uma despesa",
+                            key="excluir_despesa_select"
+                        )
+                        area_excluir_despesa = st.empty()
+                        mensagem_despesa_excluida = None
+                        with area_excluir_despesa.container():
+                            with st.form("form_excluir_despesa", clear_on_submit=True):
+                                if despesa_excluir_id is not None:
+                                    despesa_excluir = df_despesas[df_despesas['id'] == despesa_excluir_id].iloc[0]
+                                    st.warning(f"Excluir permanentemente a despesa de {despesa_excluir['tipo']} no valor de {fmt_br(despesa_excluir['valor'])}?")
+                                    confirm_excluir = st.checkbox("Confirmo que quero excluir", key="confirma_excluir_despesa")
+                                else:
+                                    despesa_excluir = None
+                                    confirm_excluir = False
+
+                                excluir_despesa = st.form_submit_button(
+                                    "Excluir agora", type="primary", disabled=not confirm_excluir)
+
+                                if excluir_despesa and despesa_excluir_id is not None:
+                                    try:
+                                        with engine.connect() as conn:
+                                            conn.execute(text("DELETE FROM despesas WHERE id = :id AND username = :u"),
+                                                         {"id": despesa_excluir_id, "u": st.session_state.username})
+                                            conn.commit()
+                                        registrar_log("DELETE", "despesas", despesa_excluir_id, f"Excluiu despesa de {despesa_excluir['tipo']} - R$ {despesa_excluir['valor']:.2f}")
+                                        mensagem_despesa_excluida = "Despesa excluída com sucesso!"
+                                    except Exception as e:
+                                        st.error(f"Erro ao excluir: {e}")
+
+                        if mensagem_despesa_excluida:
+                            area_excluir_despesa.empty()
+                            st.success(mensagem_despesa_excluida)
 
             # ---------- SUBABA: RECEITA DE VENDAS (FORMATADA BR) ----------
             with fat_interno[1]:
