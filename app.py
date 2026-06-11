@@ -114,6 +114,20 @@ with engine.connect() as conn:
     """))
     conn.commit()
 
+with engine.connect() as conn:
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS ovos_geral_galpao (
+            id SERIAL PRIMARY KEY,
+            username TEXT NOT NULL,
+            data DATE NOT NULL,
+            galpao TEXT NOT NULL,
+            quantidade INTEGER NOT NULL CHECK (quantidade >= 0),
+            data_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (username, data, galpao)
+        )
+    """))
+    conn.commit()
+
 def registrar_log(acao, tabela, registro_id=None, detalhes=None):
     with engine.connect() as conn:
         conn.execute(text("""
@@ -354,6 +368,75 @@ else:
                 else:
                     st.error("Quantidade deve ser maior que zero.")
 
+            st.divider()
+            st.markdown("### 🥚 Registro Geral de Ovos por Galpão")
+            st.caption("Informe o total geral coletado em cada galpão na data selecionada.")
+
+            with st.form("form_ovos_geral_galpao", clear_on_submit=True):
+                data_ovos_geral = st.date_input(
+                    "📅 Data do registro",
+                    value=datetime.now().date(),
+                    format="DD/MM/YYYY",
+                    key="data_ovos_geral"
+                )
+                colunas_galpoes = st.columns(len(GALPOES))
+                quantidades_gerais = {}
+                for indice, nome_galpao in enumerate(GALPOES):
+                    with colunas_galpoes[indice]:
+                        quantidades_gerais[nome_galpao] = st.number_input(
+                            f"🥚 Total no {nome_galpao}",
+                            min_value=0,
+                            step=1,
+                            value=0,
+                            format="%d",
+                            key=f"ovos_geral_qtd_{indice}"
+                        )
+
+                salvar_ovos_geral = st.form_submit_button(
+                    "✅ Salvar Totais por Galpão",
+                    type="primary",
+                    use_container_width=True
+                )
+
+            if salvar_ovos_geral:
+                if not any(quantidade > 0 for quantidade in quantidades_gerais.values()):
+                    st.error("Informe uma quantidade maior que zero em pelo menos um galpão.")
+                else:
+                    chave_acao = "salvar_ovos_geral_galpao"
+                    payload_acao = (
+                        st.session_state.username,
+                        data_ovos_geral,
+                        tuple(quantidades_gerais.items())
+                    )
+                    if not acao_repetida(chave_acao, payload_acao):
+                        try:
+                            with engine.connect() as conn:
+                                with conn.begin():
+                                    for nome_galpao, quantidade in quantidades_gerais.items():
+                                        conn.execute(text("""
+                                            INSERT INTO ovos_geral_galpao
+                                                (username, data, galpao, quantidade)
+                                            VALUES (:username, :data, :galpao, :quantidade)
+                                            ON CONFLICT (username, data, galpao)
+                                            DO UPDATE SET
+                                                quantidade = EXCLUDED.quantidade,
+                                                data_registro = CURRENT_TIMESTAMP
+                                        """), {
+                                            "username": st.session_state.username,
+                                            "data": data_ovos_geral,
+                                            "galpao": nome_galpao,
+                                            "quantidade": int(quantidade)
+                                        })
+                            registrar_log(
+                                "UPDATE",
+                                "ovos_geral_galpao",
+                                detalhes=f"Totais gerais por galpão em {data_ovos_geral.strftime('%d/%m/%Y')}: {quantidades_gerais}"
+                            )
+                            st.success("✅ Totais gerais por galpão salvos com sucesso!")
+                        except Exception as e:
+                            liberar_acao(chave_acao)
+                            st.error(f"Erro ao salvar os totais por galpão: {e}")
+
         # ======================== ABA 1: PRODUÇÃO & HISTÓRICO ========================
         with tabs[1]:
             st.markdown("### 📋 Produção & Histórico")
@@ -373,11 +456,20 @@ else:
                         ORDER BY data DESC
                     """), engine, params={"username": st.session_state.username})
 
-                    if df_producao.empty:
-                        st.info("📭 Nenhum registro de colheita encontrado.")
+                    df_ovos_geral = pd.read_sql(text("""
+                        SELECT data, galpao, quantidade
+                        FROM ovos_geral_galpao
+                        WHERE username = :username
+                        ORDER BY data DESC, galpao
+                    """), engine, params={"username": st.session_state.username})
+
+                    if df_producao.empty and df_ovos_geral.empty:
+                        st.info("📭 Nenhum registro de produção encontrado.")
                     else:
                         df_producao['data'] = pd.to_datetime(
                             df_producao['data'])
+                        df_ovos_geral['data'] = pd.to_datetime(
+                            df_ovos_geral['data'])
 
                         st.markdown("#### 📅 Selecione o Período para Análise")
                         col_f1, col_f2 = st.columns(2)
@@ -392,12 +484,16 @@ else:
                             (df_producao['data'].dt.date >= data_inicio) &
                             (df_producao['data'].dt.date <= data_fim)
                         ].copy()
+                        df_ovos_geral_filtrado = df_ovos_geral[
+                            (df_ovos_geral['data'].dt.date >= data_inicio) &
+                            (df_ovos_geral['data'].dt.date <= data_fim)
+                        ].copy()
 
                         titulo_periodo = f"Período: {data_inicio.strftime('%d/%m/%Y')} até {data_fim.strftime('%d/%m/%Y')}"
                         st.markdown(f"**{titulo_periodo}**")
                         st.divider()
 
-                        if df_filtrado.empty:
+                        if df_filtrado.empty and df_ovos_geral_filtrado.empty:
                             st.warning(
                                 "Nenhum registro encontrado para o período selecionado.")
                         else:
@@ -407,6 +503,41 @@ else:
                             with sub_tabs[0]:
                                 st.markdown(
                                     "#### 📋 Detalhes por Galpão e Tipo")
+
+                                st.markdown("##### 🥚 Resumo Geral Informado por Galpão")
+                                if df_ovos_geral_filtrado.empty:
+                                    st.info("Nenhum total geral por galpão informado neste período.")
+                                else:
+                                    resumo_geral = df_ovos_geral_filtrado.groupby(
+                                        'galpao', as_index=False)['quantidade'].sum()
+                                    total_geral_periodo = int(resumo_geral['quantidade'].sum())
+                                    colunas_resumo = st.columns(len(GALPOES) + 1)
+                                    for indice, nome_galpao in enumerate(GALPOES):
+                                        total_galpao_geral = resumo_geral.loc[
+                                            resumo_geral['galpao'] == nome_galpao,
+                                            'quantidade'
+                                        ].sum()
+                                        with colunas_resumo[indice]:
+                                            st.metric(nome_galpao, f"{int(total_galpao_geral):,} ovos")
+                                    with colunas_resumo[-1]:
+                                        st.metric("Total Geral", f"{total_geral_periodo:,} ovos")
+
+                                    detalhes_gerais = df_ovos_geral_filtrado.copy()
+                                    detalhes_gerais['data'] = detalhes_gerais['data'].dt.strftime('%d/%m/%Y')
+                                    st.dataframe(
+                                        detalhes_gerais.rename(columns={
+                                            'data': 'Data',
+                                            'galpao': 'Galpão',
+                                            'quantidade': 'Total Geral de Ovos'
+                                        }),
+                                        use_container_width=True,
+                                        hide_index=True
+                                    )
+
+                                st.divider()
+                                st.markdown("##### Produção Classificada por Tipo e Cor")
+                                if df_filtrado.empty:
+                                    st.info("Nenhuma produção classificada por tipo e cor neste período.")
                                 df_temp = df_filtrado.copy()
                                 df_temp['galpao_norm'] = df_temp['galpao'].astype(
                                     str).str.strip()
@@ -662,21 +793,24 @@ else:
                                     registro_excluir = None
                                     confirmar = False
                                 excluir_colheita = st.form_submit_button(
-                                    "Excluir agora", type="primary", disabled=not confirmar)
+                                    "Excluir agora", type="primary", disabled=selected_id_excluir is None)
 
                                 if excluir_colheita and selected_id_excluir is not None:
-                                    try:
-                                        registrar_log("DELETE", "producao", selected_id_excluir, f"Excluiu colheita de {registro_excluir['quantidade']} ovos")
-                                        with engine.connect() as conn:
-                                            conn.execute(
-                                                text("DELETE FROM producao WHERE id = :id AND username = :username"),
-                                                {"id": selected_id_excluir, "username": st.session_state.username}
-                                            )
-                                            conn.commit()
-                                        area_excluir_colheita.empty()
-                                        mensagem_excluir_colheita.success("✅ Registro excluído com sucesso!")
-                                    except Exception as e:
-                                        st.error(f"Erro ao excluir: {e}")
+                                    if not confirmar:
+                                        st.error("Marque a confirmação antes de excluir.")
+                                    else:
+                                        try:
+                                            registrar_log("DELETE", "producao", selected_id_excluir, f"Excluiu colheita de {registro_excluir['quantidade']} ovos")
+                                            with engine.connect() as conn:
+                                                conn.execute(
+                                                    text("DELETE FROM producao WHERE id = :id AND username = :username"),
+                                                    {"id": selected_id_excluir, "username": st.session_state.username}
+                                                )
+                                                conn.commit()
+                                            area_excluir_colheita.empty()
+                                            mensagem_excluir_colheita.success("✅ Registro excluído com sucesso!")
+                                        except Exception as e:
+                                            st.error(f"Erro ao excluir: {e}")
 
                     except Exception as e:
                         st.error(f"Erro ao carregar registros para edição: {e}")
@@ -938,20 +1072,23 @@ else:
                                     else:
                                         confirmar_ave = False
                                     excluir_ave = st.form_submit_button(
-                                        "Sim, excluir permanentemente", type="primary", disabled=not confirmar_ave)
+                                        "Sim, excluir permanentemente", type="primary", disabled=selected_id_excluir is None)
 
                                     if excluir_ave and selected_id_excluir is not None:
-                                        try:
-                                            with engine.connect() as conn:
-                                                conn.execute(text("""
-                                                    DELETE FROM aves
-                                                    WHERE id = :id AND username = :username
-                                                """), {"id": selected_id_excluir, "username": st.session_state.username})
-                                                conn.commit()
-                                            area_excluir_ave.empty()
-                                            mensagem_excluir_ave.success("Registro excluído!")
-                                        except Exception as e:
-                                            st.error(f"Erro ao excluir: {e}")
+                                        if not confirmar_ave:
+                                            st.error("Marque a confirmação antes de excluir.")
+                                        else:
+                                            try:
+                                                with engine.connect() as conn:
+                                                    conn.execute(text("""
+                                                        DELETE FROM aves
+                                                        WHERE id = :id AND username = :username
+                                                    """), {"id": selected_id_excluir, "username": st.session_state.username})
+                                                    conn.commit()
+                                                area_excluir_ave.empty()
+                                                mensagem_excluir_ave.success("Registro excluído!")
+                                            except Exception as e:
+                                                st.error(f"Erro ao excluir: {e}")
                     except Exception as e:
                         st.error(f"Erro ao carregar aves vivas: {e}")
 
@@ -1017,22 +1154,25 @@ else:
                                 else:
                                     confirmar_morta = False
                                 excluir_ave_morta = st.form_submit_button(
-                                    "Excluir agora", type="primary", disabled=not confirmar_morta)
+                                    "Excluir agora", type="primary", disabled=selected_id_morta is None)
 
                                 if excluir_ave_morta and selected_id_morta is not None:
-                                    try:
-                                        registrar_log("DELETE", "aves_mortas", selected_id_morta,
-                                                    f"Excluiu registro de morte de {df_mortas[df_mortas['id']==selected_id_morta].iloc[0]['Quantidade']} aves")
-                                        with engine.connect() as conn:
-                                            conn.execute(text("""
-                                                DELETE FROM aves_mortas
-                                                WHERE id = :id AND username = :username
-                                            """), {"id": selected_id_morta, "username": st.session_state.username})
-                                            conn.commit()
-                                        area_excluir_ave_morta.empty()
-                                        mensagem_excluir_ave_morta.success("✅ Registro de morte excluído com sucesso!")
-                                    except Exception as e:
-                                        st.error(f"Erro ao excluir: {e}")
+                                    if not confirmar_morta:
+                                        st.error("Marque a confirmação antes de excluir.")
+                                    else:
+                                        try:
+                                            registrar_log("DELETE", "aves_mortas", selected_id_morta,
+                                                        f"Excluiu registro de morte de {df_mortas[df_mortas['id']==selected_id_morta].iloc[0]['Quantidade']} aves")
+                                            with engine.connect() as conn:
+                                                conn.execute(text("""
+                                                    DELETE FROM aves_mortas
+                                                    WHERE id = :id AND username = :username
+                                                """), {"id": selected_id_morta, "username": st.session_state.username})
+                                                conn.commit()
+                                            area_excluir_ave_morta.empty()
+                                            mensagem_excluir_ave_morta.success("✅ Registro de morte excluído com sucesso!")
+                                        except Exception as e:
+                                            st.error(f"Erro ao excluir: {e}")
                     except Exception as e:
                         st.error(f"Erro ao carregar aves mortas: {e}")
 
@@ -2545,24 +2685,27 @@ else:
                                         "Confirmo que quero excluir", key="confirmar_exclusao_estoque")
                                     excluir_estoque_submit = st.form_submit_button(
                                         "🗑️ Excluir estoque", type="primary", use_container_width=True,
-                                        disabled=not confirmar_exclusao_estoque
+                                        disabled=False
                                     )
                             else:
                                 produto_id_excluir = None
                                 excluir_estoque_submit = False
 
                             if excluir_estoque_submit and produto_id_excluir is not None:
-                                chave_acao = "excluir_estoque"
-                                payload_acao = (st.session_state.username, produto_id_excluir)
-                                if not acao_repetida(chave_acao, payload_acao):
-                                    try:
-                                        excluir_estoque(produto_id_excluir)
-                                        mensagem_estoque_excluido = (
-                                            f"Registro de estoque para '{produto_excluir}' removido.")
-                                        df_estoque = obter_estoque()
-                                    except Exception as e:
-                                        liberar_acao(chave_acao)
-                                        st.error(f"Erro ao excluir estoque: {e}")
+                                if not confirmar_exclusao_estoque:
+                                    st.error("Marque a confirmação antes de excluir.")
+                                else:
+                                    chave_acao = "excluir_estoque"
+                                    payload_acao = (st.session_state.username, produto_id_excluir)
+                                    if not acao_repetida(chave_acao, payload_acao):
+                                        try:
+                                            excluir_estoque(produto_id_excluir)
+                                            mensagem_estoque_excluido = (
+                                                f"Registro de estoque para '{produto_excluir}' removido.")
+                                            df_estoque = obter_estoque()
+                                        except Exception as e:
+                                            liberar_acao(chave_acao)
+                                            st.error(f"Erro ao excluir estoque: {e}")
 
                         if mensagem_estoque_excluido:
                             area_excluir_estoque.empty()
@@ -2722,19 +2865,22 @@ else:
                                 else:
                                     confirmar_cliente = False
                                 excluir_cliente = st.form_submit_button(
-                                    "Excluir Cliente", type="primary", disabled=not confirmar_cliente)
+                                    "Excluir Cliente", type="primary", disabled=cliente_id_excluir is None)
 
                                 if excluir_cliente and cliente_id_excluir is not None:
-                                    try:
-                                        registrar_log("DELETE", "clientes", cliente_id_excluir, f"Excluiu cliente '{opcoes_clientes[cliente_id_excluir]}'")
-                                        with engine.connect() as conn:
-                                            conn.execute(text("DELETE FROM clientes WHERE id = :id"), {
-                                                         "id": cliente_id_excluir})
-                                            conn.commit()
-                                        area_excluir_cliente.empty()
-                                        mensagem_excluir_cliente.success("Cliente excluído!")
-                                    except Exception as e:
-                                        st.error(f"Erro ao excluir cliente: {e}")
+                                    if not confirmar_cliente:
+                                        st.error("Marque a confirmação antes de excluir.")
+                                    else:
+                                        try:
+                                            registrar_log("DELETE", "clientes", cliente_id_excluir, f"Excluiu cliente '{opcoes_clientes[cliente_id_excluir]}'")
+                                            with engine.connect() as conn:
+                                                conn.execute(text("DELETE FROM clientes WHERE id = :id"), {
+                                                             "id": cliente_id_excluir})
+                                                conn.commit()
+                                            area_excluir_cliente.empty()
+                                            mensagem_excluir_cliente.success("Cliente excluído!")
+                                        except Exception as e:
+                                            st.error(f"Erro ao excluir cliente: {e}")
                 except Exception as e:
                     st.error(f"Erro: {e}")
 
@@ -2900,26 +3046,29 @@ else:
                                         confirm_excluir = False
 
                                     excluir_produto = st.form_submit_button(
-                                        "🗑️ Excluir Permanentemente", type="primary", disabled=not confirm_excluir)
+                                        "🗑️ Excluir Permanentemente", type="primary", disabled=produto_id_excluir is None)
 
                                     if excluir_produto and produto_id_excluir is not None:
-                                        try:
-                                            registrar_log("DELETE", "produtos", produto_id_excluir, f"Excluiu produto '{produto_excluir_nome}'")
-                                            with engine.connect() as conn:
-                                                with conn.begin():
-                                                    conn.execute(text("DELETE FROM estoque WHERE username = :u AND produto_id = :p"),
-                                                                 {"u": st.session_state.username, "p": produto_id_excluir})
-                                                    conn.execute(text("DELETE FROM produtos WHERE id = :id AND username = :u"),
-                                                                 {"id": produto_id_excluir, "u": st.session_state.username})
-                                            area_excluir_produto.empty()
-                                            mensagem_excluir_produto.success(
-                                                f"✅ Produto '{produto_excluir_nome}' e seus registros de estoque foram removidos.")
-                                        except Exception as e:
-                                            if "foreign key constraint" in str(e).lower():
-                                                st.error(
-                                                    "❌ Não é possível excluir o produto porque existem vendas associadas a ele. Primeiro exclua as vendas ou cancele essa operação.")
-                                            else:
-                                                st.error(f"Erro ao excluir: {e}")
+                                        if not confirm_excluir:
+                                            st.error("Marque a confirmação antes de excluir.")
+                                        else:
+                                            try:
+                                                registrar_log("DELETE", "produtos", produto_id_excluir, f"Excluiu produto '{produto_excluir_nome}'")
+                                                with engine.connect() as conn:
+                                                    with conn.begin():
+                                                        conn.execute(text("DELETE FROM estoque WHERE username = :u AND produto_id = :p"),
+                                                                     {"u": st.session_state.username, "p": produto_id_excluir})
+                                                        conn.execute(text("DELETE FROM produtos WHERE id = :id AND username = :u"),
+                                                                     {"id": produto_id_excluir, "u": st.session_state.username})
+                                                area_excluir_produto.empty()
+                                                mensagem_excluir_produto.success(
+                                                    f"✅ Produto '{produto_excluir_nome}' e seus registros de estoque foram removidos.")
+                                            except Exception as e:
+                                                if "foreign key constraint" in str(e).lower():
+                                                    st.error(
+                                                        "❌ Não é possível excluir o produto porque existem vendas associadas a ele. Primeiro exclua as vendas ou cancele essa operação.")
+                                                else:
+                                                    st.error(f"Erro ao excluir: {e}")
 
                 except Exception as e:
                     st.error(f"Erro ao carregar produtos: {e}")
@@ -3145,15 +3294,18 @@ else:
                                     else:
                                         confirmar_tipo = False
                                     excluir_tipo = st.form_submit_button(
-                                        "Sim, excluir", type="primary", disabled=not confirmar_tipo)
+                                        "Sim, excluir", type="primary", disabled=tipo_id_excluir is None)
 
                                     if excluir_tipo and tipo_id_excluir is not None:
-                                        try:
-                                            excluir_tipo_despesa(tipo_id_excluir)
-                                            area_excluir_tipo.empty()
-                                            mensagem_excluir_tipo.success("Tipo excluído!")
-                                        except Exception as e:
-                                            st.error(str(e))
+                                        if not confirmar_tipo:
+                                            st.error("Marque a confirmação antes de excluir.")
+                                        else:
+                                            try:
+                                                excluir_tipo_despesa(tipo_id_excluir)
+                                                area_excluir_tipo.empty()
+                                                mensagem_excluir_tipo.success("Tipo excluído!")
+                                            except Exception as e:
+                                                st.error(str(e))
 
                 # Nova Despesa
                 with sub_tabs[1]:
@@ -3306,18 +3458,21 @@ else:
                                     confirm_excluir = False
 
                                 excluir_despesa = st.form_submit_button(
-                                    "Excluir agora", type="primary", disabled=not confirm_excluir)
+                                    "Excluir agora", type="primary", disabled=despesa_excluir_id is None)
 
                                 if excluir_despesa and despesa_excluir_id is not None:
-                                    try:
-                                        with engine.connect() as conn:
-                                            conn.execute(text("DELETE FROM despesas WHERE id = :id AND username = :u"),
-                                                         {"id": despesa_excluir_id, "u": st.session_state.username})
-                                            conn.commit()
-                                        registrar_log("DELETE", "despesas", despesa_excluir_id, f"Excluiu despesa de {despesa_excluir['tipo']} - R$ {despesa_excluir['valor']:.2f}")
-                                        mensagem_despesa_excluida = "Despesa excluída com sucesso!"
-                                    except Exception as e:
-                                        st.error(f"Erro ao excluir: {e}")
+                                    if not confirm_excluir:
+                                        st.error("Marque a confirmação antes de excluir.")
+                                    else:
+                                        try:
+                                            with engine.connect() as conn:
+                                                conn.execute(text("DELETE FROM despesas WHERE id = :id AND username = :u"),
+                                                             {"id": despesa_excluir_id, "u": st.session_state.username})
+                                                conn.commit()
+                                            registrar_log("DELETE", "despesas", despesa_excluir_id, f"Excluiu despesa de {despesa_excluir['tipo']} - R$ {despesa_excluir['valor']:.2f}")
+                                            mensagem_despesa_excluida = "Despesa excluída com sucesso!"
+                                        except Exception as e:
+                                            st.error(f"Erro ao excluir: {e}")
 
                         if mensagem_despesa_excluida:
                             area_excluir_despesa.empty()
