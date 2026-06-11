@@ -17,8 +17,6 @@ from io import BytesIO
 from pathlib import Path
 
 import requests
-import tempfile
-import os
 import time
 
 # ==================== EVOLUTION API ====================
@@ -46,35 +44,50 @@ def enviar_pdf_whatsapp(telefone_cliente, pdf_bytes, nome_cliente, numero_recibo
     config = get_evolution_config()
     if not config["api_key"]:
         return False, "Evolution API não configurada (api_key ausente)"
-    
+
+    url_base = config["url"].rstrip("/")
+    instancia = config["instance"].strip()
+    if not url_base or not instancia:
+        return False, "Evolution API não configurada (URL ou instância ausente)"
+
     try:
-        # Salva PDF temporariamente
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
-            tmp.write(pdf_bytes)
-            tmp_path = tmp.name
-        
-        url = f"{config['url']}/instance/{config['instance']}/send-document"
-        headers = {"apikey": config["api_key"]}
-        
+        url = f"{url_base}/message/sendMedia/{instancia}"
+        headers = {
+            "apikey": config["api_key"],
+            "Content-Type": "application/json"
+        }
+
         caption = f"""Olá {nome_cliente}, segue o recibo da sua compra.
 Nº do recibo: {numero_recibo}
 Obrigado pela preferência! 🐔"""
-        
-        with open(tmp_path, 'rb') as f:
-            files = {'file': (f'recibo_{numero_recibo}.pdf', f, 'application/pdf')}
-            data = {
-                'number': numero_limpo,
-                'caption': caption,
-                'options': {'delay': 1200, 'presence': 'composing'}
-            }
-            response = requests.post(url, headers=headers, data=data, files=files, timeout=30)
-        
-        os.unlink(tmp_path)
-        
+
+        nome_arquivo = f"recibo_{numero_recibo or 'venda'}.pdf"
+        payload = {
+            "number": numero_limpo,
+            "mediatype": "document",
+            "mimetype": "application/pdf",
+            "caption": caption,
+            "media": base64.b64encode(pdf_bytes).decode("ascii"),
+            "fileName": nome_arquivo,
+            "delay": 1200
+        }
+
+        response = requests.post(
+            url,
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
+
         if response.status_code in (200, 201):
             return True, "Recibo enviado com sucesso!"
-        else:
-            return False, f"Erro Evolution: {response.status_code}"
+        detalhe = response.text.strip().replace("\n", " ")[:300]
+        if response.status_code == 404:
+            return False, (
+                f"Evolution API retornou 404 na rota /message/sendMedia/{instancia}. "
+                "Confira se a URL configurada aponta para a raiz da API e se o nome da instância está correto."
+            )
+        return False, f"Evolution API retornou {response.status_code}: {detalhe or 'sem detalhes'}"
     except Exception as e:
         return False, f"Erro ao enviar: {str(e)}"
 
