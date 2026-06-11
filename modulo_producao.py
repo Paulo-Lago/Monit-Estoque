@@ -3,7 +3,9 @@ from datetime import datetime
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
+from plotly.subplots import make_subplots
 from sqlalchemy import text
 
 
@@ -976,12 +978,22 @@ def render_modulo_producao(
                 ORDER BY data
             """), engine, params={"username": st.session_state.username})
 
+            df_aves_registradas = pd.read_sql(text("""
+                SELECT data_registro AS data, quantidade_total AS quantidade, galpao
+                FROM aves
+                WHERE username = :username
+                ORDER BY data_registro
+            """), engine, params={"username": st.session_state.username})
+
             if not df_producao.empty:
                 df_producao['data'] = pd.to_datetime(df_producao['data'])
             if not df_quebrados.empty:
                 df_quebrados['data'] = pd.to_datetime(df_quebrados['data'])
             if not df_mortas.empty:
                 df_mortas['data'] = pd.to_datetime(df_mortas['data'])
+            if not df_aves_registradas.empty:
+                df_aves_registradas['data'] = pd.to_datetime(
+                    df_aves_registradas['data'])
 
             # ==================== PRODUÇÃO DE OVOS ====================
             with tab_prod:
@@ -1035,6 +1047,126 @@ def render_modulo_producao(
                                 )
                                 st.plotly_chart(
                                     fig, use_container_width=True)
+                            st.divider()
+
+                        st.markdown("#### Total Diário e Percentual de Postura por Galpão")
+                        st.caption(
+                            "O percentual considera uma capacidade de 1 ovo por ave viva ao dia.")
+
+                        for galpao in GALPOES:
+                            df_total_galpao = df_filtrado[
+                                df_filtrado['galpao'] == galpao
+                            ].groupby('data', as_index=False)['quantidade'].sum()
+
+                            if df_total_galpao.empty:
+                                st.info(
+                                    f"Nenhum registro de produção para {galpao} no período selecionado.")
+                                continue
+
+                            registros_galpao = df_aves_registradas[
+                                df_aves_registradas['galpao'] == galpao
+                            ] if not df_aves_registradas.empty else df_aves_registradas
+                            mortes_galpao = df_mortas[
+                                df_mortas['galpao'] == galpao
+                            ] if not df_mortas.empty else df_mortas
+
+                            aves_vivas_por_dia = []
+                            percentuais_postura = []
+                            for _, registro_dia in df_total_galpao.iterrows():
+                                data_producao = registro_dia['data']
+                                total_registradas = registros_galpao.loc[
+                                    registros_galpao['data'] <= data_producao,
+                                    'quantidade'
+                                ].sum() if not registros_galpao.empty else 0
+                                total_mortes = mortes_galpao.loc[
+                                    mortes_galpao['data'] <= data_producao,
+                                    'quantidade'
+                                ].sum() if not mortes_galpao.empty else 0
+                                aves_vivas = max(
+                                    0, int(total_registradas) - int(total_mortes))
+                                percentual = (
+                                    float(registro_dia['quantidade']) / aves_vivas * 100
+                                    if aves_vivas > 0 else None
+                                )
+                                aves_vivas_por_dia.append(aves_vivas)
+                                percentuais_postura.append(percentual)
+
+                            df_total_galpao['aves_vivas'] = aves_vivas_por_dia
+                            df_total_galpao['percentual_postura'] = percentuais_postura
+
+                            fig_desempenho = make_subplots(
+                                specs=[[{"secondary_y": True}]])
+                            fig_desempenho.add_trace(
+                                go.Bar(
+                                    x=df_total_galpao['data'],
+                                    y=df_total_galpao['quantidade'],
+                                    name='Total de ovos',
+                                    marker_color='#2F80ED',
+                                    text=df_total_galpao['quantidade'].astype(int),
+                                    textposition='auto',
+                                    customdata=df_total_galpao[['aves_vivas']],
+                                    hovertemplate=(
+                                        '<b>%{x|%d/%m/%Y}</b><br>'
+                                        'Total de ovos: %{y:,.0f}<br>'
+                                        'Aves vivas: %{customdata[0]:,.0f}'
+                                        '<extra></extra>'
+                                    ),
+                                ),
+                                secondary_y=False,
+                            )
+                            fig_desempenho.add_trace(
+                                go.Scatter(
+                                    x=df_total_galpao['data'],
+                                    y=df_total_galpao['percentual_postura'],
+                                    name='Percentual de postura',
+                                    mode='lines+markers+text',
+                                    line=dict(color='#E05A33', width=3),
+                                    marker=dict(size=8),
+                                    text=[
+                                        f'{valor:.1f}%' if pd.notna(valor) else 'Sem aves'
+                                        for valor in df_total_galpao['percentual_postura']
+                                    ],
+                                    textposition='top center',
+                                    hovertemplate=(
+                                        '<b>%{x|%d/%m/%Y}</b><br>'
+                                        'Postura: %{y:.1f}%'
+                                        '<extra></extra>'
+                                    ),
+                                ),
+                                secondary_y=True,
+                            )
+                            fig_desempenho.update_layout(
+                                title=f'Total de Ovos e Percentual de Postura - {galpao}',
+                                plot_bgcolor='#ffffff',
+                                paper_bgcolor='#ffffff',
+                                font=dict(color='#000000', size=12),
+                                legend=dict(
+                                    orientation='h',
+                                    yanchor='bottom',
+                                    y=1.02,
+                                    xanchor='left',
+                                    x=0,
+                                ),
+                                hovermode='x unified',
+                                margin=dict(t=90),
+                            )
+                            fig_desempenho.update_xaxes(
+                                title_text='Data', tickformat='%d/%m', color='#000000')
+                            fig_desempenho.update_yaxes(
+                                title_text='Total de ovos',
+                                rangemode='tozero',
+                                color='#2F80ED',
+                                secondary_y=False,
+                            )
+                            fig_desempenho.update_yaxes(
+                                title_text='Percentual de postura',
+                                ticksuffix='%',
+                                rangemode='tozero',
+                                color='#E05A33',
+                                secondary_y=True,
+                            )
+                            st.plotly_chart(
+                                fig_desempenho, use_container_width=True)
                             st.divider()
 
             # ==================== OVOS QUEBRADOS ====================
