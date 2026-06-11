@@ -41,8 +41,8 @@ def gerar_pdf_recibo_reportlab(dados_venda, itens, numero_recibo):
     qrcode_pix_path = assets_dir / "qrcode_pix.png"
 
     # ==================== CORES ====================
-    cor_primaria = colors.HexColor("#2E7D32")
-    cor_primaria_escura = colors.HexColor("#FFD983")
+    cor_primaria = colors.HexColor("#EDC575")
+    cor_primaria_escura = colors.HexColor("#996633")
     cor_fundo = colors.HexColor("#F6FAF7")
     cor_fundo_linha = colors.HexColor("#FAFAFA")
     cor_linha = colors.HexColor("#D7E3DA")
