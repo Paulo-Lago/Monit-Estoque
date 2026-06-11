@@ -134,7 +134,7 @@ def render_modulo_faturamento(
                     col1, col2 = st.columns(2)
                     with col1:
                         st.markdown(f"**📅 Data da Venda**  \n{dados_venda.get('data_venda', '').strftime('%d/%m/%Y') if dados_venda.get('data_venda') else ''}")
-                        st.markdown(f"**🧾 N° Recibo**  \n{dados_venda.get('numero_recibo', 'Não informado')}")
+                        st.markdown(f"**🧾 N° Recibo**  \n{dados_venda.get('numero_recibo', '')}")
                         st.markdown(f"**👤 Cliente**  \n{dados_venda.get('cliente_nome', '')}")
                         st.markdown(f"**💳 Pagamento**  \n{dados_venda.get('forma_nome', '')}")
                     with col2:
@@ -181,6 +181,9 @@ def render_modulo_faturamento(
                     
                     with col_btn1:
                         if st.button("✅ Confirmar e Registrar", type="primary", use_container_width=True):
+                            if not str(dados_venda.get('numero_recibo', '')).strip():
+                                st.error("Informe o número do recibo antes de registrar a venda.")
+                                st.stop()
                             chave_acao = "confirmar_venda"
                             payload_acao = (
                                 st.session_state.username,
@@ -400,9 +403,10 @@ def render_modulo_faturamento(
                         col_pago.metric("Pago", fmt_br(valor_pago))
                         col_saldo.metric("Saldo", fmt_br(valor_devendo))
 
-                    with st.expander("Recibo, observações e envio", expanded=False):
-                        numero_recibo = st.text_input(
-                            "N° do recibo", key="venda_recibo")
+                    numero_recibo = st.text_input(
+                        "N° do recibo *", key="venda_recibo",
+                        placeholder="Campo obrigatório")
+                    with st.expander("Observações e envio", expanded=False):
                         observacoes = st.text_area(
                             "Observações", key="venda_obs",
                             placeholder="Ex: entrega agendada, troco, referência do pedido.")
@@ -410,21 +414,25 @@ def render_modulo_faturamento(
                             "Enviar recibo por WhatsApp", value=True, key="envia_whats")
 
                 if st.button("Finalizar venda", type="primary", use_container_width=True, disabled=len(st.session_state.get("carrinho", [])) == 0):
-                    st.session_state.dados_venda = {
-                        "cliente_id": cliente_id,
-                        "cliente_nome": cliente_nome,
-                        "data_venda": data_venda,
-                        "forma_id": forma_id,
-                        "forma_nome": forma_nome,
-                        "valor_pago": valor_pago,
-                        "valor_total": valor_total_carrinho,
-                        "valor_devendo": valor_devendo,
-                        "observacoes": observacoes,
-                        "numero_recibo": numero_recibo,
-                        "enviar_whatsapp": enviar_whatsapp
-                    }
-                    st.session_state.mostrar_confirmacao = True
-                    st.rerun()
+                    numero_recibo_limpo = numero_recibo.strip()
+                    if not numero_recibo_limpo:
+                        st.error("O número do recibo é obrigatório para finalizar a venda.")
+                    else:
+                        st.session_state.dados_venda = {
+                            "cliente_id": cliente_id,
+                            "cliente_nome": cliente_nome,
+                            "data_venda": data_venda,
+                            "forma_id": forma_id,
+                            "forma_nome": forma_nome,
+                            "valor_pago": valor_pago,
+                            "valor_total": valor_total_carrinho,
+                            "valor_devendo": valor_devendo,
+                            "observacoes": observacoes,
+                            "numero_recibo": numero_recibo_limpo,
+                            "enviar_whatsapp": enviar_whatsapp
+                        }
+                        st.session_state.mostrar_confirmacao = True
+                        st.rerun()
 
             # ==================== BOTÕES DE PÓS-VENDA ====================
             if st.session_state.get("venda_finalizada", False):
@@ -793,7 +801,9 @@ def render_modulo_faturamento(
                             )
                             st.caption("Use **ponto** como separador decimal (ex: 100.50)")
                             novo_valor_pago = st.number_input("💰 Valor Pago (R$)", min_value=0.0, value=float(venda_atual['valor_pago']), step=0.01, format="%.2f")
-                            novo_recibo = st.text_input("🧾 N° Recibo", value=venda_atual.get('numero_recibo', ''))
+                            novo_recibo = st.text_input(
+                                "🧾 N° Recibo *",
+                                value=venda_atual.get('numero_recibo', '') or '')
 
                         novas_obs = st.text_area("📝 Observações", value=venda_atual.get('observacoes', '') or '')
 
@@ -874,6 +884,9 @@ def render_modulo_faturamento(
                             st.metric("⚠️ Novo Saldo Devedor", fmt_br(novo_valor_devendo))
 
                         if st.button("💾 Salvar Todas as Alterações", type="primary", use_container_width=True):
+                            if not novo_recibo.strip():
+                                st.error("O número do recibo é obrigatório.")
+                                st.stop()
                             try:
                                 with engine.connect() as conn:
                                     with conn.begin():
@@ -915,7 +928,7 @@ def render_modulo_faturamento(
                                             "total": total_carrinho,
                                             "valor_pago": novo_valor_pago,
                                             "obs": novas_obs,
-                                            "recibo": novo_recibo,
+                                            "recibo": novo_recibo.strip(),
                                             "id": venda_id
                                         })
 
