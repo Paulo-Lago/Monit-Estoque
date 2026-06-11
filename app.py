@@ -113,8 +113,8 @@ def gerar_pdf_recibo_reportlab(dados_venda, itens, numero_recibo):
             pass  # se falhar ao carregar, ignora
     
     # Cabeçalho
-    elements.append(Paragraph("GRANJA AVÍCOLA CAIÇARA 🐔", style_title))
-    elements.append(Paragraph("RECIBO DE VENDA", style_subtitle))
+    elements.append(Paragraph("GRANJA AVÍCOLA CAIÇARA.", style_title))
+    elements.append(Paragraph("RECIBO DE VENDA:", style_subtitle))
     elements.append(Spacer(1, 0.5*cm))
     
     # Dados da venda
@@ -130,12 +130,13 @@ def gerar_pdf_recibo_reportlab(dados_venda, itens, numero_recibo):
     elements.append(Spacer(1, 0.5*cm))
     
     # Tabela de produtos
-    data = [["Produto", "Qtd", "Preço Unit. (R$)", "Subtotal (R$)"]]
+    data = [["Produto", "Qtd", "Preço Unit. (R$)", "Desc. Unit. (R$)", "Subtotal (R$)"]]
     for item in itens:
         data.append([
             item['produto_nome'],
             f"{item['quantidade']:.2f}".replace('.', ','),
             f"{item['preco_unit']:.2f}".replace('.', ','),
+            f"{item['desconto_unit']:.2f}".replace('.', ','),
             f"{item['subtotal']:.2f}".replace('.', ',')
         ])
     table_prod = Table(data, colWidths=[6*cm, 1.8*cm, 2.5*cm, 2.5*cm, 2.5*cm])
@@ -149,12 +150,14 @@ def gerar_pdf_recibo_reportlab(dados_venda, itens, numero_recibo):
     
     # Totais
     valor_bruto = sum(item['subtotal'] + item['desconto_unit'] * item['quantidade'] for item in itens)
-    
+    desconto_total = sum(item['desconto_unit'] * item['quantidade'] for item in itens)
+        
     def fmt_br(valor):
         return f"R$ {valor:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
     
     totais_data = [
         ["Valor Bruto:", fmt_br(valor_bruto)],
+        ["Desconto Total:", fmt_br(desconto_total)],
         ["Valor Final:", fmt_br(dados_venda['valor_total'])],
         ["Valor Pago:", fmt_br(dados_venda['valor_pago'])],
         ["Saldo Devedor:", fmt_br(dados_venda['valor_devendo'])]
