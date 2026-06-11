@@ -24,6 +24,9 @@ def render_modulo_producao(
     GALPOES = galpoes
     CORES = cores
 
+    def altura_tabela(df, limite=420):
+        return min(limite, 74 + max(1, len(df)) * 35)
+
     st.header("🐔 Monitoramento de Produção")
 
     if st.sidebar.button("🚪 Sair / Logout"):
@@ -252,7 +255,6 @@ def render_modulo_producao(
                                     st.metric("Total Geral", f"{total_geral_periodo:,} ovos")
 
                                 detalhes_gerais = df_ovos_geral_filtrado.copy()
-                                detalhes_gerais['data'] = detalhes_gerais['data'].dt.strftime('%d/%m/%Y')
                                 st.dataframe(
                                     detalhes_gerais.rename(columns={
                                         'data': 'Data',
@@ -260,7 +262,12 @@ def render_modulo_producao(
                                         'quantidade': 'Total Geral de Ovos'
                                     }),
                                     use_container_width=True,
-                                    hide_index=True
+                                    hide_index=True,
+                                    height=altura_tabela(detalhes_gerais, 320),
+                                    column_config={
+                                        'Data': st.column_config.DateColumn(format='DD/MM/YYYY'),
+                                        'Total Geral de Ovos': st.column_config.NumberColumn(format='%d'),
+                                    },
                                 )
 
                             st.divider()
@@ -318,22 +325,23 @@ def render_modulo_producao(
                             resumo['caixas'] = resumo['quantidade'] // 360
                             resumo['ovos_restantes'] = resumo['quantidade'] % 360
 
-                            for galpao in sorted(resumo['galpao_norm'].unique()):
-                                st.markdown(f"**{galpao}**")
-                                df_g = resumo[resumo['galpao_norm']
-                                              == galpao]
-                                if not df_g.empty:
-                                    st.dataframe(
-                                        df_g[['tipo', 'cor', 'quantidade', 'caixas', 'ovos_restantes']].rename(columns={
-                                            'tipo': 'Tipo', 'cor': 'Cor', 'quantidade': 'Total de Ovos',
-                                            'caixas': 'Caixas Completas (360)', 'ovos_restantes': 'Ovos Restantes'
-                                        }),
-                                        width='stretch', hide_index=True
-                                    )
-                                else:
-                                    st.info(
-                                        "Nenhum registro neste galpão.")
-                                st.divider()
+                            resumo_exibicao = resumo[[
+                                'galpao_norm', 'tipo', 'cor', 'quantidade',
+                                'caixas', 'ovos_restantes'
+                            ]].rename(columns={
+                                'galpao_norm': 'Galpão',
+                                'tipo': 'Tipo',
+                                'cor': 'Cor',
+                                'quantidade': 'Total de Ovos',
+                                'caixas': 'Caixas Completas (360)',
+                                'ovos_restantes': 'Ovos Restantes',
+                            })
+                            st.dataframe(
+                                resumo_exibicao,
+                                width='stretch',
+                                hide_index=True,
+                                height=altura_tabela(resumo_exibicao, 380),
+                            )
 
             except Exception as e:
                 st.error(f"Erro ao carregar monitoramento: {e}")
@@ -387,7 +395,7 @@ def render_modulo_producao(
                     else:
                         # Formatar para exibição
                         df_display = df_hist.copy()
-                        df_display['data'] = pd.to_datetime(df_display['data']).dt.strftime('%d/%m/%Y')
+                        df_display['data'] = pd.to_datetime(df_display['data'])
                         df_display = df_display.rename(columns={
                             'data': 'Data',
                             'quantidade': 'Quantidade',
@@ -399,7 +407,12 @@ def render_modulo_producao(
                         st.dataframe(
                             df_display[['Data', 'Quantidade', 'Tipo', 'Galpão', 'Cor']],
                             use_container_width=True,
-                            hide_index=True
+                            hide_index=True,
+                            height=altura_tabela(df_display, 420),
+                            column_config={
+                                'Data': st.column_config.DateColumn(format='DD/MM/YYYY'),
+                                'Quantidade': st.column_config.NumberColumn(format='%d'),
+                            },
                         )
                 except Exception as e:
                     st.error(f"Erro ao carregar histórico: {e}")
@@ -407,7 +420,8 @@ def render_modulo_producao(
                 st.divider()
 
                 # ----- EDIÇÃO/EXCLUSÃO (selecionar um registro) -----
-                st.markdown("#### ✏️ Editar ou Excluir Registro")
+                painel_ajustes_producao = st.expander(
+                    "Editar ou excluir um registro", expanded=False)
 
                 # Carregar todos os registros (ou apenas do período? Vou manter todos para não perder a funcionalidade)
                 try:
@@ -430,7 +444,7 @@ def render_modulo_producao(
                             row['id']: f"📅 {row['data_fmt']} | {row['quantidade']} ovos | {row['tipo']} | {row['cor']} | {row['galpao']}"
                             for _, row in df_edit.iterrows()
                         }
-                        selected_id = st.selectbox(
+                        selected_id = painel_ajustes_producao.selectbox(
                             "Escolha um registro para corrigir:",
                             options=list(opcoes.keys()),
                             format_func=lambda x: opcoes[x],
@@ -438,8 +452,8 @@ def render_modulo_producao(
                             placeholder="Selecione um registro",
                             key="edit_select"
                         )
-                        mensagem_editar_colheita = st.empty()
-                        area_editar_colheita = st.empty()
+                        mensagem_editar_colheita = painel_ajustes_producao.empty()
+                        area_editar_colheita = painel_ajustes_producao.empty()
                         with area_editar_colheita.container(), st.form("form_editar_colheita", clear_on_submit=True):
                             if selected_id is not None:
                                 registro = df_edit[df_edit['id'] == selected_id].iloc[0]
@@ -504,12 +518,13 @@ def render_modulo_producao(
                             except Exception as e:
                                 st.error(f"Erro ao atualizar: {e}")
 
-                        st.divider()
+                        painel_ajustes_producao.divider()
 
                         # Exclusão
-                        st.markdown("#### 🗑️ Excluir Registro")
-                        st.caption("Esta ação é irreversível e removerá permanentemente o registro do histórico.")
-                        selected_id_excluir = st.selectbox(
+                        painel_ajustes_producao.markdown("##### Excluir registro")
+                        painel_ajustes_producao.caption(
+                            "Esta ação é irreversível e removerá permanentemente o registro do histórico.")
+                        selected_id_excluir = painel_ajustes_producao.selectbox(
                             "Escolha um registro para excluir:",
                             options=list(opcoes.keys()),
                             format_func=lambda x: opcoes[x],
@@ -517,8 +532,8 @@ def render_modulo_producao(
                             placeholder="Selecione um registro",
                             key="delete_select_colheita"
                         )
-                        mensagem_excluir_colheita = st.empty()
-                        area_excluir_colheita = st.empty()
+                        mensagem_excluir_colheita = painel_ajustes_producao.empty()
+                        area_excluir_colheita = painel_ajustes_producao.empty()
                         with area_excluir_colheita.container(), st.form("form_excluir_colheita", clear_on_submit=True):
                             if selected_id_excluir is not None:
                                 registro_excluir = df_edit[df_edit['id'] == selected_id_excluir].iloc[0]
@@ -574,17 +589,23 @@ def render_modulo_producao(
                         resumo['caixas'] = resumo['quantidade'] // 360
                         resumo['ovos_restantes'] = resumo['quantidade'] % 360
 
-                        for galpao in sorted(resumo['galpao'].unique()):
-                            st.markdown(f"**{galpao}**")
-                            df_g = resumo[resumo['galpao'] == galpao]
-                            st.dataframe(
-                                df_g[['tipo', 'cor', 'quantidade', 'caixas', 'ovos_restantes']].rename(columns={
-                                    'tipo': 'Tipo', 'cor': 'Cor', 'quantidade': 'Total de Ovos',
-                                    'caixas': 'Caixas Completas (360)', 'ovos_restantes': 'Ovos Restantes'
-                                }),
-                                width='stretch', hide_index=True
-                            )
-                            st.divider()
+                        resumo_exibicao = resumo[[
+                            'galpao', 'tipo', 'cor', 'quantidade',
+                            'caixas', 'ovos_restantes'
+                        ]].rename(columns={
+                            'galpao': 'Galpão',
+                            'tipo': 'Tipo',
+                            'cor': 'Cor',
+                            'quantidade': 'Total de Ovos',
+                            'caixas': 'Caixas Completas (360)',
+                            'ovos_restantes': 'Ovos Restantes',
+                        })
+                        st.dataframe(
+                            resumo_exibicao,
+                            width='stretch',
+                            hide_index=True,
+                            height=altura_tabela(resumo_exibicao, 380),
+                        )
 
     # ======================== ABA 2: REGISTRAR AVES ========================
     with tabs[2]:
@@ -745,16 +766,23 @@ def render_modulo_producao(
                             "galpao": "Galpão",
                             "quantidade_total": "Quantidade"
                         })
-                        df_aves['Data'] = pd.to_datetime(df_aves['Data']).dt.strftime('%d/%m/%Y')
-                        st.dataframe(df_aves[['Data', 'Galpão', 'Quantidade']], use_container_width=True, hide_index=True)
+                        df_aves['Data'] = pd.to_datetime(df_aves['Data'])
+                        st.dataframe(
+                            df_aves[['Data', 'Galpão', 'Quantidade']],
+                            use_container_width=True, hide_index=True,
+                            height=altura_tabela(df_aves, 380))
 
-                        # ---- Edição/Exclusão de Aves Vivas (como já existia) ----
-                        st.markdown("#### ✏️ Editar ou Excluir Registro de Aves Vivas")
+                        # ---- Edição/Exclusão de Aves Vivas ----
+                        painel_aves_vivas = st.expander(
+                            "Editar ou excluir aves registradas", expanded=False)
                         opcoes = {
-                            row['id']: f"📅 {row['Data']} | {row['Galpão']} | {row['Quantidade']} aves"
+                            row['id']: (
+                                f"📅 {pd.to_datetime(row['Data']).strftime('%d/%m/%Y')} | "
+                                f"{row['Galpão']} | {row['Quantidade']} aves"
+                            )
                             for _, row in df_aves.iterrows()
                         }
-                        col_btn1, col_btn2 = st.columns(2)
+                        col_btn1, col_btn2 = painel_aves_vivas.columns(2)
                         with col_btn1:
                             selected_id = st.selectbox(
                                 "Selecione um registro para editar:",
@@ -892,16 +920,22 @@ def render_modulo_producao(
                             "galpao": "Galpão",
                             "quantidade": "Quantidade"
                         })
-                        df_mortas['Data'] = pd.to_datetime(df_mortas['Data']).dt.strftime('%d/%m/%Y')
-                        st.dataframe(df_mortas[['Data', 'Galpão', 'Quantidade']], use_container_width=True, hide_index=True)
+                        df_mortas['Data'] = pd.to_datetime(df_mortas['Data'])
+                        st.dataframe(
+                            df_mortas[['Data', 'Galpão', 'Quantidade']],
+                            use_container_width=True, hide_index=True,
+                            height=altura_tabela(df_mortas, 380))
 
-                        # Opcional: permitir excluir registros de mortes (sem edição)
-                        st.markdown("#### 🗑️ Excluir Registro de Aves Mortas")
+                        painel_aves_mortas = st.expander(
+                            "Excluir registro de aves mortas", expanded=False)
                         opcoes_mortas = {
-                            row['id']: f"📅 {row['Data']} | {row['Galpão']} | {row['Quantidade']} aves"
+                            row['id']: (
+                                f"📅 {pd.to_datetime(row['Data']).strftime('%d/%m/%Y')} | "
+                                f"{row['Galpão']} | {row['Quantidade']} aves"
+                            )
                             for _, row in df_mortas.iterrows()
                         }
-                        selected_id_morta = st.selectbox(
+                        selected_id_morta = painel_aves_mortas.selectbox(
                             "Selecione um registro para excluir:",
                             options=list(opcoes_mortas.keys()),
                             format_func=lambda x: opcoes_mortas[x],
@@ -909,8 +943,8 @@ def render_modulo_producao(
                             placeholder="Selecione um registro",
                             key="select_ave_morta"
                         )
-                        mensagem_excluir_ave_morta = st.empty()
-                        area_excluir_ave_morta = st.empty()
+                        mensagem_excluir_ave_morta = painel_aves_mortas.empty()
+                        area_excluir_ave_morta = painel_aves_mortas.empty()
                         with area_excluir_ave_morta.container(), st.form("form_excluir_ave_morta", clear_on_submit=True):
                             if selected_id_morta is not None:
                                 st.warning("⚠️ Esta ação é irreversível e removerá permanentemente o registro de morte.")
@@ -1395,14 +1429,19 @@ def render_modulo_producao(
 
                     # Depois formata a data e exibe
                     df_quebrados_hist['data'] = pd.to_datetime(
-                        df_quebrados_hist['data']).dt.strftime('%d/%m/%Y')
+                        df_quebrados_hist['data'])
 
                     st.dataframe(
                         df_quebrados_hist[["data", "Galpão", "Quantidade"]].rename(
                             columns={"data": "Data"}
                         ),
                         width='stretch',
-                        hide_index=True
+                        hide_index=True,
+                        height=altura_tabela(df_quebrados_hist, 380),
+                        column_config={
+                            'Data': st.column_config.DateColumn(format='DD/MM/YYYY'),
+                            'Quantidade': st.column_config.NumberColumn(format='%d'),
+                        },
                     )
 
             except Exception as e:

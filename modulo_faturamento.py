@@ -41,6 +41,9 @@ def render_modulo_faturamento(
     def fmt_br(valor):
         return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+    def altura_tabela(df, limite=420):
+        return min(limite, 74 + max(1, len(df)) * 35)
+
     # ----- FUNÇÃO AUXILIAR PARA ATUALIZAR ESTOQUE (com tratamento None) -----
     def atualizar_estoque(produto_id, delta):
         """Atualiza a quantidade em estoque (soma delta). delta pode ser negativo (venda) ou positivo (devolução)."""
@@ -99,42 +102,12 @@ def render_modulo_faturamento(
         vendas_tabs = st.tabs([
             "🛒 Nova Venda",
             "📋 Registros de Vendas",
-            "💰 Financeiro"
+            "💰 Pagamentos e Ajustes"
         ])
 
         # -------------------- NOVA VENDA COM CARRINHO --------------------
         with vendas_tabs[0]:
-            st.markdown("""
-            <style>
-            .card-form {
-                background-color: #f9f9fb;
-                border-radius: 20px;
-                padding: 1.5rem;
-                border: 1px solid #e0e4e8;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.02);
-                margin-bottom: 1rem;
-            }
-            .cart-item {
-                background-color: #ffffff;
-                border-radius: 12px;
-                padding: 0.8rem;
-                margin-bottom: 0.5rem;
-                border: 1px solid #e0e4e8;
-            }
-            div.stButton > button:first-child {
-                border-radius: 40px;
-                font-weight: 600;
-                transition: all 0.2s ease;
-            }
-            div.stButton > button:first-child:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 12px rgba(0,0,0,0.1);
-            }
-            </style>
-            """, unsafe_allow_html=True)
-
-            st.markdown("### 🛒 Registrar Nova Venda (Múltiplos Produtos)")
-            st.caption("Adicione os produtos ao carrinho e finalize a venda")
+            st.markdown("### Registrar nova venda")
 
             # Inicializar carrinho no session_state
             if "carrinho" not in st.session_state:
@@ -171,8 +144,32 @@ def render_modulo_faturamento(
 
                     st.divider()
                     st.markdown("#### 🛒 Itens da Venda")
-                    for item in st.session_state.get("carrinho", []):
-                        st.markdown(f"- **{item['produto_nome']}** | Qtd: {item['quantidade']} | Preço unit.: {fmt_br(item['preco_unit'])} | Desc. unit.: {fmt_br(item['desconto_unit'])} | Subtotal: {fmt_br(item['subtotal'])}")
+                    itens_confirmacao = pd.DataFrame(
+                        st.session_state.get("carrinho", []))
+                    if not itens_confirmacao.empty:
+                        itens_confirmacao = itens_confirmacao[[
+                            'produto_nome', 'quantidade', 'preco_unit',
+                            'desconto_unit', 'subtotal'
+                        ]].rename(columns={
+                            'produto_nome': 'Produto',
+                            'quantidade': 'Qtd.',
+                            'preco_unit': 'Preço',
+                            'desconto_unit': 'Desconto',
+                            'subtotal': 'Subtotal',
+                        })
+                        st.dataframe(
+                            itens_confirmacao,
+                            use_container_width=True,
+                            hide_index=True,
+                            height=altura_tabela(itens_confirmacao, 300),
+                            column_config={
+                                'Produto': st.column_config.TextColumn(width='large'),
+                                'Qtd.': st.column_config.NumberColumn(format='%.2f'),
+                                'Preço': st.column_config.NumberColumn(format='R$ %.2f'),
+                                'Desconto': st.column_config.NumberColumn(format='R$ %.2f'),
+                                'Subtotal': st.column_config.NumberColumn(format='R$ %.2f'),
+                            },
+                        )
 
                     if dados_venda.get('observacoes'):
                         st.info(f"**📝 Observações:** {dados_venda['observacoes']}")
@@ -289,89 +286,130 @@ def render_modulo_faturamento(
 
             # ==================== MODO CARRINHO (NOVA VENDA) ====================
             elif not st.session_state.get("venda_finalizada", False):
-                st.markdown('<div class="card-form">', unsafe_allow_html=True)
+                coluna_lancamento, coluna_carrinho = st.columns([0.95, 1.35], gap="large")
 
-                col1, col2 = st.columns(2)
-                with col1:
-                    data_venda = st.date_input("📅 Data da Venda", value=datetime.now().date(), format="DD/MM/YYYY", key="data_venda")
-                    cliente_nome = st.selectbox("👤 Cliente *", df_clientes['nome'].tolist(), key="venda_cliente")
-                    cliente_id = int(df_clientes[df_clientes['nome'] == cliente_nome].iloc[0]['id'])
-                with col2:
-                    forma_nome = st.selectbox("💳 Forma de Pagamento *", df_formas['nome'].tolist(), key="venda_forma")
-                    forma_id = int(df_formas[df_formas['nome'] == forma_nome].iloc[0]['id'])
-                    valor_pago = st.number_input("💰 Valor Pago agora (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="venda_valor_pago")
+                with coluna_lancamento:
+                    with st.container(border=True):
+                        st.markdown("#### Dados da venda")
+                        data_venda = st.date_input(
+                            "Data", value=datetime.now().date(),
+                            format="DD/MM/YYYY", key="data_venda")
+                        cliente_nome = st.selectbox(
+                            "Cliente *", df_clientes['nome'].tolist(), key="venda_cliente")
+                        cliente_id = int(df_clientes[
+                            df_clientes['nome'] == cliente_nome].iloc[0]['id'])
+                        forma_nome = st.selectbox(
+                            "Forma de pagamento *", df_formas['nome'].tolist(), key="venda_forma")
+                        forma_id = int(df_formas[
+                            df_formas['nome'] == forma_nome].iloc[0]['id'])
+                        valor_pago = st.number_input(
+                            "Valor pago agora (R$)", min_value=0.0, step=0.01,
+                            value=0.0, format="%.2f", key="venda_valor_pago")
 
-                st.divider()
-                st.markdown("#### ➕ Adicionar Produto ao Carrinho")
-                col_add1, col_add2, col_add3, col_add4 = st.columns([2, 1, 1, 1])
-                with col_add1:
-                    produto_nome = st.selectbox("Produto", df_produtos['nome'].tolist(), key="produto_carrinho")
-                    produto_row = df_produtos[df_produtos['nome'] == produto_nome].iloc[0]
-                    produto_id = int(produto_row['id'])
-                    preco_unit = float(produto_row['preco_atual'])
-                with col_add2:
-                    quantidade = st.number_input("Quantidade", min_value=0.1, step=0.1, value=1.0, format="%.2f", key="qtd_carrinho")
-                with col_add3:
-                    desconto_unit = st.number_input("Desconto (R$)", min_value=0.0, step=0.01, value=0.0, format="%.2f", key="desc_carrinho")
-                with col_add4:
-                    if st.button("➕ Adicionar ao Carrinho", use_container_width=True):
+                    with st.container(border=True):
+                        st.markdown("#### Adicionar produto")
+                        produto_nome = st.selectbox(
+                            "Produto", df_produtos['nome'].tolist(), key="produto_carrinho")
+                        produto_row = df_produtos[
+                            df_produtos['nome'] == produto_nome].iloc[0]
+                        produto_id = int(produto_row['id'])
+                        preco_unit = float(produto_row['preco_atual'])
+
+                        col_qtd, col_desc = st.columns(2)
+                        with col_qtd:
+                            quantidade = st.number_input(
+                                "Quantidade", min_value=0.1, step=0.1,
+                                value=1.0, format="%.2f", key="qtd_carrinho")
+                        with col_desc:
+                            desconto_unit = st.number_input(
+                                "Desconto unitário", min_value=0.0, step=0.01,
+                                value=0.0, format="%.2f", key="desc_carrinho")
+
                         preco_com_desconto = max(0.0, preco_unit - desconto_unit)
-                        subtotal = quantidade * preco_com_desconto
-                        st.session_state.carrinho.append({
-                            "produto_id": produto_id,
-                            "produto_nome": produto_nome,
-                            "quantidade": quantidade,
-                            "preco_unit": preco_unit,
-                            "desconto_unit": desconto_unit,
-                            "subtotal": subtotal
-                        })
+                        st.caption(
+                            f"Preço: {fmt_br(preco_unit)} | Após desconto: {fmt_br(preco_com_desconto)}")
+                        if st.button(
+                            "➕ Adicionar item", type="secondary",
+                            use_container_width=True, key="adicionar_item_venda"):
+                            st.session_state.carrinho.append({
+                                "produto_id": produto_id,
+                                "produto_nome": produto_nome,
+                                "quantidade": quantidade,
+                                "preco_unit": preco_unit,
+                                "desconto_unit": desconto_unit,
+                                "subtotal": quantidade * preco_com_desconto,
+                            })
+                            st.rerun()
 
-                st.markdown(f'<div class="preco-unitario" style="margin-top: 0;">💰 Preço unitário: {fmt_br(preco_unit)}</div>', unsafe_allow_html=True)
+                with coluna_carrinho:
+                    with st.container(border=True):
+                        st.markdown("#### Carrinho")
+                        carrinho_atual = st.session_state.get("carrinho", [])
+                        if not carrinho_atual:
+                            st.info("Adicione pelo menos um produto para iniciar a venda.")
+                        else:
+                            df_carrinho = pd.DataFrame(carrinho_atual)
+                            df_display = df_carrinho[[
+                                "produto_nome", "quantidade", "preco_unit",
+                                "desconto_unit", "subtotal"
+                            ]].rename(columns={
+                                "produto_nome": "Produto",
+                                "quantidade": "Qtd.",
+                                "preco_unit": "Preço",
+                                "desconto_unit": "Desconto",
+                                "subtotal": "Subtotal",
+                            })
+                            st.dataframe(
+                                df_display,
+                                use_container_width=True,
+                                hide_index=True,
+                                height=min(310, 74 + len(df_display) * 35),
+                                column_config={
+                                    "Produto": st.column_config.TextColumn(width="large"),
+                                    "Qtd.": st.column_config.NumberColumn(format="%.2f", width="small"),
+                                    "Preço": st.column_config.NumberColumn(format="R$ %.2f", width="small"),
+                                    "Desconto": st.column_config.NumberColumn(format="R$ %.2f", width="small"),
+                                    "Subtotal": st.column_config.NumberColumn(format="R$ %.2f", width="small"),
+                                },
+                            )
 
-                st.divider()
-                st.markdown("#### 🛒 Carrinho de Produtos")
-                if not st.session_state.get("carrinho", []):
-                    st.info("Nenhum produto adicionado. Adicione produtos ao carrinho.")
-                else:
-                    df_carrinho = pd.DataFrame(st.session_state.carrinho)
-                    df_display = df_carrinho[["produto_nome", "quantidade", "preco_unit", "desconto_unit", "subtotal"]].copy()
-                    df_display = df_display.rename(columns={
-                        "produto_nome": "Produto",
-                        "quantidade": "Qtd",
-                        "preco_unit": "Preço Unit.",
-                        "desconto_unit": "Desc. Unit.",
-                        "subtotal": "Subtotal"
-                    })
-                    df_display["Preço Unit."] = df_display["Preço Unit."].apply(fmt_br)
-                    df_display["Desc. Unit."] = df_display["Desc. Unit."].apply(fmt_br)
-                    df_display["Subtotal"] = df_display["Subtotal"].apply(fmt_br)
-                    st.dataframe(df_display, use_container_width=True, hide_index=True)
+                            col_item, col_remover = st.columns([3, 1])
+                            with col_item:
+                                indice_remover = st.selectbox(
+                                    "Item para remover",
+                                    options=list(range(len(carrinho_atual))),
+                                    format_func=lambda indice: (
+                                        f"{carrinho_atual[indice]['produto_nome']} "
+                                        f"({carrinho_atual[indice]['quantidade']:g})"
+                                    ),
+                                    key="remover_item",
+                                    label_visibility="collapsed",
+                                )
+                            with col_remover:
+                                if st.button(
+                                    "🗑️", help="Remover item do carrinho",
+                                    use_container_width=True, key="remover_item_venda"):
+                                    st.session_state.carrinho.pop(indice_remover)
+                                    st.rerun()
 
-                    st.markdown("**Remover item do carrinho:**")
-                    item_remover = st.selectbox("Selecione o produto para remover", df_carrinho["produto_nome"].tolist(), key="remover_item")
-                    if st.button("🗑️ Remover Produto", use_container_width=True):
-                        st.session_state.carrinho = [item for item in st.session_state.carrinho if item["produto_nome"] != item_remover]
-                        st.rerun()
+                        valor_total_carrinho = sum(
+                            item["subtotal"] for item in carrinho_atual)
+                        valor_devendo = max(0, valor_total_carrinho - valor_pago)
+                        col_total, col_pago, col_saldo = st.columns(3)
+                        col_total.metric("Total", fmt_br(valor_total_carrinho))
+                        col_pago.metric("Pago", fmt_br(valor_pago))
+                        col_saldo.metric("Saldo", fmt_br(valor_devendo))
 
-                st.divider()
-                valor_total_carrinho = sum(item["subtotal"] for item in st.session_state.get("carrinho", []))
-                valor_devendo = max(0, valor_total_carrinho - valor_pago)
+                    with st.expander("Recibo, observações e envio", expanded=False):
+                        numero_recibo = st.text_input(
+                            "N° do recibo", key="venda_recibo")
+                        observacoes = st.text_area(
+                            "Observações", key="venda_obs",
+                            placeholder="Ex: entrega agendada, troco, referência do pedido.")
+                        enviar_whatsapp = st.checkbox(
+                            "Enviar recibo por WhatsApp", value=True, key="envia_whats")
 
-                col_r1, col_r2, col_r3 = st.columns(3)
-                with col_r1:
-                    st.metric("💰 Total do Carrinho", fmt_br(valor_total_carrinho))
-                with col_r2:
-                    st.metric("💵 Valor Pago", fmt_br(valor_pago))
-                with col_r3:
-                    st.metric("🔻 Ficará Devendo", fmt_br(valor_devendo))
-
-                numero_recibo = st.text_input("🧾 N° do Recibo (opcional)", key="venda_recibo")
-                observacoes = st.text_area("📝 Observações (opcional)", key="venda_obs", placeholder="Ex: Entrega agendada, troco, etc.")
-                enviar_whatsapp = st.checkbox("📱 Enviar recibo por WhatsApp", value=True, key="envia_whats")
-
-                st.markdown('</div>', unsafe_allow_html=True)
-
-                if st.button("💸 Finalizar Venda", type="primary", use_container_width=True, disabled=len(st.session_state.get("carrinho", [])) == 0):
+                if st.button("Finalizar venda", type="primary", use_container_width=True, disabled=len(st.session_state.get("carrinho", [])) == 0):
                     st.session_state.dados_venda = {
                         "cliente_id": cliente_id,
                         "cliente_nome": cliente_nome,
@@ -415,8 +453,9 @@ def render_modulo_faturamento(
         # -------------------- REGISTROS DE VENDAS --------------------
         with vendas_tabs[1]:
             st.markdown("#### 📋 Histórico de Vendas")
-            st.markdown("#### Filtros")
-            col1, col2, col3, col4 = st.columns(4)
+            painel_filtros_vendas = st.expander("Filtros", expanded=True)
+            col1, col2 = painel_filtros_vendas.columns(2)
+            col3, col4 = painel_filtros_vendas.columns(2)
             with col1:
                 data_inicio = st.date_input("Data Inicial", value=datetime.now().date() - pd.Timedelta(days=30),
                                             format="DD/MM/YYYY", key="reg_data_inicio")
@@ -433,7 +472,8 @@ def render_modulo_faturamento(
                 cliente_filtro = st.selectbox("Cliente", clientes_lista, key="reg_cliente")
             with col4:
                 status_filtro = st.selectbox("Status", ["Todas", "Quitadas", "Com Pendência"], key="reg_status")
-            busca = st.text_input("Buscar por nome do cliente ou produto", key="reg_busca")
+            busca = painel_filtros_vendas.text_input(
+                "Buscar por cliente ou produto", key="reg_busca")
 
             st.markdown("#### Resumo do Período")
             try:
@@ -523,22 +563,21 @@ def render_modulo_faturamento(
                         "valor_devendo": "Saldo Devedor",
                         "observacoes": "Observações"
                     })
-                    df_display['Data'] = pd.to_datetime(df_display['Data']).dt.strftime('%d/%m/%Y')
-                    df_display['Valor Total'] = df_display['Valor Total'].apply(fmt_br)
-                    df_display['Valor Pago'] = df_display['Valor Pago'].apply(fmt_br)
-                    df_display['Saldo Devedor'] = df_display['Saldo Devedor'].apply(lambda x: fmt_br(max(0, x)))
+                    df_display['Data'] = pd.to_datetime(df_display['Data'])
+                    df_display['Saldo Devedor'] = df_display['Saldo Devedor'].clip(lower=0)
 
                     st.dataframe(
                         df_display[["Data", "Cliente", "N° Recibo", "Produtos", "Valor Total", "Valor Pago", "Saldo Devedor"]],
                         width='stretch', hide_index=True,
+                        height=altura_tabela(df_display, 430),
                         column_config={
-                            "Data": st.column_config.TextColumn("📅 Data", width="small"),
+                            "Data": st.column_config.DateColumn("📅 Data", format="DD/MM/YYYY", width="small"),
                             "Cliente": st.column_config.TextColumn("👤 Cliente", width="medium"),
                             "N° Recibo": st.column_config.TextColumn("🧾 N° Recibo", width="small"),
                             "Produtos": st.column_config.TextColumn("📦 Produtos", width="medium"),
-                            "Valor Total": st.column_config.TextColumn("💰 Valor Total", width="small"),
-                            "Valor Pago": st.column_config.TextColumn("💵 Valor Pago", width="small"),
-                            "Saldo Devedor": st.column_config.TextColumn("⚠️ Saldo Devedor", width="small")
+                            "Valor Total": st.column_config.NumberColumn("💰 Valor Total", format="R$ %.2f", width="small"),
+                            "Valor Pago": st.column_config.NumberColumn("💵 Valor Pago", format="R$ %.2f", width="small"),
+                            "Saldo Devedor": st.column_config.NumberColumn("⚠️ Saldo Devedor", format="R$ %.2f", width="small")
                         }
                     )
             except Exception as e:
@@ -634,22 +673,21 @@ def render_modulo_faturamento(
                         "valor_devendo": "Saldo Pendente",
                         "numero_recibo": "N° Recibo"
                     })
-                    df_display['Data'] = pd.to_datetime(df_display['Data']).dt.strftime('%d/%m/%Y')
-                    df_display['Valor Total'] = df_display['Valor Total'].apply(fmt_br)
-                    df_display['Valor Pago'] = df_display['Valor Pago'].apply(fmt_br)
-                    df_display['Saldo Pendente'] = df_display['Saldo Pendente'].apply(lambda x: fmt_br(max(0, x)))
+                    df_display['Data'] = pd.to_datetime(df_display['Data'])
+                    df_display['Saldo Pendente'] = df_display['Saldo Pendente'].clip(lower=0)
 
                     st.dataframe(
                         df_display[["Data", "Cliente", "Produtos", "N° Recibo", "Valor Total", "Valor Pago", "Saldo Pendente"]],
                         width='stretch', hide_index=True,
+                        height=altura_tabela(df_display, 430),
                         column_config={
-                            "Data": st.column_config.TextColumn("📅 Data", width="small"),
+                            "Data": st.column_config.DateColumn("📅 Data", format="DD/MM/YYYY", width="small"),
                             "Cliente": st.column_config.TextColumn("👤 Cliente", width="medium"),
                             "N° Recibo": st.column_config.TextColumn("🧾 N° do Recibo", width="small"),
                             "Produtos": st.column_config.TextColumn("📦 Produtos", width="medium"),
-                            "Valor Total": st.column_config.TextColumn("💰 Valor Total", width="small"),
-                            "Valor Pago": st.column_config.TextColumn("💵 Valor Pago", width="small"),
-                            "Saldo Pendente": st.column_config.TextColumn("⚠️ Saldo Pendente", width="small")
+                            "Valor Total": st.column_config.NumberColumn("💰 Valor Total", format="R$ %.2f", width="small"),
+                            "Valor Pago": st.column_config.NumberColumn("💵 Valor Pago", format="R$ %.2f", width="small"),
+                            "Saldo Pendente": st.column_config.NumberColumn("⚠️ Saldo Pendente", format="R$ %.2f", width="small")
                         }
                     )
 
@@ -1005,7 +1043,7 @@ def render_modulo_faturamento(
                 conn.commit()
 
         # ----- Formulário para ADICIONAR ao estoque (incremento) -----
-        with st.expander("➕ Adicionar Quantidade ao Estoque (Registro Diário)", expanded=True):
+        with st.expander("➕ Adicionar quantidade ao estoque", expanded=False):
             st.markdown(
                 "Informe a **quantidade produzida/comercializada HOJE** para somar ao estoque.")
 
@@ -1083,7 +1121,9 @@ def render_modulo_faturamento(
                 placeholder_estoque = "Selecione um produto"
                 opcoes_estoque = [placeholder_estoque] + produtos_com_estoque
 
-                col_edit, col_del = st.columns(2)
+                painel_ajustes_estoque = st.expander(
+                    "Corrigir ou remover uma quantidade", expanded=False)
+                col_edit, col_del = painel_ajustes_estoque.columns(2)
                 with col_edit:
                     area_editar_estoque = st.empty()
                     mensagem_estoque_editado = None
@@ -1215,18 +1255,19 @@ def render_modulo_faturamento(
                 "quantidade": "Quantidade Total",
                 "valor_total": "Valor Total"
             })
-            df_display["Preço Unitário"] = df_display["Preço Unitário"].apply(
-                lambda x: f"R$ {x:.2f}")
-            df_display["Quantidade Total"] = df_display["Quantidade Total"].apply(
-                lambda x: f"{x:,.2f}")          # <-- ADICIONE ESTA LINHA
-            df_display["Valor Total"] = df_display["Valor Total"].apply(
-                lambda x: f"R$ {x:,.2f}")
-
             st.dataframe(
                 df_display[["Produto", "Unidade", "Preço Unitário",
                             "Quantidade Total", "Valor Total"]],
                 width='stretch',
-                hide_index=True
+                hide_index=True,
+                height=altura_tabela(df_display, 420),
+                column_config={
+                    "Produto": st.column_config.TextColumn(width="large"),
+                    "Unidade": st.column_config.TextColumn(width="small"),
+                    "Preço Unitário": st.column_config.NumberColumn(format="R$ %.2f"),
+                    "Quantidade Total": st.column_config.NumberColumn(format="%.2f"),
+                    "Valor Total": st.column_config.NumberColumn(format="R$ %.2f"),
+                },
             )
     # ============================================
     # ABA 2 → CADASTROS
@@ -1285,8 +1326,20 @@ def render_modulo_faturamento(
                 if df_cli.empty:
                     st.info("Nenhum cliente cadastrado.")
                 else:
-                    st.dataframe(df_cli[['nome', 'cpf_cnpj', 'telefone', 'email', 'endereco']].rename(
-                        columns={'nome': 'Nome', 'cpf_cnpj': 'CPF/CNPJ'}), width='stretch', hide_index=True)
+                    st.dataframe(
+                        df_cli[['nome', 'cpf_cnpj', 'telefone']].rename(columns={
+                            'nome': 'Nome', 'cpf_cnpj': 'CPF/CNPJ', 'telefone': 'Telefone'
+                        }),
+                        width='stretch',
+                        hide_index=True,
+                        height=altura_tabela(df_cli, 385),
+                        column_config={
+                            'Nome': st.column_config.TextColumn(width='large'),
+                            'CPF/CNPJ': st.column_config.TextColumn(width='medium'),
+                            'Telefone': st.column_config.TextColumn(width='medium'),
+                        },
+                    )
+                    st.caption("E-mail e endereço ficam disponíveis ao selecionar o cliente para edição.")
                     opcoes_clientes = {
                         int(row['id']): row['nome'] for _, row in df_cli.iterrows()
                     }
@@ -1432,15 +1485,19 @@ def render_modulo_faturamento(
                 else:
                     # Tabela de produtos
                     df_display = df_produtos_lista.copy()
-                    df_display['preco_atual'] = df_display['preco_atual'].apply(
-                        lambda x: f"R$ {x:.2f}")
                     st.dataframe(
                         df_display[['nome', 'unidade', 'preco_atual']].rename(
                             columns={
                                 'nome': 'Produto', 'unidade': 'Unidade', 'preco_atual': 'Preço Atual'}
                         ),
                         width='stretch',
-                        hide_index=True
+                        hide_index=True,
+                        height=altura_tabela(df_display, 385),
+                        column_config={
+                            'Produto': st.column_config.TextColumn(width='large'),
+                            'Unidade': st.column_config.TextColumn(width='small'),
+                            'Preço Atual': st.column_config.NumberColumn(format='R$ %.2f'),
+                        },
                     )
 
                     st.divider()
@@ -1604,27 +1661,70 @@ def render_modulo_faturamento(
                 if df_fp.empty:
                     st.info("Nenhuma forma de pagamento.")
                 else:
-                    for _, row in df_fp.iterrows():
-                        col1, col2, col3 = st.columns([3, 1.5, 1])
-                        with col1:
-                            st.write(
-                                f"**{row['nome']}**" + (" (Padrão)" if row['username'] is None else ""))
-                        with col2:
-                            if row['username'] is not None:
-                                ativo = st.checkbox("Ativa", value=bool(
-                                    row['ativo']), key=f"fp_ativa_{row['id']}")
-                        with col3:
-                            if row['username'] is not None:
-                                if st.button("Salvar", key=f"fp_salvar_{row['id']}"):
-                                    with engine.connect() as conn:
-                                        conn.execute(text("UPDATE formas_pagamento SET ativo = :ativo WHERE id = :id"), {
-                                                     "ativo": ativo, "id": row['id']})
-                                        conn.commit()
+                    formas_padrao = df_fp[df_fp['username'].isna()].copy()
+                    formas_usuario = df_fp[df_fp['username'].notna()].copy()
+
+                    if not formas_padrao.empty:
+                        st.caption(
+                            "Formas padrão disponíveis para todas as contas")
+                        st.dataframe(
+                            formas_padrao[['nome']].rename(columns={'nome': 'Forma de pagamento'}),
+                            use_container_width=True,
+                            hide_index=True,
+                            height=altura_tabela(formas_padrao, 240),
+                        )
+
+                    if not formas_usuario.empty:
+                        st.caption("Suas formas de pagamento")
+                        editor_formas = formas_usuario[['id', 'nome', 'ativo']].copy()
+                        editor_formas['ativo'] = editor_formas['ativo'].astype(bool)
+                        formas_editadas = st.data_editor(
+                            editor_formas,
+                            use_container_width=True,
+                            hide_index=True,
+                            disabled=['id', 'nome'],
+                            height=altura_tabela(editor_formas, 300),
+                            column_config={
+                                'id': None,
+                                'nome': st.column_config.TextColumn(
+                                    'Forma de pagamento', width='large'),
+                                'ativo': st.column_config.CheckboxColumn(
+                                    'Ativa', width='small'),
+                            },
+                            key='editor_formas_pagamento',
+                        )
+                        if st.button(
+                            "Salvar alterações", type="primary",
+                            use_container_width=True, key="salvar_formas_pagamento"):
+                            alteracoes_formas = []
+                            for _, forma_editada in formas_editadas.iterrows():
+                                forma_original = formas_usuario[
+                                    formas_usuario['id'] == forma_editada['id']].iloc[0]
+                                if bool(forma_editada['ativo']) != bool(forma_original['ativo']):
+                                    alteracoes_formas.append(forma_editada)
+
+                            if not alteracoes_formas:
+                                st.info("Nenhuma alteração para salvar.")
+                            else:
+                                with engine.connect() as conn:
+                                    with conn.begin():
+                                        for forma_editada in alteracoes_formas:
+                                            conn.execute(text("""
+                                                UPDATE formas_pagamento
+                                                SET ativo = :ativo
+                                                WHERE id = :id AND username = :u
+                                            """), {
+                                                'ativo': bool(forma_editada['ativo']),
+                                                'id': int(forma_editada['id']),
+                                                'u': st.session_state.username,
+                                            })
+                                for forma_editada in alteracoes_formas:
                                     registrar_log(
-                                        "UPDATE", "formas_pagamento", int(row['id']),
-                                        f"{'Ativou' if ativo else 'Desativou'} a forma de pagamento '{row['nome']}'"
+                                        "UPDATE", "formas_pagamento", int(forma_editada['id']),
+                                        f"{'Ativou' if forma_editada['ativo'] else 'Desativou'} "
+                                        f"a forma de pagamento '{forma_editada['nome']}'"
                                     )
-                                    st.success("Atualizado!")
+                                st.success("Formas de pagamento atualizadas.")
             except Exception as e:
                 st.error(f"Erro: {e}")
 
@@ -1746,7 +1846,12 @@ def render_modulo_faturamento(
                 if df_tipos.empty:
                     st.info("Nenhum tipo cadastrado ainda.")
                 else:
-                    st.dataframe(df_tipos[['nome', 'descricao']], use_container_width=True, hide_index=True)
+                    st.dataframe(
+                        df_tipos[['nome', 'descricao']],
+                        use_container_width=True,
+                        hide_index=True,
+                        height=altura_tabela(df_tipos, 350),
+                    )
                     st.markdown("---")
                     st.markdown("#### ✏️ Editar ou 🗑️ Excluir Tipo")
                     opcoes_tipos = {
@@ -1882,28 +1987,51 @@ def render_modulo_faturamento(
                     st.markdown("#### Totais por Tipo de Despesa")
                     df_totais = df_despesas.groupby('tipo')['valor'].sum().reset_index().sort_values('valor', ascending=False)
                     df_totais = df_totais.rename(columns={'tipo': 'Tipo de Despesa', 'valor': 'Total (R$)'})
-                    df_totais['Total (R$)'] = df_totais['Total (R$)'].apply(fmt_br)
-                    st.dataframe(df_totais, use_container_width=True, hide_index=True)
+                    st.dataframe(
+                        df_totais, use_container_width=True, hide_index=True,
+                        height=altura_tabela(df_totais, 300),
+                        column_config={
+                            'Tipo de Despesa': st.column_config.TextColumn(width='large'),
+                            'Total (R$)': st.column_config.NumberColumn(format='R$ %.2f'),
+                        })
 
                     st.markdown("#### Lista de Despesas")
                     df_display = df_despesas.copy()
-                    df_display['data'] = pd.to_datetime(df_display['data']).dt.strftime('%d/%m/%Y')
-                    df_display['valor'] = df_display['valor'].apply(fmt_br)
+                    df_display['data'] = pd.to_datetime(df_display['data'])
                     df_display = df_display.rename(columns={'data': 'Data', 'tipo': 'Tipo', 'valor': 'Valor', 'observacao': 'Observação'})
-                    st.dataframe(df_display[['Data', 'Tipo', 'Valor', 'Observação']], use_container_width=True, hide_index=True)
+                    st.dataframe(
+                        df_display[['Data', 'Tipo', 'Valor', 'Observação']],
+                        use_container_width=True, hide_index=True,
+                        height=altura_tabela(df_display, 420),
+                        column_config={
+                            'Data': st.column_config.DateColumn(format='DD/MM/YYYY'),
+                            'Tipo': st.column_config.TextColumn(width='medium'),
+                            'Valor': st.column_config.NumberColumn(format='R$ %.2f'),
+                            'Observação': st.column_config.TextColumn(width='large'),
+                        })
 
                     st.markdown("---")
-                    st.markdown("#### ✏️ Editar Despesa")
-                    opcoes = {row['id']: f"{row['Data']} - {row['Tipo']} - {row['Valor']}" for _, row in df_display.iterrows()}
-                    despesa_id = st.selectbox(
-                        "Selecione a despesa para editar",
-                        options=list(opcoes.keys()),
-                        format_func=lambda x: opcoes[x],
-                        index=None,
-                        placeholder="Selecione uma despesa",
-                        key="edit_despesa_select"
-                    )
-                    area_editar_despesa = st.empty()
+                    painel_ajustes_despesa = st.expander(
+                        "Editar ou excluir uma despesa", expanded=False)
+                    col_ajuste_editar, col_ajuste_excluir = painel_ajustes_despesa.columns(2)
+                    opcoes = {
+                        row['id']: (
+                            f"{pd.to_datetime(row['Data']).strftime('%d/%m/%Y')} - "
+                            f"{row['Tipo']} - {fmt_br(row['Valor'])}"
+                        )
+                        for _, row in df_display.iterrows()
+                    }
+                    with col_ajuste_editar:
+                        st.markdown("##### Editar")
+                        despesa_id = st.selectbox(
+                            "Despesa para editar",
+                            options=list(opcoes.keys()),
+                            format_func=lambda x: opcoes[x],
+                            index=None,
+                            placeholder="Selecione uma despesa",
+                            key="edit_despesa_select"
+                        )
+                    area_editar_despesa = col_ajuste_editar.empty()
                     mensagem_despesa_editada = None
                     with area_editar_despesa.container():
                         with st.form("form_editar_despesa", clear_on_submit=True):
@@ -1960,17 +2088,17 @@ def render_modulo_faturamento(
                         area_editar_despesa.empty()
                         st.success(mensagem_despesa_editada)
 
-                    st.markdown("---")
-                    st.markdown("#### 🗑️ Excluir Despesa")
-                    despesa_excluir_id = st.selectbox(
-                        "Selecione a despesa para excluir",
-                        options=list(opcoes.keys()),
-                        format_func=lambda x: opcoes[x],
-                        index=None,
-                        placeholder="Selecione uma despesa",
-                        key="excluir_despesa_select"
-                    )
-                    area_excluir_despesa = st.empty()
+                    with col_ajuste_excluir:
+                        st.markdown("##### Excluir")
+                        despesa_excluir_id = st.selectbox(
+                            "Despesa para excluir",
+                            options=list(opcoes.keys()),
+                            format_func=lambda x: opcoes[x],
+                            index=None,
+                            placeholder="Selecione uma despesa",
+                            key="excluir_despesa_select"
+                        )
+                    area_excluir_despesa = col_ajuste_excluir.empty()
                     mensagem_despesa_excluida = None
                     with area_excluir_despesa.container():
                         with st.form("form_excluir_despesa", clear_on_submit=True):
@@ -2060,7 +2188,9 @@ def render_modulo_faturamento(
                     'total_unidades': 'Unidades Vendidas',
                     'valor_total': 'Valor Total (R$)'
                 })
-                st.dataframe(df_display, use_container_width=True, hide_index=True)
+                st.dataframe(
+                    df_display, use_container_width=True, hide_index=True,
+                    height=altura_tabela(df_display, 420))
 
                 st.divider()
 
@@ -2254,6 +2384,7 @@ def render_modulo_faturamento(
                     df_top_desp['total'] = df_top_desp['total'].apply(fmt_br)
                     st.dataframe(df_top_desp.rename(columns={'tipo': 'Tipo', 'total': 'Valor'}),
                                  use_container_width=True, hide_index=True,
+                                 height=altura_tabela(df_top_desp, 280),
                                  column_config={"Tipo": st.column_config.TextColumn("Tipo de Despesa")})
                 else:
                     st.info("Nenhuma despesa registrada no período.")
@@ -2263,6 +2394,7 @@ def render_modulo_faturamento(
                     df_top_prod['receita'] = df_top_prod['receita'].apply(fmt_br)
                     st.dataframe(df_top_prod.rename(columns={'produto': 'Produto', 'receita': 'Receita'}),
                                  use_container_width=True, hide_index=True,
+                                 height=altura_tabela(df_top_prod, 280),
                                  column_config={"Produto": st.column_config.TextColumn("Produto")})
                 else:
                     st.info("Nenhuma venda registrada no período.")
