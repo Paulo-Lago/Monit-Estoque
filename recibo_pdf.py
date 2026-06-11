@@ -37,7 +37,7 @@ def gerar_pdf_recibo_reportlab(dados_venda, itens, numero_recibo):
 
     # ==================== IMAGENS ====================
     assets_dir = Path(__file__).parent / "assets"
-    logo_path = assets_dir / "logomarcadagua.png"
+    logo_path = assets_dir / "logoico.png"
     qrcode_pix_path = assets_dir / "qrcode_pix.png"
 
     # ==================== CORES ====================
