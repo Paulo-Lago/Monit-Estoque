@@ -41,6 +41,15 @@ def render_modulo_faturamento(
     def fmt_br(valor):
         return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+    def formatar_moeda_tabela(df, colunas):
+        df_formatado = df.copy()
+        for coluna in colunas:
+            if coluna in df_formatado.columns:
+                df_formatado[coluna] = df_formatado[coluna].apply(
+                    lambda valor: fmt_br(float(valor))
+                    if pd.notna(valor) else fmt_br(0))
+        return df_formatado
+
     def altura_tabela(df, limite=420):
         return min(limite, 74 + max(1, len(df)) * 35)
 
@@ -573,6 +582,9 @@ def render_modulo_faturamento(
                     })
                     df_display['Data'] = pd.to_datetime(df_display['Data'])
                     df_display['Saldo Devedor'] = df_display['Saldo Devedor'].clip(lower=0)
+                    df_display = formatar_moeda_tabela(
+                        df_display,
+                        ["Valor Total", "Valor Pago", "Saldo Devedor"])
 
                     st.dataframe(
                         df_display[["Data", "Cliente", "N° Recibo", "Produtos", "Valor Total", "Valor Pago", "Saldo Devedor"]],
@@ -583,9 +595,9 @@ def render_modulo_faturamento(
                             "Cliente": st.column_config.TextColumn("👤 Cliente", width="medium"),
                             "N° Recibo": st.column_config.TextColumn("🧾 N° Recibo", width="small"),
                             "Produtos": st.column_config.TextColumn("📦 Produtos", width="medium"),
-                            "Valor Total": st.column_config.NumberColumn("💰 Valor Total", format="R$ %.2f", width="small"),
-                            "Valor Pago": st.column_config.NumberColumn("💵 Valor Pago", format="R$ %.2f", width="small"),
-                            "Saldo Devedor": st.column_config.NumberColumn("⚠️ Saldo Devedor", format="R$ %.2f", width="small")
+                            "Valor Total": st.column_config.TextColumn("💰 Valor Total", width="small"),
+                            "Valor Pago": st.column_config.TextColumn("💵 Valor Pago", width="small"),
+                            "Saldo Devedor": st.column_config.TextColumn("⚠️ Saldo Devedor", width="small")
                         }
                     )
             except Exception as e:
@@ -683,6 +695,9 @@ def render_modulo_faturamento(
                     })
                     df_display['Data'] = pd.to_datetime(df_display['Data'])
                     df_display['Saldo Pendente'] = df_display['Saldo Pendente'].clip(lower=0)
+                    df_display = formatar_moeda_tabela(
+                        df_display,
+                        ["Valor Total", "Valor Pago", "Saldo Pendente"])
 
                     st.dataframe(
                         df_display[["Data", "Cliente", "Produtos", "N° Recibo", "Valor Total", "Valor Pago", "Saldo Pendente"]],
@@ -693,9 +708,9 @@ def render_modulo_faturamento(
                             "Cliente": st.column_config.TextColumn("👤 Cliente", width="medium"),
                             "N° Recibo": st.column_config.TextColumn("🧾 N° do Recibo", width="small"),
                             "Produtos": st.column_config.TextColumn("📦 Produtos", width="medium"),
-                            "Valor Total": st.column_config.NumberColumn("💰 Valor Total", format="R$ %.2f", width="small"),
-                            "Valor Pago": st.column_config.NumberColumn("💵 Valor Pago", format="R$ %.2f", width="small"),
-                            "Saldo Pendente": st.column_config.NumberColumn("⚠️ Saldo Pendente", format="R$ %.2f", width="small")
+                            "Valor Total": st.column_config.TextColumn("💰 Valor Total", width="small"),
+                            "Valor Pago": st.column_config.TextColumn("💵 Valor Pago", width="small"),
+                            "Saldo Pendente": st.column_config.TextColumn("⚠️ Saldo Pendente", width="small")
                         }
                     )
 
@@ -1254,7 +1269,7 @@ def render_modulo_faturamento(
                           f"{total_produtos:,}")
             with col_res2:
                 st.metric("💰 Valor Total do Estoque",
-                          f"R$ {valor_total_estoque:,.2f}")
+                          fmt_br(valor_total_estoque))
 
             st.divider()
 
@@ -1268,6 +1283,8 @@ def render_modulo_faturamento(
                 "quantidade": "Quantidade Total",
                 "valor_total": "Valor Total"
             })
+            df_display = formatar_moeda_tabela(
+                df_display, ["Preço Unitário", "Valor Total"])
             st.dataframe(
                 df_display[["Produto", "Unidade", "Preço Unitário",
                             "Quantidade Total", "Valor Total"]],
@@ -1277,9 +1294,9 @@ def render_modulo_faturamento(
                 column_config={
                     "Produto": st.column_config.TextColumn(width="large"),
                     "Unidade": st.column_config.TextColumn(width="small"),
-                    "Preço Unitário": st.column_config.NumberColumn(format="R$ %.2f"),
+                    "Preço Unitário": st.column_config.TextColumn(),
                     "Quantidade Total": st.column_config.NumberColumn(format="%.2f"),
-                    "Valor Total": st.column_config.NumberColumn(format="R$ %.2f"),
+                    "Valor Total": st.column_config.TextColumn(),
                 },
             )
     # ============================================
@@ -2000,18 +2017,22 @@ def render_modulo_faturamento(
                     st.markdown("#### Totais por Tipo de Despesa")
                     df_totais = df_despesas.groupby('tipo')['valor'].sum().reset_index().sort_values('valor', ascending=False)
                     df_totais = df_totais.rename(columns={'tipo': 'Tipo de Despesa', 'valor': 'Total (R$)'})
+                    df_totais = formatar_moeda_tabela(
+                        df_totais, ['Total (R$)'])
                     st.dataframe(
                         df_totais, use_container_width=True, hide_index=True,
                         height=altura_tabela(df_totais, 300),
                         column_config={
                             'Tipo de Despesa': st.column_config.TextColumn(width='large'),
-                            'Total (R$)': st.column_config.NumberColumn(format='R$ %.2f'),
+                            'Total (R$)': st.column_config.TextColumn(),
                         })
 
                     st.markdown("#### Lista de Despesas")
                     df_display = df_despesas.copy()
                     df_display['data'] = pd.to_datetime(df_display['data'])
                     df_display = df_display.rename(columns={'data': 'Data', 'tipo': 'Tipo', 'valor': 'Valor', 'observacao': 'Observação'})
+                    df_display = formatar_moeda_tabela(
+                        df_display, ['Valor'])
                     st.dataframe(
                         df_display[['Data', 'Tipo', 'Valor', 'Observação']],
                         use_container_width=True, hide_index=True,
@@ -2019,7 +2040,7 @@ def render_modulo_faturamento(
                         column_config={
                             'Data': st.column_config.DateColumn(format='DD/MM/YYYY'),
                             'Tipo': st.column_config.TextColumn(width='medium'),
-                            'Valor': st.column_config.NumberColumn(format='R$ %.2f'),
+                            'Valor': st.column_config.TextColumn(),
                             'Observação': st.column_config.TextColumn(width='large'),
                         })
 
@@ -2495,29 +2516,36 @@ def render_modulo_faturamento(
             with col_tab1:
                 st.markdown("#### Principais despesas")
                 if not df_top_desp.empty:
-                    st.dataframe(df_top_desp.rename(columns={'tipo': 'Tipo', 'total': 'Valor'}),
+                    df_top_desp_display = df_top_desp.rename(
+                        columns={'tipo': 'Tipo', 'total': 'Valor'})
+                    df_top_desp_display = formatar_moeda_tabela(
+                        df_top_desp_display, ['Valor'])
+                    st.dataframe(df_top_desp_display,
                                  use_container_width=True, hide_index=True,
-                                 height=altura_tabela(df_top_desp, 280),
+                                 height=altura_tabela(df_top_desp_display, 280),
                                  column_config={
                                      "Tipo": st.column_config.TextColumn("Tipo de Despesa"),
-                                     "Valor": st.column_config.NumberColumn(format="R$ %.2f"),
+                                     "Valor": st.column_config.TextColumn(),
                                  })
                 else:
                     st.info("Nenhuma despesa registrada no período.")
             with col_tab2:
                 st.markdown("#### Produtos com maior valor recebido")
                 if not df_top_prod.empty:
-                    st.dataframe(df_top_prod.rename(columns={
+                    df_top_prod_display = df_top_prod.rename(columns={
                         'produto': 'Produto',
                         'valor_vendido': 'Vendido',
                         'valor_recebido': 'Recebido',
-                    }),
+                    })
+                    df_top_prod_display = formatar_moeda_tabela(
+                        df_top_prod_display, ['Vendido', 'Recebido'])
+                    st.dataframe(df_top_prod_display,
                                  use_container_width=True, hide_index=True,
-                                 height=altura_tabela(df_top_prod, 280),
+                                 height=altura_tabela(df_top_prod_display, 280),
                                  column_config={
                                      "Produto": st.column_config.TextColumn(width="large"),
-                                     "Vendido": st.column_config.NumberColumn(format="R$ %.2f"),
-                                     "Recebido": st.column_config.NumberColumn(format="R$ %.2f"),
+                                     "Vendido": st.column_config.TextColumn(),
+                                     "Recebido": st.column_config.TextColumn(),
                                  })
                 else:
                     st.info("Nenhuma venda registrada no período.")
