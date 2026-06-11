@@ -5,19 +5,10 @@ from datetime import datetime, date
 import base64
 from pathlib import Path
 import plotly.express as px
-
-
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import cm
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_RIGHT
-from io import BytesIO
-from pathlib import Path
-
 import requests
 import time
+
+from recibo_pdf import gerar_pdf_recibo_reportlab
 
 # ==================== EVOLUTION API ====================
 def get_evolution_config():
@@ -90,97 +81,6 @@ Obrigado pela preferência! 🐔"""
         return False, f"Evolution API retornou {response.status_code}: {detalhe or 'sem detalhes'}"
     except Exception as e:
         return False, f"Erro ao enviar: {str(e)}"
-
-# ==================== FUNÇÃO DE GERAR PDF (REPORTLAB) ====================
-def gerar_pdf_recibo_reportlab(dados_venda, itens, numero_recibo):
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1.5*cm, bottomMargin=1.5*cm, leftMargin=2*cm, rightMargin=2*cm)
-    styles = getSampleStyleSheet()
-    
-    style_title = ParagraphStyle(name='Title', parent=styles['Heading1'], alignment=TA_CENTER, fontSize=16, spaceAfter=10)
-    style_subtitle = ParagraphStyle(name='Subtitle', parent=styles['Normal'], alignment=TA_CENTER, fontSize=12, textColor=colors.grey)
-    
-    elements = []
-    
-    # --- Logo (se existir) ---
-    logo_path = Path(__file__).parent / "assets" / "logomarca.png"
-    if logo_path.exists():
-        try:
-            img = Image(str(logo_path), width=4*cm, height=4*cm, hAlign='CENTER')
-            elements.append(img)
-            elements.append(Spacer(1, 0.3*cm))
-        except:
-            pass  # se falhar ao carregar, ignora
-    
-    # Cabeçalho
-    elements.append(Paragraph("GRANJA AVÍCOLA CAIÇARA.", style_title))
-    elements.append(Paragraph("RECIBO DE VENDA:", style_subtitle))
-    elements.append(Spacer(1, 0.5*cm))
-    
-    # Dados da venda
-    info_data = [
-        ["Nº Recibo:", numero_recibo],
-        ["Data:", dados_venda['data_venda'].strftime('%d/%m/%Y')],
-        ["Cliente:", dados_venda['cliente_nome']],
-        ["Observações:", dados_venda.get('observacoes', '')]
-    ]
-    table_info = Table(info_data, colWidths=[3.5*cm, 10*cm])
-    table_info.setStyle(TableStyle([('FONTNAME', (0,0), (-1,-1), 'Helvetica'), ('FONTSIZE', (0,0), (-1,-1), 10)]))
-    elements.append(table_info)
-    elements.append(Spacer(1, 0.5*cm))
-    
-    # Tabela de produtos
-    data = [["Produto", "Qtd", "Preço Unit. (R$)", "Desc. Unit. (R$)", "Subtotal (R$)"]]
-    for item in itens:
-        data.append([
-            item['produto_nome'],
-            f"{item['quantidade']:.2f}".replace('.', ','),
-            f"{item['preco_unit']:.2f}".replace('.', ','),
-            f"{item['desconto_unit']:.2f}".replace('.', ','),
-            f"{item['subtotal']:.2f}".replace('.', ',')
-        ])
-    table_prod = Table(data, colWidths=[6*cm, 1.8*cm, 2.5*cm, 2.5*cm, 2.5*cm])
-    table_prod.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-    ]))
-    elements.append(table_prod)
-    elements.append(Spacer(1, 0.5*cm))
-    
-    # Totais
-    valor_bruto = sum(item['subtotal'] + item['desconto_unit'] * item['quantidade'] for item in itens)
-    desconto_total = sum(item['desconto_unit'] * item['quantidade'] for item in itens)
-        
-    def fmt_br(valor):
-        return f"R$ {valor:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-    
-    totais_data = [
-        ["Valor Bruto:", fmt_br(valor_bruto)],
-        ["Desconto Total:", fmt_br(desconto_total)],
-        ["Valor Final:", fmt_br(dados_venda['valor_total'])],
-        ["Valor Pago:", fmt_br(dados_venda['valor_pago'])],
-        ["Saldo Devedor:", fmt_br(dados_venda['valor_devendo'])]
-    ]
-    table_totais = Table(totais_data, colWidths=[4.5*cm, 4.5*cm])
-    table_totais.setStyle(TableStyle([
-        ('ALIGN', (0,0), (0,-1), 'RIGHT'),
-        ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-        ('BACKGROUND', (0,2), (1,2), colors.lightblue)
-    ]))
-    wrapper = Table([[table_totais]], colWidths=[16*cm])
-    wrapper.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'RIGHT')]))
-    elements.append(wrapper)
-    elements.append(Spacer(1, 0.5*cm))
-    
-    # Mensagem final
-    elements.append(Paragraph("Obrigado pela preferência!", ParagraphStyle(name='Thanks', parent=styles['Normal'], alignment=TA_CENTER, fontSize=10, textColor=colors.grey)))
-    elements.append(Paragraph("Documento emitido eletronicamente – não é necessária assinatura.", ParagraphStyle(name='Footer', parent=styles['Normal'], alignment=TA_CENTER, fontSize=8, textColor=colors.grey)))
-    
-    doc.build(elements)
-    pdf_bytes = buffer.getvalue()
-    buffer.close()
-    return pdf_bytes
 
 # ==================== CONEXÃO COM SUPABASE ====================
 
