@@ -1753,7 +1753,7 @@ def render_modulo_faturamento(
 
         # Subabas internas
         fat_interno = st.tabs(
-            ["📉 Despesas", "📊 Receita de Vendas", "📈 Faturamento"])
+            ["📉 Despesas", "📊 Vendas por Produto", "📈 Faturamento"])
 
         # ---------- SUBABA: DESPESAS (CORRIGIDA) ----------
         with fat_interno[0]:
@@ -2144,9 +2144,9 @@ def render_modulo_faturamento(
                         area_excluir_despesa.empty()
                         st.success(mensagem_despesa_excluida)
 
-        # ---------- SUBABA: RECEITA DE VENDAS (FORMATADA BR) ----------
+        # ---------- SUBABA: VENDAS POR PRODUTO (FORMATADA BR) ----------
         with fat_interno[1]:
-            st.markdown("### 📊 Receita de Vendas por Período")
+            st.markdown("### 📊 Vendas por Produto no Período")
 
             # Filtros de data
             col_f1, col_f2 = st.columns(2)
@@ -2186,14 +2186,14 @@ def render_modulo_faturamento(
 
                 col_c1, col_c2 = st.columns(2)
                 with col_c1:
-                    st.metric("💰 Receita Total", fmt_br(total_geral_valor))
+                    st.metric("💰 Valor Total Vendido", fmt_br(total_geral_valor))
                 with col_c2:
                     st.metric("📦 Total de Itens Vendidos", f"{total_geral_unidades:,.0f}")
 
                 st.divider()
 
-                # Tabela de receita por produto (formatada BR)
-                st.markdown("#### Receita por Tipo de Produto")
+                # Tabela de vendas por produto (formatada BR)
+                st.markdown("#### Vendas por Tipo de Produto")
                 df_display = df_receita.copy()
                 df_display['valor_total'] = df_display['valor_total'].apply(fmt_br)
                 df_display = df_display.rename(columns={
@@ -2230,8 +2230,8 @@ def render_modulo_faturamento(
                 if not df_evolucao.empty:
                     df_pivot = df_evolucao.pivot(index='data_venda', columns='produto', values='valor_dia').fillna(0)
                     fig = px.line(df_pivot, x=df_pivot.index, y=df_pivot.columns,
-                                  title="Receita Diária por Produto",
-                                  labels={'value': 'Receita (R$)', 'variable': 'Produto'},
+                                  title="Valor Vendido por Dia e Produto",
+                                  labels={'value': 'Valor vendido (R$)', 'variable': 'Produto'},
                                   markers=True)
                     fig.update_layout(
                         plot_bgcolor='#ffffff',
@@ -2249,14 +2249,14 @@ def render_modulo_faturamento(
                 st.markdown("#### Ranking de Vendas por Produto")
                 fig_rank = px.bar(df_receita, x='valor_total', y='produto', orientation='h',
                                   title="Total Vendido por Produto (R$)",
-                                  labels={'valor_total': 'Receita (R$)', 'produto': 'Produto'},
+                                  labels={'valor_total': 'Valor vendido (R$)', 'produto': 'Produto'},
                                   text_auto=True, color='valor_total', color_continuous_scale='Blues')
                 fig_rank.update_layout(
                     plot_bgcolor='#ffffff',
                     paper_bgcolor='#ffffff',
                     font=dict(color="#000000", size=12),
                     title_font=dict(color="#000000"),
-                    xaxis=dict(color="#000000", tickformat=",.2f", title="Receita (R$)"),
+                    xaxis=dict(color="#000000", tickformat=",.2f", title="Valor vendido (R$)"),
                     yaxis=dict(color="#000000")
                 )
                 # Ajusta os valores no texto das barras para formato BR (opcional)
@@ -2280,26 +2280,50 @@ def render_modulo_faturamento(
                 st.error("⚠️ Data inicial não pode ser maior que a data final.")
                 st.stop()
 
-            @st.cache_data(ttl=60)
+            @st.cache_data(ttl=15)
             def carregar_dados_faturamento(inicio, fim, username):
                 with engine.connect() as conn:
-                    rec = conn.execute(text("""
-                        SELECT COALESCE(SUM(vi.subtotal), 0) FROM vendas v
-                        JOIN venda_itens vi ON v.id = vi.venda_id
-                        WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
-                    """), {"u": username, "inicio": inicio, "fim": fim}).scalar()
-                    desp = conn.execute(text("""
+                    resumo = conn.execute(text("""
+                        SELECT
+                            COUNT(*) AS quantidade_vendas,
+                            COALESCE(SUM(COALESCE(valor_total, 0)), 0) AS total_vendido,
+                            COALESCE(SUM(LEAST(
+                                COALESCE(valor_pago, 0), COALESCE(valor_total, 0)
+                            )), 0) AS total_recebido,
+                            COALESCE(SUM(GREATEST(
+                                COALESCE(valor_total, 0) - COALESCE(valor_pago, 0), 0
+                            )), 0) AS total_pendente,
+                            COUNT(*) FILTER (
+                                WHERE GREATEST(
+                                    COALESCE(valor_total, 0) - COALESCE(valor_pago, 0), 0
+                                ) > 0
+                            ) AS vendas_pendentes
+                        FROM vendas
+                        WHERE username = :u
+                            AND data_venda BETWEEN :inicio AND :fim
+                    """), {"u": username, "inicio": inicio, "fim": fim}).mappings().one()
+                    despesa_total = conn.execute(text("""
                         SELECT COALESCE(SUM(valor), 0) FROM despesas
                         WHERE username = :u AND data BETWEEN :inicio AND :fim
                     """), {"u": username, "inicio": inicio, "fim": fim}).scalar()
-                    rec_diaria = pd.read_sql(text("""
-                        SELECT v.data_venda as data, SUM(vi.subtotal) as valor
-                        FROM vendas v JOIN venda_itens vi ON v.id = vi.venda_id
-                        WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
-                        GROUP BY v.data_venda ORDER BY v.data_venda
+                    fluxo_vendas = pd.read_sql(text("""
+                        SELECT
+                            data_venda AS data,
+                            SUM(COALESCE(valor_total, 0)) AS vendido,
+                            SUM(LEAST(
+                                COALESCE(valor_pago, 0), COALESCE(valor_total, 0)
+                            )) AS recebido,
+                            SUM(GREATEST(
+                                COALESCE(valor_total, 0) - COALESCE(valor_pago, 0), 0
+                            )) AS pendente
+                        FROM vendas
+                        WHERE username = :u
+                            AND data_venda BETWEEN :inicio AND :fim
+                        GROUP BY data_venda
+                        ORDER BY data_venda
                     """), conn, params={"u": username, "inicio": inicio, "fim": fim})
-                    desp_diaria = pd.read_sql(text("""
-                        SELECT data, SUM(valor) as valor
+                    despesa_diaria = pd.read_sql(text("""
+                        SELECT data, SUM(valor) AS despesa
                         FROM despesas
                         WHERE username = :u AND data BETWEEN :inicio AND :fim
                         GROUP BY data ORDER BY data
@@ -2310,105 +2334,191 @@ def render_modulo_faturamento(
                         WHERE d.username = :u AND d.data BETWEEN :inicio AND :fim
                         GROUP BY t.nome ORDER BY total DESC LIMIT 5
                     """), conn, params={"u": username, "inicio": inicio, "fim": fim})
-                    top_prod = pd.read_sql(text("""
-                        SELECT p.nome as produto, SUM(vi.subtotal) as receita
-                        FROM vendas v JOIN venda_itens vi ON v.id = vi.venda_id
+                    top_produtos = pd.read_sql(text("""
+                        SELECT
+                            p.nome AS produto,
+                            SUM(vi.subtotal) AS valor_vendido,
+                            SUM(
+                                vi.subtotal * CASE
+                                    WHEN COALESCE(v.valor_total, 0) > 0 THEN
+                                        LEAST(
+                                            COALESCE(v.valor_pago, 0), v.valor_total
+                                        ) / v.valor_total
+                                    ELSE 0
+                                END
+                            ) AS valor_recebido
+                        FROM vendas v
+                        JOIN venda_itens vi ON v.id = vi.venda_id
                         JOIN produtos p ON vi.produto_id = p.id
-                        WHERE v.username = :u AND v.data_venda BETWEEN :inicio AND :fim
-                        GROUP BY p.nome ORDER BY receita DESC LIMIT 5
+                        WHERE v.username = :u
+                            AND v.data_venda BETWEEN :inicio AND :fim
+                        GROUP BY p.nome
+                        ORDER BY valor_recebido DESC
+                        LIMIT 5
                     """), conn, params={"u": username, "inicio": inicio, "fim": fim})
-                return rec, desp, rec_diaria, desp_diaria, top_desp, top_prod
+                return (
+                    dict(resumo), float(despesa_total or 0),
+                    fluxo_vendas, despesa_diaria, top_desp, top_produtos,
+                )
 
-            receita_total, despesa_total, df_rec_diaria, df_desp_diaria, df_top_desp, df_top_prod = carregar_dados_faturamento(
+            resumo_financeiro, despesa_total, df_fluxo_vendas, df_desp_diaria, df_top_desp, df_top_prod = carregar_dados_faturamento(
                 data_inicio_fat, data_fim_fat, st.session_state.username)
 
-            lucro_liquido = receita_total - despesa_total
-            margem_lucro = (lucro_liquido / receita_total * 100) if receita_total > 0 else 0
+            total_vendido = float(resumo_financeiro['total_vendido'] or 0)
+            total_recebido = float(resumo_financeiro['total_recebido'] or 0)
+            total_pendente = float(resumo_financeiro['total_pendente'] or 0)
+            quantidade_vendas = int(resumo_financeiro['quantidade_vendas'] or 0)
+            vendas_pendentes = int(resumo_financeiro['vendas_pendentes'] or 0)
+            lucro_caixa = total_recebido - despesa_total
+            margem_caixa = (
+                lucro_caixa / total_recebido * 100
+                if total_recebido > 0 else 0
+            )
+            percentual_recebido = (
+                total_recebido / total_vendido * 100
+                if total_vendido > 0 else 0
+            )
 
-            # Cards com formatação BR
-            st.markdown("### 📈 Indicadores do Período")
-            col_a, col_b, col_c, col_d = st.columns(4)
-            with col_a:
-                st.metric("💰 **Receita Total**", fmt_br(receita_total))
-            with col_b:
-                st.metric("📉 **Despesas Totais**", fmt_br(despesa_total), delta_color="inverse")
-            with col_c:
-                st.metric("💎 **Lucro Líquido**", fmt_br(lucro_liquido),
-                          delta=f"{fmt_br(lucro_liquido)}" if lucro_liquido >= 0 else f"-{fmt_br(abs(lucro_liquido))}",
-                          delta_color="normal")
-            with col_d:
-                st.metric("📊 **Margem de Lucro**", f"{margem_lucro:.1f}%")
+            st.markdown("### Visão financeira do período")
+            st.caption(
+                "O lucro considera somente valores já recebidos das vendas do período, menos as despesas registradas. "
+                "O filtro usa a data da venda; os pagamentos refletem o saldo pago atual de cada venda.")
+
+            col_a, col_b, col_c = st.columns(3)
+            col_a.metric(
+                "Vendas geradas", fmt_br(total_vendido),
+                help=f"{quantidade_vendas} venda(s) registrada(s) no período")
+            col_b.metric(
+                "Valor recebido", fmt_br(total_recebido),
+                delta=f"{percentual_recebido:.1f}% do vendido")
+            col_c.metric(
+                "A receber", fmt_br(total_pendente),
+                delta=f"{vendas_pendentes} venda(s) pendente(s)",
+                delta_color="inverse")
+
+            col_d, col_e, col_f = st.columns(3)
+            col_d.metric(
+                "Despesas", fmt_br(despesa_total), delta_color="inverse")
+            col_e.metric(
+                "Lucro de caixa", fmt_br(lucro_caixa),
+                delta="Positivo" if lucro_caixa >= 0 else "Negativo",
+                delta_color="normal")
+            col_f.metric(
+                "Margem sobre recebido", f"{margem_caixa:.1f}%",
+                help="Lucro de caixa dividido pelo valor efetivamente recebido")
 
             st.markdown("---")
 
-            # Gráficos (evolução diária e lucro acumulado) – valores nos eixos permanecem numéricos, sem formatação BR
-            if not df_rec_diaria.empty or not df_desp_diaria.empty:
+            if not df_fluxo_vendas.empty or not df_desp_diaria.empty:
                 datas = pd.date_range(data_inicio_fat, data_fim_fat, freq='D')
                 df_combinado = pd.DataFrame({'data': datas})
-                if not df_rec_diaria.empty:
-                    df_rec_diaria['data'] = pd.to_datetime(df_rec_diaria['data'])
-                    df_rec_diaria = df_rec_diaria.rename(columns={'valor': 'Receita'})
-                    df_combinado = df_combinado.merge(df_rec_diaria[['data', 'Receita']], on='data', how='left')
+                if not df_fluxo_vendas.empty:
+                    df_fluxo_vendas['data'] = pd.to_datetime(
+                        df_fluxo_vendas['data'])
+                    df_fluxo_vendas = df_fluxo_vendas.rename(columns={
+                        'vendido': 'Vendido',
+                        'recebido': 'Recebido',
+                        'pendente': 'Pendente',
+                    })
+                    df_combinado = df_combinado.merge(
+                        df_fluxo_vendas[[
+                            'data', 'Vendido', 'Recebido', 'Pendente'
+                        ]], on='data', how='left')
                 else:
-                    df_combinado['Receita'] = 0
+                    df_combinado[['Vendido', 'Recebido', 'Pendente']] = 0
                 if not df_desp_diaria.empty:
-                    df_desp_diaria['data'] = pd.to_datetime(df_desp_diaria['data'])
-                    df_desp_diaria = df_desp_diaria.rename(columns={'valor': 'Despesa'})
-                    df_combinado = df_combinado.merge(df_desp_diaria[['data', 'Despesa']], on='data', how='left')
+                    df_desp_diaria['data'] = pd.to_datetime(
+                        df_desp_diaria['data'])
+                    df_desp_diaria = df_desp_diaria.rename(
+                        columns={'despesa': 'Despesa'})
+                    df_combinado = df_combinado.merge(
+                        df_desp_diaria[['data', 'Despesa']],
+                        on='data', how='left')
                 else:
                     df_combinado['Despesa'] = 0
                 df_combinado.fillna(0, inplace=True)
-                df_combinado['Lucro Diário'] = df_combinado['Receita'] - df_combinado['Despesa']
-                df_combinado['Lucro Acumulado'] = df_combinado['Lucro Diário'].cumsum()
+                df_combinado['Resultado de Caixa'] = (
+                    df_combinado['Recebido'] - df_combinado['Despesa'])
+                df_combinado['Resultado Acumulado'] = df_combinado[
+                    'Resultado de Caixa'].cumsum()
 
                 col_left, col_right = st.columns(2)
                 with col_left:
-                    st.markdown("#### 📈 Evolução Diária")
-                    fig_evolucao = px.line(df_combinado, x='data', y=['Receita', 'Despesa'],
-                                           title="Receita vs Despesa (Diário)",
-                                           labels={'value': 'Valor (R$)', 'variable': 'Categoria'},
-                                           markers=True,
-                                           color_discrete_map={'Receita': '#2ecc71', 'Despesa': '#e74c3c'})
+                    st.markdown("#### Vendas, recebimentos e pendências")
+                    fig_evolucao = px.line(
+                        df_combinado, x='data',
+                        y=['Vendido', 'Recebido', 'Pendente'],
+                        title="Movimentação diária das vendas",
+                        labels={'value': 'Valor (R$)', 'variable': 'Categoria'},
+                        markers=True,
+                        color_discrete_map={
+                            'Vendido': '#2F80ED',
+                            'Recebido': '#219653',
+                            'Pendente': '#E05A33',
+                        })
                     fig_evolucao.update_layout(plot_bgcolor='#f8f9fa', paper_bgcolor='#ffffff',
                                                font=dict(color="#2c3e50", size=12), title_font=dict(color="#2c3e50", size=14),
                                                xaxis=dict(tickformat='%d/%m', color="#2c3e50"), yaxis=dict(color="#2c3e50"),
                                                legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1))
                     st.plotly_chart(fig_evolucao, use_container_width=True)
                 with col_right:
-                    st.markdown("#### 📊 Lucro Acumulado")
-                    fig_lucro = px.area(df_combinado, x='data', y='Lucro Acumulado',
-                                        title="Lucro Líquido Acumulado",
-                                        labels={'Lucro Acumulado': 'Lucro (R$)'},
-                                        color_discrete_sequence=['#3498db'])
+                    st.markdown("#### Resultado de caixa acumulado")
+                    fig_lucro = px.area(
+                        df_combinado, x='data', y='Resultado Acumulado',
+                        title="Recebido menos despesas",
+                        labels={'Resultado Acumulado': 'Resultado (R$)'},
+                        color_discrete_sequence=['#219653'])
                     fig_lucro.update_layout(plot_bgcolor='#f8f9fa', paper_bgcolor='#ffffff',
                                             font=dict(color="#2c3e50", size=12), title_font=dict(color="#2c3e50", size=14),
                                             xaxis=dict(tickformat='%d/%m', color="#2c3e50"), yaxis=dict(color="#2c3e50"))
                     st.plotly_chart(fig_lucro, use_container_width=True)
+
+                st.markdown("#### Recebimentos e despesas")
+                fig_caixa = px.bar(
+                    df_combinado, x='data', y=['Recebido', 'Despesa'],
+                    barmode='group',
+                    labels={'value': 'Valor (R$)', 'variable': 'Movimento'},
+                    color_discrete_map={
+                        'Recebido': '#219653', 'Despesa': '#D64545'
+                    })
+                fig_caixa.update_layout(
+                    plot_bgcolor='#ffffff', paper_bgcolor='#ffffff',
+                    xaxis=dict(tickformat='%d/%m'),
+                    legend=dict(orientation='h', y=1.02, x=0))
+                st.plotly_chart(fig_caixa, use_container_width=True)
             else:
-                st.info("📭 Não há dados de receita ou despesa no período selecionado.")
+                st.info("Não há vendas ou despesas no período selecionado.")
 
             st.markdown("---")
 
-            # Tabelas de Top Despesas e Top Produtos (formatadas BR)
             col_tab1, col_tab2 = st.columns(2)
             with col_tab1:
-                st.markdown("#### 🔝 Principais Despesas")
+                st.markdown("#### Principais despesas")
                 if not df_top_desp.empty:
-                    df_top_desp['total'] = df_top_desp['total'].apply(fmt_br)
                     st.dataframe(df_top_desp.rename(columns={'tipo': 'Tipo', 'total': 'Valor'}),
                                  use_container_width=True, hide_index=True,
                                  height=altura_tabela(df_top_desp, 280),
-                                 column_config={"Tipo": st.column_config.TextColumn("Tipo de Despesa")})
+                                 column_config={
+                                     "Tipo": st.column_config.TextColumn("Tipo de Despesa"),
+                                     "Valor": st.column_config.NumberColumn(format="R$ %.2f"),
+                                 })
                 else:
                     st.info("Nenhuma despesa registrada no período.")
             with col_tab2:
-                st.markdown("#### 🔝 Produtos com Maior Receita")
+                st.markdown("#### Produtos com maior valor recebido")
                 if not df_top_prod.empty:
-                    df_top_prod['receita'] = df_top_prod['receita'].apply(fmt_br)
-                    st.dataframe(df_top_prod.rename(columns={'produto': 'Produto', 'receita': 'Receita'}),
+                    st.dataframe(df_top_prod.rename(columns={
+                        'produto': 'Produto',
+                        'valor_vendido': 'Vendido',
+                        'valor_recebido': 'Recebido',
+                    }),
                                  use_container_width=True, hide_index=True,
                                  height=altura_tabela(df_top_prod, 280),
-                                 column_config={"Produto": st.column_config.TextColumn("Produto")})
+                                 column_config={
+                                     "Produto": st.column_config.TextColumn(width="large"),
+                                     "Vendido": st.column_config.NumberColumn(format="R$ %.2f"),
+                                     "Recebido": st.column_config.NumberColumn(format="R$ %.2f"),
+                                 })
                 else:
                     st.info("Nenhuma venda registrada no período.")
 
