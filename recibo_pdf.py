@@ -110,7 +110,7 @@ def gerar_pdf_recibo_reportlab(dados_venda, itens, numero_recibo):
         fontName="Helvetica-Bold",
         fontSize=9,
         leading=10,
-        textColor=colors.white,
+        textColor=cor_primaria_escura,
         alignment=TA_CENTER
     )
 
@@ -120,7 +120,7 @@ def gerar_pdf_recibo_reportlab(dados_venda, itens, numero_recibo):
         fontName="Helvetica-Bold",
         fontSize=5.8,
         leading=6.5,
-        textColor=colors.white,
+        textColor=cor_primaria_escura,
         alignment=TA_CENTER
     )
 
