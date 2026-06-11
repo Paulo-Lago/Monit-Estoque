@@ -473,7 +473,7 @@ def gerar_pdf_recibo_reportlab(dados_venda, itens, numero_recibo):
 
     pix_card = Table(
         [[pix_elements]],
-        colWidths=[3.0 * cm]
+        colWidths=[3.05 * cm]
     )
     pix_card.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), colors.white),
