@@ -50,6 +50,47 @@ def render_modulo_faturamento(
                     if pd.notna(valor) else fmt_br(0))
         return df_formatado
 
+    def carregar_recibo_venda(venda_id):
+        with engine.connect() as conn:
+            venda = conn.execute(text("""
+                SELECT
+                    v.id, v.data_venda,
+                    COALESCE(v.numero_recibo, '') AS numero_recibo,
+                    v.valor_total,
+                    COALESCE(v.valor_pago, 0) AS valor_pago,
+                    v.observacoes, c.nome AS cliente_nome
+                FROM vendas v
+                JOIN clientes c ON c.id = v.cliente_id
+                WHERE v.id = :venda_id AND v.username = :username
+            """), {
+                "venda_id": venda_id,
+                "username": st.session_state.username,
+            }).mappings().one_or_none()
+
+            if venda is None:
+                return None, []
+
+            itens = conn.execute(text("""
+                SELECT
+                    COALESCE(p.nome, 'Produto removido') AS produto_nome,
+                    vi.quantidade,
+                    vi.preco_unitario AS preco_unit,
+                    COALESCE(vi.desconto_unitario, 0) AS desconto_unit,
+                    vi.subtotal
+                FROM venda_itens vi
+                LEFT JOIN produtos p ON p.id = vi.produto_id
+                WHERE vi.venda_id = :venda_id
+                ORDER BY vi.id
+            """), {"venda_id": venda_id}).mappings().all()
+
+        dados_venda = dict(venda)
+        dados_venda["valor_devendo"] = max(
+            0,
+            float(dados_venda.get("valor_total") or 0)
+            - float(dados_venda.get("valor_pago") or 0),
+        )
+        return dados_venda, [dict(item) for item in itens]
+
     def altura_tabela(df, limite=420):
         return min(limite, 74 + max(1, len(df)) * 35)
 
@@ -600,6 +641,52 @@ def render_modulo_faturamento(
                             "Saldo Devedor": st.column_config.TextColumn("⚠️ Saldo Devedor", width="small")
                         }
                     )
+
+                    with st.expander("Baixar recibo de uma venda", expanded=False):
+                        opcoes_recibo = {
+                            int(row["id"]): (
+                                f"{pd.to_datetime(row['data_venda']).strftime('%d/%m/%Y')} - "
+                                f"{row['cliente']} - Recibo {row['numero_recibo'] or 'sem número'}"
+                            )
+                            for _, row in df_vendas.iterrows()
+                        }
+                        venda_recibo_id = st.selectbox(
+                            "Venda",
+                            options=list(opcoes_recibo),
+                            format_func=lambda venda_id: opcoes_recibo[venda_id],
+                            index=None,
+                            placeholder="Selecione uma venda",
+                            key="historico_venda_recibo",
+                        )
+
+                        if venda_recibo_id is not None:
+                            dados_recibo, itens_recibo = carregar_recibo_venda(
+                                venda_recibo_id)
+                            if dados_recibo is None:
+                                st.error("A venda selecionada não foi encontrada.")
+                            elif not itens_recibo:
+                                st.warning("A venda selecionada não possui itens para gerar o recibo.")
+                            else:
+                                numero_recibo = str(
+                                    dados_recibo.get("numero_recibo") or venda_recibo_id)
+                                nome_arquivo = "".join(
+                                    caractere if caractere.isalnum() or caractere in "-_."
+                                    else "_"
+                                    for caractere in numero_recibo
+                                )
+                                pdf_recibo = gerar_pdf_recibo_reportlab(
+                                    dados_venda=dados_recibo,
+                                    itens=itens_recibo,
+                                    numero_recibo=numero_recibo,
+                                )
+                                st.download_button(
+                                    "Baixar recibo em PDF",
+                                    data=pdf_recibo,
+                                    file_name=f"recibo_{nome_arquivo}.pdf",
+                                    mime="application/pdf",
+                                    width="stretch",
+                                    key=f"download_recibo_historico_{venda_recibo_id}",
+                                )
             except Exception as e:
                 st.error(f"Erro: {e}")
 
