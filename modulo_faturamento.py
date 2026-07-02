@@ -168,8 +168,18 @@ def render_modulo_faturamento(
             # Carregar dados
             df_clientes = pd.read_sql(text("SELECT id, nome FROM clientes WHERE username = :u ORDER BY nome"), engine,
                                       params={"u": st.session_state.username})
-            df_produtos = pd.read_sql(text("SELECT id, nome, preco_atual FROM produtos WHERE username = :u ORDER BY nome"), engine,
-                                      params={"u": st.session_state.username})
+            df_produtos = pd.read_sql(text("""
+                SELECT
+                    p.id,
+                    p.nome,
+                    p.preco_atual,
+                    COALESCE(e.quantidade, 0) AS quantidade_estoque
+                FROM produtos p
+                LEFT JOIN estoque e
+                    ON e.produto_id = p.id AND e.username = :u
+                WHERE p.username = :u
+                ORDER BY p.nome
+            """), engine, params={"u": st.session_state.username})
             df_formas = pd.read_sql(text("SELECT id, nome FROM formas_pagamento WHERE (username = :u OR username IS NULL) AND ativo = TRUE ORDER BY nome"),
                                     engine, params={"u": st.session_state.username})
 
@@ -251,6 +261,23 @@ def render_modulo_faturamento(
                             if acao_repetida(chave_acao, payload_acao, intervalo=20):
                                 st.stop()
                             try:
+                                quantidades_por_produto = {}
+                                nomes_por_produto = {}
+                                for item in st.session_state.get("carrinho", []):
+                                    item_produto_id = int(item["produto_id"])
+                                    quantidades_por_produto[item_produto_id] = (
+                                        quantidades_por_produto.get(item_produto_id, 0)
+                                        + float(item["quantidade"])
+                                    )
+                                    nomes_por_produto[item_produto_id] = item["produto_nome"]
+
+                                for item_produto_id, quantidade_total in quantidades_por_produto.items():
+                                    if not verificar_estoque(item_produto_id, quantidade_total):
+                                        raise Exception(
+                                            f"Estoque insuficiente para '{nomes_por_produto[item_produto_id]}'. "
+                                            "Revise o carrinho antes de confirmar a venda."
+                                        )
+
                                 with engine.connect() as conn:
                                     with conn.begin():
                                         venda_result = conn.execute(text("""
@@ -367,6 +394,32 @@ def render_modulo_faturamento(
                             df_produtos['nome'] == produto_nome].iloc[0]
                         produto_id = int(produto_row['id'])
                         preco_unit = float(produto_row['preco_atual'])
+                        estoque_disponivel = float(
+                            produto_row['quantidade_estoque'] or 0)
+                        quantidade_no_carrinho = sum(
+                            float(item['quantidade'])
+                            for item in st.session_state.get("carrinho", [])
+                            if int(item['produto_id']) == produto_id
+                        )
+                        estoque_restante = max(
+                            0, estoque_disponivel - quantidade_no_carrinho)
+
+                        st.caption(f"Preço: {fmt_br(preco_unit)}")
+                        if estoque_disponivel <= 0:
+                            st.error("Produto sem estoque. Não é possível adicioná-lo ao carrinho.")
+                        elif estoque_restante <= 0:
+                            st.warning(
+                                "Todo o estoque disponível deste produto já está no carrinho.")
+                        else:
+                            texto_estoque = (
+                                f"Estoque disponível: {estoque_disponivel:g} unidade(s)"
+                            )
+                            if quantidade_no_carrinho > 0:
+                                texto_estoque += (
+                                    f" | No carrinho: {quantidade_no_carrinho:g}"
+                                    f" | Restante: {estoque_restante:g}"
+                                )
+                            st.caption(texto_estoque)
 
                         col_qtd, col_desc = st.columns(2)
                         with col_qtd:
@@ -380,19 +433,26 @@ def render_modulo_faturamento(
 
                         preco_com_desconto = max(0.0, preco_unit - desconto_unit)
                         st.caption(
-                            f"Preço: {fmt_br(preco_unit)} | Após desconto: {fmt_br(preco_com_desconto)}")
+                            f"Valor após desconto: {fmt_br(preco_com_desconto)}")
                         if st.button(
                             "➕ Adicionar item", type="secondary",
-                            width="stretch", key="adicionar_item_venda"):
-                            st.session_state.carrinho.append({
-                                "produto_id": produto_id,
-                                "produto_nome": produto_nome,
-                                "quantidade": quantidade,
-                                "preco_unit": preco_unit,
-                                "desconto_unit": desconto_unit,
-                                "subtotal": quantidade * preco_com_desconto,
-                            })
-                            st.rerun()
+                            width="stretch", key="adicionar_item_venda",
+                            disabled=estoque_restante <= 0):
+                            if quantidade > estoque_restante:
+                                st.error(
+                                    f"Quantidade indisponível. Há {estoque_restante:g} "
+                                    "unidade(s) restante(s) para este produto."
+                                )
+                            else:
+                                st.session_state.carrinho.append({
+                                    "produto_id": produto_id,
+                                    "produto_nome": produto_nome,
+                                    "quantidade": quantidade,
+                                    "preco_unit": preco_unit,
+                                    "desconto_unit": desconto_unit,
+                                    "subtotal": quantidade * preco_com_desconto,
+                                })
+                                st.rerun()
 
                 with coluna_carrinho:
                     with st.container(border=True):
