@@ -120,17 +120,25 @@ def render_modulo_faturamento(
                 """), {"u": st.session_state.username, "p": produto_id_int, "qtd": delta_float})
             conn.commit()
 
-    # ----- FUNÇÃO AUXILIAR PARA VERIFICAR ESTOQUE (com tratamento None) -----
-    def verificar_estoque(produto_id, quantidade_necessaria):
+    def obter_quantidade_estoque(produto_id):
         try:
             with engine.connect() as conn:
                 qtd_atual = conn.execute(text("""
                     SELECT COALESCE(quantidade, 0) FROM estoque 
                     WHERE username = :u AND produto_id = :p
                 """), {"u": st.session_state.username, "p": int(produto_id)}).scalar()
-                qtd_atual = float(qtd_atual) if qtd_atual is not None else 0.0
-                quantidade_necessaria = float(quantidade_necessaria) if quantidade_necessaria is not None else 0.0
-                return qtd_atual >= quantidade_necessaria
+                return float(qtd_atual) if qtd_atual is not None else 0.0
+        except Exception as e:
+            st.error(f"Erro ao consultar estoque: {e}")
+            return 0.0
+
+    # ----- FUNÇÃO AUXILIAR PARA VERIFICAR ESTOQUE (com tratamento None) -----
+    def verificar_estoque(produto_id, quantidade_necessaria):
+        try:
+            qtd_atual = obter_quantidade_estoque(produto_id)
+            quantidade_necessaria = float(
+                quantidade_necessaria) if quantidade_necessaria is not None else 0.0
+            return qtd_atual >= quantidade_necessaria
         except Exception as e:
             st.error(f"Erro ao verificar estoque: {e}")
             return False
@@ -172,11 +180,8 @@ def render_modulo_faturamento(
                 SELECT
                     p.id,
                     p.nome,
-                    p.preco_atual,
-                    COALESCE(e.quantidade, 0) AS quantidade_estoque
+                    p.preco_atual
                 FROM produtos p
-                LEFT JOIN estoque e
-                    ON e.produto_id = p.id AND e.username = :u
                 WHERE p.username = :u
                 ORDER BY p.nome
             """), engine, params={"u": st.session_state.username})
@@ -388,14 +393,19 @@ def render_modulo_faturamento(
 
                     with st.container(border=True):
                         st.markdown("#### Adicionar produto")
-                        produto_nome = st.selectbox(
-                            "Produto", df_produtos['nome'].tolist(), key="produto_carrinho")
+                        produto_id = st.selectbox(
+                            "Produto",
+                            options=df_produtos['id'].astype(int).tolist(),
+                            format_func=lambda id_produto: df_produtos[
+                                df_produtos['id'] == id_produto].iloc[0]['nome'],
+                            key="produto_carrinho",
+                        )
                         produto_row = df_produtos[
-                            df_produtos['nome'] == produto_nome].iloc[0]
-                        produto_id = int(produto_row['id'])
+                            df_produtos['id'] == produto_id].iloc[0]
+                        produto_nome = produto_row['nome']
+                        produto_id = int(produto_id)
                         preco_unit = float(produto_row['preco_atual'])
-                        estoque_disponivel = float(
-                            produto_row['quantidade_estoque'] or 0)
+                        estoque_disponivel = obter_quantidade_estoque(produto_id)
                         quantidade_no_carrinho = sum(
                             float(item['quantidade'])
                             for item in st.session_state.get("carrinho", [])
@@ -438,9 +448,15 @@ def render_modulo_faturamento(
                             "➕ Adicionar item", type="secondary",
                             width="stretch", key="adicionar_item_venda",
                             disabled=estoque_restante <= 0):
-                            if quantidade > estoque_restante:
+                            estoque_atual = obter_quantidade_estoque(produto_id)
+                            estoque_restante_atual = max(
+                                0, estoque_atual - quantidade_no_carrinho)
+                            if estoque_atual <= 0:
                                 st.error(
-                                    f"Quantidade indisponível. Há {estoque_restante:g} "
+                                    "Produto sem estoque. Não foi adicionado ao carrinho.")
+                            elif quantidade > estoque_restante_atual:
+                                st.error(
+                                    f"Quantidade indisponível. Há {estoque_restante_atual:g} "
                                     "unidade(s) restante(s) para este produto."
                                 )
                             else:
