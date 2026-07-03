@@ -378,6 +378,7 @@ def render_modulo_faturamento(
                         st.markdown("#### Dados da venda")
                         data_venda = st.date_input(
                             "Data", value=datetime.now().date(),
+                            max_value=datetime.now().date(),
                             format="DD/MM/YYYY", key="data_venda")
                         cliente_nome = st.selectbox(
                             "Cliente *", df_clientes['nome'].tolist(), key="venda_cliente")
@@ -963,7 +964,11 @@ def render_modulo_faturamento(
                         st.markdown("#### 📋 Dados da Venda")
                         col1, col2 = st.columns(2)
                         with col1:
-                            nova_data = st.date_input("📅 Data da Venda", value=venda_atual['data_venda'], format="DD/MM/YYYY")
+                            nova_data = st.date_input(
+                                "📅 Data da Venda",
+                                value=min(pd.to_datetime(venda_atual['data_venda']).date(), datetime.now().date()),
+                                max_value=datetime.now().date(),
+                                format="DD/MM/YYYY")
                             novo_cliente_id = st.selectbox(
                                 "👤 Cliente",
                                 options=df_clientes_edit['id'].tolist(),
@@ -2133,7 +2138,9 @@ def render_modulo_faturamento(
                     with st.form("form_nova_despesa", clear_on_submit=True):
                         col1, col2 = st.columns(2)
                         with col1:
-                            data_despesa = st.date_input("Data", value=datetime.now().date(), format="DD/MM/YYYY")
+                            data_despesa = st.date_input(
+                                "Data", value=datetime.now().date(),
+                                max_value=datetime.now().date(), format="DD/MM/YYYY")
                             tipo_despesa = st.selectbox("Tipo de despesa", df_tipos['nome'].tolist())
                             tipo_id = int(df_tipos[df_tipos['nome'] == tipo_despesa].iloc[0]['id'])
                         with col2:
@@ -2237,7 +2244,11 @@ def render_modulo_faturamento(
                                 despesa_edit = df_despesas[df_despesas['id'] == despesa_id].iloc[0]
                                 col1, col2 = st.columns(2)
                                 with col1:
-                                    nova_data = st.date_input("Data", value=despesa_edit['data'], format="DD/MM/YYYY")
+                                    nova_data = st.date_input(
+                                        "Data",
+                                        value=min(pd.to_datetime(despesa_edit['data']).date(), datetime.now().date()),
+                                        max_value=datetime.now().date(),
+                                        format="DD/MM/YYYY")
                                     df_tipos_edit = obter_tipos_despesas()
                                     tipo_atual_nome = df_tipos_edit[df_tipos_edit['id'] == despesa_edit['tipo_id']].iloc[0]['nome']
                                     novo_tipo = st.selectbox("Tipo", df_tipos_edit['nome'].tolist(),

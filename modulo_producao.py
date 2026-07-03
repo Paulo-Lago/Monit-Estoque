@@ -70,6 +70,80 @@ def render_modulo_producao(
             "caso precise corrigir a quantidade."
         )
 
+    registros_diarios = {
+        "aves": ("data_registro", "aves"),
+        "aves_mortas": ("data", "aves mortas"),
+        "ovos_quebrados": ("data", "ovos quebrados"),
+    }
+
+    def obter_registro_diario_duplicado(
+        conn, tabela, data_registro, galpao, excluir_id=None
+    ):
+        coluna_data, _ = registros_diarios[tabela]
+        filtro_id = ""
+        parametros = {
+            "username": st.session_state.username,
+            "data": data_registro,
+            "galpao": galpao,
+        }
+        if excluir_id is not None:
+            filtro_id = " AND id <> :excluir_id"
+            parametros["excluir_id"] = int(excluir_id)
+
+        return conn.execute(text(f"""
+            SELECT id, quantidade{('_total' if tabela == 'aves' else '')}
+            FROM {tabela}
+            WHERE username = :username
+                AND {coluna_data} = :data
+                AND galpao = :galpao
+                {filtro_id}
+            ORDER BY id
+            LIMIT 1
+        """), parametros).mappings().one_or_none()
+
+    def bloquear_registro_diario(conn, tabela, data_registro, galpao):
+        chave = (
+            f"{tabela}|{st.session_state.username}|"
+            f"{data_registro.isoformat()}|{galpao}"
+        )
+        conn.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:chave))"),
+            {"chave": chave},
+        )
+
+    def mensagem_registro_diario_duplicado(tabela, data_registro, galpao):
+        _, nome_registro = registros_diarios[tabela]
+        mensagem = (
+            f"Já existe um registro de {nome_registro} no {galpao} em "
+            f"{data_registro.strftime('%d/%m/%Y')}. "
+        )
+        if tabela == "aves":
+            return mensagem + (
+                "Edite o registro existente caso precise corrigir a quantidade."
+            )
+        return mensagem + "O novo lançamento não foi realizado para evitar duplicidade."
+
+    def registro_diario_duplicado(
+        tabela, data_registro, galpao, excluir_id=None
+    ):
+        with engine.connect() as conn:
+            return bool(obter_registro_diario_duplicado(
+                conn, tabela, data_registro, galpao, excluir_id))
+
+    def executar_registro_diario_unico(
+        tabela, data_registro, galpao, comando, parametros, excluir_id=None
+    ):
+        duplicado = False
+        with engine.connect() as conn:
+            with conn.begin():
+                bloquear_registro_diario(
+                    conn, tabela, data_registro, galpao)
+                duplicado = bool(obter_registro_diario_duplicado(
+                    conn, tabela, data_registro, galpao, excluir_id))
+                if not duplicado:
+                    conn.execute(text(comando), parametros)
+        return not duplicado
+
     st.header("🐔 Monitoramento de Produção")
 
     if st.sidebar.button("🚪 Sair / Logout"):
@@ -95,7 +169,8 @@ def render_modulo_producao(
             col1, col2 = st.columns(2)
             with col1:
                 data_reg = st.date_input("📅 Data da Colheita", value=datetime.now(
-                ).date(), format="DD/MM/YYYY", key="data_colheita")
+                ).date(), max_value=datetime.now().date(),
+                    format="DD/MM/YYYY", key="data_colheita")
                 qtd_val = st.number_input(
                     "🥚 Quantidade de Ovos", min_value=0, step=1, format="%d", key="qtd_colheita")
             with col2:
@@ -178,6 +253,7 @@ def render_modulo_producao(
             data_ovos_geral = st.date_input(
                 "📅 Data do registro",
                 value=datetime.now().date(),
+                max_value=datetime.now().date(),
                 format="DD/MM/YYYY",
                 key="data_ovos_geral"
             )
@@ -536,7 +612,9 @@ def render_modulo_producao(
                                         "Corrigir tipo:", TIPOS_OVO,
                                         index=TIPOS_OVO.index(registro['tipo']), key="edit_tipo")
                                     nova_data = st.date_input(
-                                        "📅 Data da Colheita", value=pd.to_datetime(registro['data']).date(),
+                                        "📅 Data da Colheita",
+                                        value=min(pd.to_datetime(registro['data']).date(), datetime.now().date()),
+                                        max_value=datetime.now().date(),
                                         format="DD/MM/YYYY", key="edit_data")
                                 with col2:
                                     novo_galpao = st.selectbox(
@@ -710,6 +788,7 @@ def render_modulo_producao(
                 col1, col2 = st.columns(2)
                 with col1:
                     data_aves = st.date_input("📅 Data", value=datetime.now().date(),
+                                              max_value=datetime.now().date(),
                                               format="DD/MM/YYYY", key="data_aves_reg")
                     galpao_aves = st.selectbox(
                         "🏠 Galpão", GALPOES, key="galpao_aves_reg")
@@ -722,34 +801,51 @@ def render_modulo_producao(
 
             if registrar_aves:
                 if qtd_aves > 0:
-                    chave_acao = "registrar_aves"
-                    payload_acao = (st.session_state.username, data_aves, galpao_aves, qtd_aves)
-                    if acao_repetida(chave_acao, payload_acao):
-                        st.stop()
-                    try:
-                        with engine.connect() as conn:
-                            conn.execute(text("""
-                                INSERT INTO aves (username, galpao, quantidade_total, data_registro)
-                                VALUES (:username, :galpao, :qtd, :data)
-                            """), {
-                                "username": st.session_state.username,
-                                "galpao": galpao_aves,
-                                "qtd": qtd_aves,
-                                "data": data_aves
-                            })
-                            conn.commit()
-                        registrar_log(
-                            "INSERT", "aves",
-                            detalhes=(
-                                f"Registrou {qtd_aves} aves no {galpao_aves} "
-                                f"em {data_aves.strftime('%d/%m/%Y')}"
-                            )
+                    if registro_diario_duplicado(
+                        "aves", data_aves, galpao_aves
+                    ):
+                        st.warning(mensagem_registro_diario_duplicado(
+                            "aves", data_aves, galpao_aves))
+                    else:
+                        chave_acao = "registrar_aves"
+                        payload_acao = (
+                            st.session_state.username, data_aves,
+                            galpao_aves, qtd_aves,
                         )
-                        st.success(
-                            f"✅ {qtd_aves} aves registradas no {galpao_aves}!")
-                    except Exception as e:
-                        liberar_acao(chave_acao)
-                        st.error(f"Erro ao registrar aves: {e}")
+                        if acao_repetida(chave_acao, payload_acao):
+                            st.stop()
+                        try:
+                            registro_criado = executar_registro_diario_unico(
+                                "aves", data_aves, galpao_aves,
+                                """
+                                    INSERT INTO aves
+                                        (username, galpao, quantidade_total, data_registro)
+                                    VALUES (:username, :galpao, :qtd, :data)
+                                """,
+                                {
+                                    "username": st.session_state.username,
+                                    "galpao": galpao_aves,
+                                    "qtd": qtd_aves,
+                                    "data": data_aves,
+                                },
+                            )
+                            if not registro_criado:
+                                liberar_acao(chave_acao)
+                                st.warning(mensagem_registro_diario_duplicado(
+                                    "aves", data_aves, galpao_aves))
+                            else:
+                                registrar_log(
+                                    "INSERT", "aves",
+                                    detalhes=(
+                                        f"Registrou {qtd_aves} aves no {galpao_aves} "
+                                        f"em {data_aves.strftime('%d/%m/%Y')}"
+                                    )
+                                )
+                                st.success(
+                                    f"✅ {qtd_aves} aves registradas no {galpao_aves}!")
+                        except Exception as e:
+                            liberar_acao(chave_acao)
+                            st.error(f"Erro ao registrar aves: {e}")
 
         # ==================== AVES MORTAS ====================
         with tab_mortas:
@@ -769,6 +865,7 @@ def render_modulo_producao(
                 col1, col2 = st.columns(2)
                 with col1:
                     data_morta = st.date_input("📅 Data", value=datetime.now().date(),
+                                               max_value=datetime.now().date(),
                                                format="DD/MM/YYYY", key="data_morta")
                     galpao_morta = st.selectbox(
                         "🏠 Galpão", GALPOES, key="galpao_morta")
@@ -780,33 +877,51 @@ def render_modulo_producao(
                     "✅ Registrar Morte", type="primary", width="stretch")
 
             if registrar_morte:
-                chave_acao = "registrar_morte"
-                payload_acao = (st.session_state.username, data_morta, galpao_morta, qtd_morta)
-                if acao_repetida(chave_acao, payload_acao):
-                    st.stop()
-                try:
-                    with engine.connect() as conn:
-                        conn.execute(text("""
-                            INSERT INTO aves_mortas (username, galpao, quantidade, data)
-                            VALUES (:username, :galpao, :qtd, :data)
-                        """), {
-                            "username": st.session_state.username,
-                            "galpao": galpao_morta,
-                            "qtd": qtd_morta,
-                            "data": data_morta
-                        })
-                        conn.commit()
-                    registrar_log(
-                        "INSERT", "aves_mortas",
-                        detalhes=(
-                            f"Registrou {qtd_morta} aves mortas no {galpao_morta} "
-                            f"em {data_morta.strftime('%d/%m/%Y')}"
-                        )
+                if registro_diario_duplicado(
+                    "aves_mortas", data_morta, galpao_morta
+                ):
+                    st.warning(mensagem_registro_diario_duplicado(
+                        "aves_mortas", data_morta, galpao_morta))
+                else:
+                    chave_acao = "registrar_morte"
+                    payload_acao = (
+                        st.session_state.username, data_morta,
+                        galpao_morta, qtd_morta,
                     )
-                    st.success(f"✅ {qtd_morta} aves mortas registradas!")
-                except Exception as e:
-                    liberar_acao(chave_acao)
-                    st.error(f"Erro ao registrar morte: {e}")
+                    if acao_repetida(chave_acao, payload_acao):
+                        st.stop()
+                    try:
+                        registro_criado = executar_registro_diario_unico(
+                            "aves_mortas", data_morta, galpao_morta,
+                            """
+                                INSERT INTO aves_mortas
+                                    (username, galpao, quantidade, data)
+                                VALUES (:username, :galpao, :qtd, :data)
+                            """,
+                            {
+                                "username": st.session_state.username,
+                                "galpao": galpao_morta,
+                                "qtd": qtd_morta,
+                                "data": data_morta,
+                            },
+                        )
+                        if not registro_criado:
+                            liberar_acao(chave_acao)
+                            st.warning(mensagem_registro_diario_duplicado(
+                                "aves_mortas", data_morta, galpao_morta))
+                        else:
+                            registrar_log(
+                                "INSERT", "aves_mortas",
+                                detalhes=(
+                                    f"Registrou {qtd_morta} aves mortas no {galpao_morta} "
+                                    f"em {data_morta.strftime('%d/%m/%Y')}"
+                                )
+                            )
+                            st.success(
+                                f"✅ {qtd_morta} aves mortas registradas!")
+                    except Exception as e:
+                        liberar_acao(chave_acao)
+                        st.error(f"Erro ao registrar morte: {e}")
 
         # ==================== HISTÓRICO + EDIÇÃO (AVES VIVAS E MORTAS) ====================
         with tab_historico:
@@ -896,7 +1011,9 @@ def render_modulo_producao(
                                         "Quantidade", min_value=1, step=1,
                                         value=int(registro['quantidade_total']), key="edit_qtd_ave")
                                     nova_data = st.date_input(
-                                        "Data", value=pd.to_datetime(registro['data_registro']).date(),
+                                        "Data",
+                                        value=min(pd.to_datetime(registro['data_registro']).date(), datetime.now().date()),
+                                        max_value=datetime.now().date(),
                                         format="DD/MM/YYYY", key="edit_data_ave")
                                     salvar_ave = st.form_submit_button(
                                         "✅ Salvar Alterações", width="stretch", type="primary")
@@ -906,30 +1023,38 @@ def render_modulo_producao(
 
                             if salvar_ave and selected_id is not None:
                                 try:
-                                    with engine.connect() as conn:
-                                        conn.execute(text("""
+                                    registro_atualizado = executar_registro_diario_unico(
+                                        "aves", nova_data, novo_galpao,
+                                        """
                                             UPDATE aves
                                             SET galpao = :galpao,
                                                 quantidade_total = :qtd,
                                                 data_registro = :data
                                             WHERE id = :id AND username = :username
-                                        """), {
+                                        """,
+                                        {
                                             "galpao": novo_galpao,
                                             "qtd": nova_qtd,
                                             "data": nova_data,
                                             "id": selected_id,
-                                            "username": st.session_state.username
-                                        })
-                                        conn.commit()
-                                    registrar_log(
-                                        "UPDATE", "aves", selected_id,
-                                        detalhes=(
-                                            f"Atualizou registro para {nova_qtd} aves no {novo_galpao} "
-                                            f"em {nova_data.strftime('%d/%m/%Y')}"
-                                        )
+                                            "username": st.session_state.username,
+                                        },
+                                        excluir_id=selected_id,
                                     )
-                                    area_editar_ave.empty()
-                                    mensagem_editar_ave.success("✅ Registro atualizado com sucesso!")
+                                    if not registro_atualizado:
+                                        st.warning(mensagem_registro_diario_duplicado(
+                                            "aves", nova_data, novo_galpao))
+                                    else:
+                                        registrar_log(
+                                            "UPDATE", "aves", selected_id,
+                                            detalhes=(
+                                                f"Atualizou registro para {nova_qtd} aves no {novo_galpao} "
+                                                f"em {nova_data.strftime('%d/%m/%Y')}"
+                                            )
+                                        )
+                                        area_editar_ave.empty()
+                                        mensagem_editar_ave.success(
+                                            "✅ Registro atualizado com sucesso!")
                                 except Exception as e:
                                     st.error(f"Erro ao atualizar: {e}")
                         with col_btn2:
@@ -1454,6 +1579,7 @@ def render_modulo_producao(
                 col1, col2 = st.columns(2)
                 with col1:
                     data_quebrados = st.date_input("📅 Data", value=datetime.now().date(),
+                                                   max_value=datetime.now().date(),
                                                    format="DD/MM/YYYY", key="data_quebrados_reg")
                     galpao_quebrados = st.selectbox(
                         "🏠 Galpão", GALPOES, key="galpao_quebrados_reg")
@@ -1466,34 +1592,51 @@ def render_modulo_producao(
 
             if registrar_ovos_quebrados:
                 if qtd_quebrados > 0:
-                    chave_acao = "registrar_ovos_quebrados"
-                    payload_acao = (st.session_state.username, data_quebrados, galpao_quebrados, qtd_quebrados)
-                    if acao_repetida(chave_acao, payload_acao):
-                        st.stop()
-                    try:
-                        with engine.connect() as conn:
-                            conn.execute(text("""
-                                INSERT INTO ovos_quebrados (username, galpao, quantidade, data)
-                                VALUES (:username, :galpao, :qtd, :data)
-                            """), {
-                                "username": st.session_state.username,
-                                "galpao": galpao_quebrados,
-                                "qtd": qtd_quebrados,
-                                "data": data_quebrados
-                            })
-                            conn.commit()
-                        registrar_log(
-                            "INSERT", "ovos_quebrados",
-                            detalhes=(
-                                f"Registrou {qtd_quebrados} ovos quebrados no {galpao_quebrados} "
-                                f"em {data_quebrados.strftime('%d/%m/%Y')}"
-                            )
+                    if registro_diario_duplicado(
+                        "ovos_quebrados", data_quebrados, galpao_quebrados
+                    ):
+                        st.warning(mensagem_registro_diario_duplicado(
+                            "ovos_quebrados", data_quebrados, galpao_quebrados))
+                    else:
+                        chave_acao = "registrar_ovos_quebrados"
+                        payload_acao = (
+                            st.session_state.username, data_quebrados,
+                            galpao_quebrados, qtd_quebrados,
                         )
-                        st.success(
-                            f"✅ {qtd_quebrados} ovos quebrados registrados no {galpao_quebrados}!")
-                    except Exception as e:
-                        liberar_acao(chave_acao)
-                        st.error(f"Erro ao registrar: {e}")
+                        if acao_repetida(chave_acao, payload_acao):
+                            st.stop()
+                        try:
+                            registro_criado = executar_registro_diario_unico(
+                                "ovos_quebrados", data_quebrados, galpao_quebrados,
+                                """
+                                    INSERT INTO ovos_quebrados
+                                        (username, galpao, quantidade, data)
+                                    VALUES (:username, :galpao, :qtd, :data)
+                                """,
+                                {
+                                    "username": st.session_state.username,
+                                    "galpao": galpao_quebrados,
+                                    "qtd": qtd_quebrados,
+                                    "data": data_quebrados,
+                                },
+                            )
+                            if not registro_criado:
+                                liberar_acao(chave_acao)
+                                st.warning(mensagem_registro_diario_duplicado(
+                                    "ovos_quebrados", data_quebrados, galpao_quebrados))
+                            else:
+                                registrar_log(
+                                    "INSERT", "ovos_quebrados",
+                                    detalhes=(
+                                        f"Registrou {qtd_quebrados} ovos quebrados no {galpao_quebrados} "
+                                        f"em {data_quebrados.strftime('%d/%m/%Y')}"
+                                    )
+                                )
+                                st.success(
+                                    f"✅ {qtd_quebrados} ovos quebrados registrados no {galpao_quebrados}!")
+                        except Exception as e:
+                            liberar_acao(chave_acao)
+                            st.error(f"Erro ao registrar: {e}")
 
         # ==================== HISTÓRICO ====================
         with tab_historico:
