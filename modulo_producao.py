@@ -27,6 +27,49 @@ def render_modulo_producao(
     def altura_tabela(df, limite=420):
         return min(limite, 74 + max(1, len(df)) * 35)
 
+    def obter_producao_duplicada(
+        conn, data_registro, tipo_ovo, galpao, excluir_id=None
+    ):
+        filtro_id = ""
+        parametros = {
+            "username": st.session_state.username,
+            "data": data_registro,
+            "tipo": tipo_ovo,
+            "galpao": galpao,
+        }
+        if excluir_id is not None:
+            filtro_id = " AND id <> :excluir_id"
+            parametros["excluir_id"] = int(excluir_id)
+
+        return conn.execute(text(f"""
+            SELECT id, quantidade
+            FROM producao
+            WHERE username = :username
+                AND data = :data
+                AND tipo = :tipo
+                AND galpao = :galpao
+                {filtro_id}
+            ORDER BY id
+            LIMIT 1
+        """), parametros).mappings().one_or_none()
+
+    def bloquear_registro_producao(conn, data_registro, tipo_ovo, galpao):
+        chave = (
+            f"{st.session_state.username}|{data_registro.isoformat()}|"
+            f"{tipo_ovo}|{galpao}"
+        )
+        conn.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:chave))"),
+            {"chave": chave},
+        )
+
+    def mensagem_producao_duplicada(data_registro, tipo_ovo, galpao):
+        return (
+            f"Já existe um registro de '{tipo_ovo}' no {galpao} em "
+            f"{data_registro.strftime('%d/%m/%Y')}. Edite o registro existente "
+            "caso precise corrigir a quantidade."
+        )
+
     st.header("🐔 Monitoramento de Produção")
 
     if st.sidebar.button("🚪 Sair / Logout"):
@@ -66,37 +109,64 @@ def render_modulo_producao(
 
         if salvar_colheita:
             if qtd_val > 0:
-                chave_acao = "salvar_colheita"
-                payload_acao = (st.session_state.username, data_reg, qtd_val, tipo_ovo, galpao, cor)
-                if acao_repetida(chave_acao, payload_acao):
-                    st.stop()
-                try:
-                    with engine.connect() as conn:
-                        conn.execute(text("""
-                            INSERT INTO producao (username, data, quantidade, tipo, galpao, cor)
-                            VALUES (:username, :data, :quantidade, :tipo, :galpao, :cor)
-                        """), {
-                            "username": st.session_state.username,
-                            "data": data_reg,
-                            "quantidade": qtd_val,
-                            "tipo": tipo_ovo,
-                            "galpao": galpao,
-                            "cor": cor
-                        })
-                        conn.commit()
-                    registrar_log(
-                        "INSERT", "producao",
-                        detalhes=(
-                            f"Registrou {qtd_val} ovos ({tipo_ovo}, {cor}) "
-                            f"no {galpao} em {data_reg.strftime('%d/%m/%Y')}"
-                        )
+                with engine.connect() as conn:
+                    registro_duplicado = obter_producao_duplicada(
+                        conn, data_reg, tipo_ovo, galpao)
+
+                if registro_duplicado:
+                    st.warning(mensagem_producao_duplicada(
+                        data_reg, tipo_ovo, galpao))
+                else:
+                    chave_acao = "salvar_colheita"
+                    payload_acao = (
+                        st.session_state.username, data_reg, qtd_val,
+                        tipo_ovo, galpao, cor,
                     )
-                    st.balloons()
-                    st.success(
-                        f"✅ {qtd_val} ovos ({tipo_ovo}, {cor}) do {galpao} registrados com sucesso!")
-                except Exception as e:
-                    liberar_acao(chave_acao)
-                    st.error(f"Erro ao salvar colheita: {e}")
+                    if acao_repetida(chave_acao, payload_acao):
+                        st.stop()
+                    try:
+                        duplicado_na_transacao = False
+                        with engine.connect() as conn:
+                            with conn.begin():
+                                bloquear_registro_producao(
+                                    conn, data_reg, tipo_ovo, galpao)
+                                duplicado_na_transacao = bool(
+                                    obter_producao_duplicada(
+                                        conn, data_reg, tipo_ovo, galpao)
+                                )
+                                if not duplicado_na_transacao:
+                                    conn.execute(text("""
+                                        INSERT INTO producao
+                                            (username, data, quantidade, tipo, galpao, cor)
+                                        VALUES
+                                            (:username, :data, :quantidade, :tipo, :galpao, :cor)
+                                    """), {
+                                        "username": st.session_state.username,
+                                        "data": data_reg,
+                                        "quantidade": qtd_val,
+                                        "tipo": tipo_ovo,
+                                        "galpao": galpao,
+                                        "cor": cor,
+                                    })
+
+                        if duplicado_na_transacao:
+                            liberar_acao(chave_acao)
+                            st.warning(mensagem_producao_duplicada(
+                                data_reg, tipo_ovo, galpao))
+                        else:
+                            registrar_log(
+                                "INSERT", "producao",
+                                detalhes=(
+                                    f"Registrou {qtd_val} ovos ({tipo_ovo}, {cor}) "
+                                    f"no {galpao} em {data_reg.strftime('%d/%m/%Y')}"
+                                )
+                            )
+                            st.balloons()
+                            st.success(
+                                f"✅ {qtd_val} ovos ({tipo_ovo}, {cor}) do {galpao} registrados com sucesso!")
+                    except Exception as e:
+                        liberar_acao(chave_acao)
+                        st.error(f"Erro ao salvar colheita: {e}")
             else:
                 st.error("Quantidade deve ser maior que zero.")
 
@@ -483,38 +553,57 @@ def render_modulo_producao(
 
                         if salvar_colheita_editada and selected_id is not None:
                             try:
+                                duplicado_na_edicao = False
                                 with engine.connect() as conn:
-                                    conn.execute(
-                                        text("""
-                                            UPDATE producao
-                                            SET quantidade = :qtd,
-                                                tipo = :tipo,
-                                                galpao = :galpao,
-                                                cor = :cor,
-                                                data = :data
-                                            WHERE id = :id AND username = :username
-                                        """),
-                                        {
-                                            "qtd": novo_val,
-                                            "tipo": novo_tipo,
-                                            "galpao": novo_galpao,
-                                            "cor": nova_cor,
-                                            "data": nova_data,
-                                            "id": selected_id,
-                                            "username": st.session_state.username
-                                        }
+                                    with conn.begin():
+                                        bloquear_registro_producao(
+                                            conn, nova_data, novo_tipo, novo_galpao)
+                                        duplicado_na_edicao = bool(
+                                            obter_producao_duplicada(
+                                                conn,
+                                                nova_data,
+                                                novo_tipo,
+                                                novo_galpao,
+                                                excluir_id=selected_id,
+                                            )
+                                        )
+                                        if not duplicado_na_edicao:
+                                            conn.execute(
+                                                text("""
+                                                    UPDATE producao
+                                                    SET quantidade = :qtd,
+                                                        tipo = :tipo,
+                                                        galpao = :galpao,
+                                                        cor = :cor,
+                                                        data = :data
+                                                    WHERE id = :id AND username = :username
+                                                """),
+                                                {
+                                                    "qtd": novo_val,
+                                                    "tipo": novo_tipo,
+                                                    "galpao": novo_galpao,
+                                                    "cor": nova_cor,
+                                                    "data": nova_data,
+                                                    "id": selected_id,
+                                                    "username": st.session_state.username,
+                                                }
+                                            )
+
+                                if duplicado_na_edicao:
+                                    st.warning(mensagem_producao_duplicada(
+                                        nova_data, novo_tipo, novo_galpao))
+                                else:
+                                    registrar_log(
+                                        "UPDATE", "producao", selected_id,
+                                        detalhes=(
+                                            f"Atualizou colheita para {novo_val} ovos "
+                                            f"({novo_tipo}, {nova_cor}) no {novo_galpao} "
+                                            f"em {nova_data.strftime('%d/%m/%Y')}"
+                                        )
                                     )
-                                    conn.commit()
-                                registrar_log(
-                                    "UPDATE", "producao", selected_id,
-                                    detalhes=(
-                                        f"Atualizou colheita para {novo_val} ovos "
-                                        f"({novo_tipo}, {nova_cor}) no {novo_galpao} "
-                                        f"em {nova_data.strftime('%d/%m/%Y')}"
-                                    )
-                                )
-                                area_editar_colheita.empty()
-                                mensagem_editar_colheita.success("✅ Registro atualizado com sucesso!")
+                                    area_editar_colheita.empty()
+                                    mensagem_editar_colheita.success(
+                                        "✅ Registro atualizado com sucesso!")
                             except Exception as e:
                                 st.error(f"Erro ao atualizar: {e}")
 
