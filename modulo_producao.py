@@ -1704,6 +1704,10 @@ def render_modulo_producao(
                     tabela_quebrados = st.empty()
 
                     def exibir_tabela_quebrados():
+                        if df_quebrados_hist.empty:
+                            tabela_quebrados.info(
+                                "Nenhum registro de ovos quebrados encontrado.")
+                            return
                         tabela_quebrados.dataframe(
                             df_quebrados_hist[[
                                 "data", "Galpão", "Quantidade"
@@ -1847,6 +1851,94 @@ def render_modulo_producao(
                         except Exception as e:
                             mensagem_editar_quebrados.error(
                                 f"Erro ao atualizar o registro: {e}")
+
+                    painel_excluir_quebrados = st.expander(
+                        "Excluir um registro de ovos quebrados", expanded=False)
+                    opcoes_excluir_quebrados = {
+                        int(row['id']): (
+                            f"{pd.to_datetime(row['data']).strftime('%d/%m/%Y')} | "
+                            f"{row['Galpão']} | {int(row['Quantidade'])} ovos"
+                        )
+                        for _, row in df_quebrados_hist.iterrows()
+                    }
+                    quebrados_excluir_id = painel_excluir_quebrados.selectbox(
+                        "Registro para excluir",
+                        options=list(opcoes_excluir_quebrados),
+                        format_func=lambda registro_id: opcoes_excluir_quebrados[
+                            registro_id],
+                        index=None,
+                        placeholder="Selecione um registro",
+                        key="excluir_ovos_quebrados_select",
+                    )
+                    mensagem_excluir_quebrados = painel_excluir_quebrados.empty()
+                    area_excluir_quebrados = painel_excluir_quebrados.empty()
+
+                    with area_excluir_quebrados.container():
+                        with st.form(
+                            "form_excluir_ovos_quebrados", clear_on_submit=True
+                        ):
+                            if quebrados_excluir_id is not None:
+                                st.warning(
+                                    "Esta ação é permanente e não pode ser desfeita.")
+                                confirmar_exclusao_quebrados = st.checkbox(
+                                    "Confirmo a exclusão deste registro",
+                                    key="confirmar_exclusao_ovos_quebrados",
+                                )
+                            else:
+                                confirmar_exclusao_quebrados = False
+
+                            excluir_quebrados = st.form_submit_button(
+                                "Excluir registro",
+                                type="primary",
+                                width="stretch",
+                                disabled=quebrados_excluir_id is None,
+                            )
+
+                    if excluir_quebrados and quebrados_excluir_id is not None:
+                        if not confirmar_exclusao_quebrados:
+                            mensagem_excluir_quebrados.error(
+                                "Marque a confirmação antes de excluir.")
+                        else:
+                            try:
+                                registro_excluido = df_quebrados_hist[
+                                    df_quebrados_hist['id']
+                                    == quebrados_excluir_id
+                                ].iloc[0]
+                                with engine.connect() as conn:
+                                    resultado_exclusao = conn.execute(text("""
+                                        DELETE FROM ovos_quebrados
+                                        WHERE id = :id AND username = :username
+                                    """), {
+                                        "id": quebrados_excluir_id,
+                                        "username": st.session_state.username,
+                                    })
+                                    conn.commit()
+
+                                if resultado_exclusao.rowcount == 0:
+                                    mensagem_excluir_quebrados.error(
+                                        "O registro não foi encontrado ou já foi excluído.")
+                                else:
+                                    registrar_log(
+                                        "DELETE",
+                                        "ovos_quebrados",
+                                        quebrados_excluir_id,
+                                        detalhes=(
+                                            f"Excluiu {int(registro_excluido['Quantidade'])} "
+                                            f"ovos quebrados do {registro_excluido['Galpão']} "
+                                            f"em {pd.to_datetime(registro_excluido['data']).strftime('%d/%m/%Y')}"
+                                        ),
+                                    )
+                                    df_quebrados_hist = df_quebrados_hist[
+                                        df_quebrados_hist['id']
+                                        != quebrados_excluir_id
+                                    ].copy()
+                                    exibir_tabela_quebrados()
+                                    area_excluir_quebrados.empty()
+                                    mensagem_excluir_quebrados.success(
+                                        "Registro de ovos quebrados excluído com sucesso!")
+                            except Exception as e:
+                                mensagem_excluir_quebrados.error(
+                                    f"Erro ao excluir o registro: {e}")
 
             except Exception as e:
                 st.error(f"Erro ao carregar histórico: {e}")
