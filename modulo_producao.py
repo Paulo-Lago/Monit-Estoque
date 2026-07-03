@@ -27,6 +27,40 @@ def render_modulo_producao(
     def altura_tabela(df, limite=420):
         return min(limite, 74 + max(1, len(df)) * 35)
 
+    def formatar_quantidade_inteira(valor):
+        return f"{int(round(float(valor or 0))):,}".replace(",", ".")
+
+    def exibir_resumo_graficos(
+        df_periodo, data_inicio, data_fim, unidade, rotulo_total
+    ):
+        totais_serie = df_periodo.groupby('galpao')['quantidade'].sum()
+        totais_galpoes = {
+            galpao: float(totais_serie.get(galpao, 0))
+            for galpao in GALPOES
+        }
+        total_periodo = float(df_periodo['quantidade'].sum())
+
+        st.markdown("##### Resumo do período")
+        colunas_resumo = st.columns(len(GALPOES) + 1)
+        colunas_resumo[0].metric(
+            rotulo_total,
+            f"{formatar_quantidade_inteira(total_periodo)} {unidade}",
+        )
+        for indice, galpao in enumerate(GALPOES, start=1):
+            colunas_resumo[indice].metric(
+                galpao,
+                f"{formatar_quantidade_inteira(totais_galpoes[galpao])} {unidade}",
+            )
+
+        dias_com_registro = df_periodo['data'].dt.date.nunique()
+        st.caption(
+            f"Período analisado: {data_inicio.strftime('%d/%m/%Y')} a "
+            f"{data_fim.strftime('%d/%m/%Y')} | "
+            f"{dias_com_registro} dia(s) com registros"
+        )
+        st.divider()
+        return totais_galpoes
+
     def obter_producao_duplicada(
         conn, data_registro, tipo_ovo, galpao, excluir_id=None
     ):
@@ -1352,8 +1386,14 @@ def render_modulo_producao(
                         st.warning(
                             "Nenhum registro encontrado no período selecionado.")
                     else:
+                        totais_producao_galpoes = exibir_resumo_graficos(
+                            df_filtrado,
+                            data_inicio,
+                            data_fim,
+                            "ovos",
+                            "Produção total",
+                        )
                         for galpao in sorted(df_filtrado['galpao'].unique()):
-                            st.markdown(f"**{galpao}**")
                             df_g = df_filtrado[df_filtrado['galpao'] == galpao]
                             df_agg = df_g.groupby(['data', 'tipo'])[
                                 'quantidade'].sum().reset_index()
@@ -1365,7 +1405,11 @@ def render_modulo_producao(
                             if not df_pivot.empty:
                                 fig = px.line(
                                     df_pivot, x=df_pivot.index, y=df_pivot.columns,
-                                    title=f"Produção - {galpao}",
+                                    title=(
+                                        f"Produção - {galpao}<br>"
+                                        f"<sup>Total no período: "
+                                        f"{formatar_quantidade_inteira(totais_producao_galpoes.get(galpao, 0))} ovos</sup>"
+                                    ),
                                     labels={
                                         'x': 'Data', 'value': 'Quantidade', 'variable': 'Tipo'},
                                     markers=True
@@ -1470,7 +1514,11 @@ def render_modulo_producao(
                                 secondary_y=True,
                             )
                             fig_desempenho.update_layout(
-                                title=f'Total de Ovos e Percentual de Postura - {galpao}',
+                                title=(
+                                    f'Total de Ovos e Percentual de Postura - {galpao}<br>'
+                                    f'<sup>Total no período: '
+                                    f'{formatar_quantidade_inteira(totais_producao_galpoes.get(galpao, 0))} ovos</sup>'
+                                ),
                                 plot_bgcolor='#ffffff',
                                 paper_bgcolor='#ffffff',
                                 font=dict(color='#000000', size=12),
@@ -1526,15 +1574,25 @@ def render_modulo_producao(
                         st.warning(
                             "Nenhum registro encontrado no período selecionado.")
                     else:
+                        totais_quebrados_galpoes = exibir_resumo_graficos(
+                            df_filtrado,
+                            data_inicio,
+                            data_fim,
+                            "ovos",
+                            "Total quebrado",
+                        )
                         for galpao in sorted(df_filtrado['galpao'].unique()):
-                            st.markdown(f"**{galpao}**")
                             df_g = df_filtrado[df_filtrado['galpao'] == galpao]
                             df_agg = df_g.groupby(
                                 'data')['quantidade'].sum().reset_index()
 
                             fig = px.line(
                                 df_agg, x='data', y='quantidade',
-                                title=f"Ovos Quebrados - {galpao}",
+                                title=(
+                                    f"Ovos Quebrados - {galpao}<br>"
+                                    f"<sup>Total no período: "
+                                    f"{formatar_quantidade_inteira(totais_quebrados_galpoes.get(galpao, 0))} ovos</sup>"
+                                ),
                                 labels={'data': 'Data',
                                         'quantidade': 'Quantidade'},
                                 markers=True
@@ -1574,15 +1632,25 @@ def render_modulo_producao(
                         st.warning(
                             "Nenhum registro encontrado no período selecionado.")
                     else:
+                        totais_mortas_galpoes = exibir_resumo_graficos(
+                            df_filtrado,
+                            data_inicio,
+                            data_fim,
+                            "aves",
+                            "Total de mortes",
+                        )
                         for galpao in sorted(df_filtrado['galpao'].unique()):
-                            st.markdown(f"**{galpao}**")
                             df_g = df_filtrado[df_filtrado['galpao'] == galpao]
                             df_agg = df_g.groupby(
                                 'data')['quantidade'].sum().reset_index()
 
                             fig = px.line(
                                 df_agg, x='data', y='quantidade',
-                                title=f"Aves Mortas - {galpao}",
+                                title=(
+                                    f"Aves Mortas - {galpao}<br>"
+                                    f"<sup>Total no período: "
+                                    f"{formatar_quantidade_inteira(totais_mortas_galpoes.get(galpao, 0))} aves</sup>"
+                                ),
                                 labels={'data': 'Data',
                                         'quantidade': 'Quantidade'},
                                 markers=True
