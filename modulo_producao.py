@@ -1135,13 +1135,46 @@ def render_modulo_producao(
                             "quantidade": "Quantidade"
                         })
                         df_mortas['Data'] = pd.to_datetime(df_mortas['Data'])
-                        st.dataframe(
-                            df_mortas[['Data', 'Galpão', 'Quantidade']],
-                            width="stretch", hide_index=True,
-                            height=altura_tabela(df_mortas, 380))
+
+                        total_mortas_periodo = int(
+                            df_mortas['Quantidade'].sum())
+                        galpoes_com_registro = int(
+                            df_mortas['Galpão'].nunique())
+                        ultimo_registro_morta = df_mortas['Data'].max().strftime(
+                            '%d/%m/%Y')
+
+                        resumo_mortas_1, resumo_mortas_2 = st.columns(2)
+                        resumo_mortas_1.metric(
+                            "Mortes no período", f"{total_mortas_periodo:,}".replace(',', '.'))
+                        resumo_mortas_2.metric(
+                            "Galpões afetados", galpoes_com_registro)
+                        st.caption(
+                            f"Registro mais recente no período: {ultimo_registro_morta}")
+
+                        tabela_aves_mortas = st.empty()
+
+                        def exibir_tabela_aves_mortas():
+                            tabela_aves_mortas.dataframe(
+                                df_mortas[['Data', 'Galpão', 'Quantidade']],
+                                width="stretch",
+                                hide_index=True,
+                                height=altura_tabela(df_mortas, 340),
+                                column_config={
+                                    "Data": st.column_config.DateColumn(
+                                        "Data", format="DD/MM/YYYY", width="small"),
+                                    "Galpão": st.column_config.TextColumn(
+                                        "Galpão", width="medium"),
+                                    "Quantidade": st.column_config.NumberColumn(
+                                        "Aves mortas", format="%d", width="small"),
+                                },
+                            )
+
+                        exibir_tabela_aves_mortas()
 
                         painel_aves_mortas = st.expander(
-                            "Excluir registro de aves mortas", expanded=False)
+                            "Gerenciar registros de aves mortas", expanded=False)
+                        painel_aves_mortas.caption(
+                            "Selecione um lançamento somente quando precisar removê-lo do histórico.")
                         opcoes_mortas = {
                             row['id']: (
                                 f"📅 {pd.to_datetime(row['Data']).strftime('%d/%m/%Y')} | "
@@ -1167,7 +1200,8 @@ def render_modulo_producao(
                             else:
                                 confirmar_morta = False
                             excluir_ave_morta = st.form_submit_button(
-                                "Excluir agora", type="primary", disabled=selected_id_morta is None)
+                                "Excluir registro", type="primary",
+                                width="stretch", disabled=selected_id_morta is None)
 
                             if excluir_ave_morta and selected_id_morta is not None:
                                 if not confirmar_morta:
@@ -1187,6 +1221,10 @@ def render_modulo_producao(
                                             "DELETE", "aves_mortas", selected_id_morta,
                                             f"Excluiu registro de morte de {quantidade_morta_excluida} aves"
                                         )
+                                        df_mortas = df_mortas[
+                                            df_mortas['id'] != selected_id_morta
+                                        ].copy()
+                                        exibir_tabela_aves_mortas()
                                         area_excluir_ave_morta.empty()
                                         mensagem_excluir_ave_morta.success("✅ Registro de morte excluído com sucesso!")
                                     except Exception as e:
