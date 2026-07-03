@@ -117,7 +117,7 @@ def render_modulo_producao(
             f"Já existe um registro de {nome_registro} no {galpao} em "
             f"{data_registro.strftime('%d/%m/%Y')}. "
         )
-        if tabela == "aves":
+        if tabela in ("aves", "ovos_quebrados"):
             return mensagem + (
                 "Edite o registro existente caso precise corrigir a quantidade."
             )
@@ -1663,18 +1663,152 @@ def render_modulo_producao(
                     df_quebrados_hist['data'] = pd.to_datetime(
                         df_quebrados_hist['data'])
 
-                    st.dataframe(
-                        df_quebrados_hist[["data", "Galpão", "Quantidade"]].rename(
-                            columns={"data": "Data"}
-                        ),
-                        width='stretch',
-                        hide_index=True,
-                        height=altura_tabela(df_quebrados_hist, 380),
-                        column_config={
-                            'Data': st.column_config.DateColumn(format='DD/MM/YYYY'),
-                            'Quantidade': st.column_config.NumberColumn(format='%d'),
-                        },
+                    tabela_quebrados = st.empty()
+
+                    def exibir_tabela_quebrados():
+                        tabela_quebrados.dataframe(
+                            df_quebrados_hist[[
+                                "data", "Galpão", "Quantidade"
+                            ]].rename(columns={"data": "Data"}),
+                            width='stretch',
+                            hide_index=True,
+                            height=altura_tabela(df_quebrados_hist, 380),
+                            column_config={
+                                'Data': st.column_config.DateColumn(
+                                    format='DD/MM/YYYY'),
+                                'Quantidade': st.column_config.NumberColumn(
+                                    format='%d'),
+                            },
+                        )
+
+                    exibir_tabela_quebrados()
+
+                    painel_editar_quebrados = st.expander(
+                        "Editar um registro de ovos quebrados", expanded=False)
+                    opcoes_quebrados = {
+                        int(row['id']): (
+                            f"{pd.to_datetime(row['data']).strftime('%d/%m/%Y')} | "
+                            f"{row['Galpão']} | {int(row['Quantidade'])} ovos"
+                        )
+                        for _, row in df_quebrados_hist.iterrows()
+                    }
+                    quebrados_id = painel_editar_quebrados.selectbox(
+                        "Registro para editar",
+                        options=list(opcoes_quebrados),
+                        format_func=lambda registro_id: opcoes_quebrados[registro_id],
+                        index=None,
+                        placeholder="Selecione um registro",
+                        key="editar_ovos_quebrados_select",
                     )
+                    mensagem_editar_quebrados = painel_editar_quebrados.empty()
+                    area_editar_quebrados = painel_editar_quebrados.empty()
+
+                    with area_editar_quebrados.container():
+                        with st.form(
+                            "form_editar_ovos_quebrados", clear_on_submit=True
+                        ):
+                            if quebrados_id is not None:
+                                registro_quebrado = df_quebrados_hist[
+                                    df_quebrados_hist['id'] == quebrados_id
+                                ].iloc[0]
+                                col_data, col_galpao, col_quantidade = st.columns(3)
+                                with col_data:
+                                    nova_data_quebrados = st.date_input(
+                                        "Data",
+                                        value=min(
+                                            pd.to_datetime(
+                                                registro_quebrado['data']).date(),
+                                            datetime.now().date(),
+                                        ),
+                                        max_value=datetime.now().date(),
+                                        format="DD/MM/YYYY",
+                                        key=f"editar_ovos_quebrados_data_{quebrados_id}",
+                                    )
+                                with col_galpao:
+                                    novo_galpao_quebrados = st.selectbox(
+                                        "Galpão",
+                                        GALPOES,
+                                        index=GALPOES.index(
+                                            registro_quebrado['Galpão']),
+                                        key=f"editar_ovos_quebrados_galpao_{quebrados_id}",
+                                    )
+                                with col_quantidade:
+                                    nova_quantidade_quebrados = st.number_input(
+                                        "Quantidade",
+                                        min_value=1,
+                                        step=1,
+                                        value=int(registro_quebrado['Quantidade']),
+                                        format="%d",
+                                        key=f"editar_ovos_quebrados_quantidade_{quebrados_id}",
+                                    )
+                                salvar_quebrados_editado = st.form_submit_button(
+                                    "Salvar alterações", type="primary", width="stretch")
+                            else:
+                                nova_data_quebrados = None
+                                novo_galpao_quebrados = None
+                                nova_quantidade_quebrados = 0
+                                salvar_quebrados_editado = st.form_submit_button(
+                                    "Salvar alterações", type="primary",
+                                    width="stretch", disabled=True)
+
+                    if salvar_quebrados_editado and quebrados_id is not None:
+                        try:
+                            registro_atualizado = executar_registro_diario_unico(
+                                "ovos_quebrados",
+                                nova_data_quebrados,
+                                novo_galpao_quebrados,
+                                """
+                                    UPDATE ovos_quebrados
+                                    SET data = :data,
+                                        galpao = :galpao,
+                                        quantidade = :quantidade
+                                    WHERE id = :id AND username = :username
+                                """,
+                                {
+                                    "data": nova_data_quebrados,
+                                    "galpao": novo_galpao_quebrados,
+                                    "quantidade": nova_quantidade_quebrados,
+                                    "id": quebrados_id,
+                                    "username": st.session_state.username,
+                                },
+                                excluir_id=quebrados_id,
+                            )
+                            if not registro_atualizado:
+                                mensagem_editar_quebrados.warning(
+                                    mensagem_registro_diario_duplicado(
+                                        "ovos_quebrados",
+                                        nova_data_quebrados,
+                                        novo_galpao_quebrados,
+                                    )
+                                )
+                            else:
+                                registrar_log(
+                                    "UPDATE", "ovos_quebrados", quebrados_id,
+                                    detalhes=(
+                                        f"Atualizou registro para "
+                                        f"{nova_quantidade_quebrados} ovos quebrados "
+                                        f"no {novo_galpao_quebrados} em "
+                                        f"{nova_data_quebrados.strftime('%d/%m/%Y')}"
+                                    ),
+                                )
+                                indice_atualizado = (
+                                    df_quebrados_hist['id'] == quebrados_id)
+                                df_quebrados_hist.loc[
+                                    indice_atualizado, 'data'
+                                ] = pd.Timestamp(nova_data_quebrados)
+                                df_quebrados_hist.loc[
+                                    indice_atualizado, 'Galpão'
+                                ] = novo_galpao_quebrados
+                                df_quebrados_hist.loc[
+                                    indice_atualizado, 'Quantidade'
+                                ] = nova_quantidade_quebrados
+                                exibir_tabela_quebrados()
+                                area_editar_quebrados.empty()
+                                mensagem_editar_quebrados.success(
+                                    "Registro de ovos quebrados atualizado com sucesso!")
+                        except Exception as e:
+                            mensagem_editar_quebrados.error(
+                                f"Erro ao atualizar o registro: {e}")
 
             except Exception as e:
                 st.error(f"Erro ao carregar histórico: {e}")
