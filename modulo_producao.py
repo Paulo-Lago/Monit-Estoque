@@ -567,6 +567,11 @@ def render_modulo_producao(
                             st.markdown("#### 📦 Caixas de Ovos Fechadas")
                             st.caption("Cada caixa comporta **360 ovos**")
 
+                            exibir_caixas_ovos_quebrados(
+                                df_quebrados_monitor_filtrado)
+                            st.divider()
+                            st.markdown("##### Caixas da Produção Classificada")
+
                             df_caixas = df_filtrado.copy()
                             df_caixas['galpao_norm'] = df_caixas['galpao'].astype(
                                 str).str.strip()
@@ -593,10 +598,6 @@ def render_modulo_producao(
                                 hide_index=True,
                                 height=altura_tabela(resumo_exibicao, 380),
                             )
-
-                            st.divider()
-                            exibir_caixas_ovos_quebrados(
-                                df_quebrados_monitor_filtrado)
 
             except Exception as e:
                 st.error(f"Erro ao carregar monitoramento: {e}")
@@ -861,6 +862,10 @@ def render_modulo_producao(
                     "data_limite": data_limite,
                 })
 
+                exibir_caixas_ovos_quebrados(df_quebrados_caixas)
+                st.divider()
+                st.markdown("##### Caixas da Produção Classificada")
+
                 if df_producao.empty:
                     st.info("Nenhum registro de produção.")
                 else:
@@ -892,9 +897,6 @@ def render_modulo_producao(
                             hide_index=True,
                             height=altura_tabela(resumo_exibicao, 380),
                         )
-
-                st.divider()
-                exibir_caixas_ovos_quebrados(df_quebrados_caixas)
 
     # ======================== ABA 2: REGISTRAR AVES ========================
     with tabs[2]:
