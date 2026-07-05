@@ -61,6 +61,62 @@ def render_modulo_producao(
         st.divider()
         return totais_galpoes
 
+    def exibir_caixas_ovos_quebrados(df_quebrados_periodo):
+        st.markdown("##### Caixas de Ovos Quebrados por Galpão")
+        st.caption(
+            "Conversão estimada com a mesma capacidade de 360 ovos por caixa.")
+
+        if df_quebrados_periodo.empty:
+            st.info("Nenhum ovo quebrado registrado neste período.")
+            return
+
+        resumo_quebrados = df_quebrados_periodo.copy()
+        resumo_quebrados['galpao'] = resumo_quebrados['galpao'].astype(
+            str).str.strip()
+        resumo_quebrados['quantidade'] = pd.to_numeric(
+            resumo_quebrados['quantidade'], errors='coerce').fillna(0)
+        resumo_quebrados = resumo_quebrados.groupby(
+            'galpao', as_index=False)['quantidade'].sum()
+        resumo_quebrados['caixas'] = (
+            resumo_quebrados['quantidade'] // 360).astype(int)
+        resumo_quebrados['ovos_restantes'] = (
+            resumo_quebrados['quantidade'] % 360).astype(int)
+
+        colunas_galpoes = st.columns(len(GALPOES))
+        for indice, galpao in enumerate(GALPOES):
+            linha_galpao = resumo_quebrados[
+                resumo_quebrados['galpao'] == galpao]
+            total_ovos = int(linha_galpao['quantidade'].sum())
+            caixas_completas = total_ovos // 360
+            ovos_restantes = total_ovos % 360
+            with colunas_galpoes[indice]:
+                st.metric(galpao, f"{caixas_completas} caixa(s)")
+                st.caption(
+                    f"{formatar_quantidade_inteira(total_ovos)} ovos quebrados | "
+                    f"{ovos_restantes} ovos restantes"
+                )
+
+        resumo_exibicao = resumo_quebrados.rename(columns={
+            'galpao': 'Galpão',
+            'quantidade': 'Total de Ovos Quebrados',
+            'caixas': 'Caixas Completas (360)',
+            'ovos_restantes': 'Ovos Restantes',
+        })
+        st.dataframe(
+            resumo_exibicao,
+            width='stretch',
+            hide_index=True,
+            height=altura_tabela(resumo_exibicao, 260),
+            column_config={
+                'Galpão': st.column_config.TextColumn(width='medium'),
+                'Total de Ovos Quebrados': st.column_config.NumberColumn(
+                    format='%d'),
+                'Caixas Completas (360)': st.column_config.NumberColumn(
+                    format='%d'),
+                'Ovos Restantes': st.column_config.NumberColumn(format='%d'),
+            },
+        )
+
     def obter_producao_duplicada(
         conn, data_registro, tipo_ovo, galpao, excluir_id=None
     ):
@@ -375,13 +431,23 @@ def render_modulo_producao(
                     ORDER BY data DESC, galpao
                 """), engine, params={"username": st.session_state.username})
 
-                if df_producao.empty and df_ovos_geral.empty:
+                df_quebrados_monitor = pd.read_sql(text("""
+                    SELECT data, galpao, quantidade
+                    FROM ovos_quebrados
+                    WHERE username = :username
+                    ORDER BY data DESC, galpao
+                """), engine, params={"username": st.session_state.username})
+
+                if (df_producao.empty and df_ovos_geral.empty
+                        and df_quebrados_monitor.empty):
                     st.info("📭 Nenhum registro de produção encontrado.")
                 else:
                     df_producao['data'] = pd.to_datetime(
                         df_producao['data'])
                     df_ovos_geral['data'] = pd.to_datetime(
                         df_ovos_geral['data'])
+                    df_quebrados_monitor['data'] = pd.to_datetime(
+                        df_quebrados_monitor['data'])
 
                     st.markdown("#### 📅 Selecione o Período para Análise")
                     col_f1, col_f2 = st.columns(2)
@@ -400,12 +466,17 @@ def render_modulo_producao(
                         (df_ovos_geral['data'].dt.date >= data_inicio) &
                         (df_ovos_geral['data'].dt.date <= data_fim)
                     ].copy()
+                    df_quebrados_monitor_filtrado = df_quebrados_monitor[
+                        (df_quebrados_monitor['data'].dt.date >= data_inicio) &
+                        (df_quebrados_monitor['data'].dt.date <= data_fim)
+                    ].copy()
 
                     titulo_periodo = f"Período: {data_inicio.strftime('%d/%m/%Y')} até {data_fim.strftime('%d/%m/%Y')}"
                     st.markdown(f"**{titulo_periodo}**")
                     st.divider()
 
-                    if df_filtrado.empty and df_ovos_geral_filtrado.empty:
+                    if (df_filtrado.empty and df_ovos_geral_filtrado.empty
+                            and df_quebrados_monitor_filtrado.empty):
                         st.warning(
                             "Nenhum registro encontrado para o período selecionado.")
                     else:
@@ -522,6 +593,10 @@ def render_modulo_producao(
                                 hide_index=True,
                                 height=altura_tabela(resumo_exibicao, 380),
                             )
+
+                            st.divider()
+                            exibir_caixas_ovos_quebrados(
+                                df_quebrados_monitor_filtrado)
 
             except Exception as e:
                 st.error(f"Erro ao carregar monitoramento: {e}")
@@ -775,10 +850,20 @@ def render_modulo_producao(
             with prod_tabs[2]:
                 st.markdown(
                     "#### 📦 Caixas de Ovos Fechadas (Últimos 30 dias)")
+                data_limite = datetime.now().date() - pd.Timedelta(days=30)
+                df_quebrados_caixas = pd.read_sql(text("""
+                    SELECT data, galpao, quantidade
+                    FROM ovos_quebrados
+                    WHERE username = :username AND data >= :data_limite
+                    ORDER BY data DESC, galpao
+                """), engine, params={
+                    "username": st.session_state.username,
+                    "data_limite": data_limite,
+                })
+
                 if df_producao.empty:
                     st.info("Nenhum registro de produção.")
                 else:
-                    data_limite = datetime.now().date() - pd.Timedelta(days=30)
                     df_recente = df_producao[df_producao['data'].dt.date >= data_limite].copy(
                     )
 
@@ -807,6 +892,9 @@ def render_modulo_producao(
                             hide_index=True,
                             height=altura_tabela(resumo_exibicao, 380),
                         )
+
+                st.divider()
+                exibir_caixas_ovos_quebrados(df_quebrados_caixas)
 
     # ======================== ABA 2: REGISTRAR AVES ========================
     with tabs[2]:
