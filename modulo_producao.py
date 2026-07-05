@@ -1,10 +1,13 @@
 import base64
 from datetime import datetime
+from io import BytesIO
 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
 from plotly.subplots import make_subplots
 from sqlalchemy import text
 
@@ -61,7 +64,49 @@ def render_modulo_producao(
         st.divider()
         return totais_galpoes
 
-    def exibir_caixas_ovos_quebrados(df_quebrados_periodo):
+    def gerar_excel_caixas_quebrados(resumo_exibicao):
+        workbook = Workbook()
+        planilha = workbook.active
+        planilha.title = "Ovos Quebrados"
+
+        cabecalhos = list(resumo_exibicao.columns)
+        planilha.append(cabecalhos)
+        for linha in resumo_exibicao.itertuples(index=False, name=None):
+            planilha.append([
+                str(linha[0]),
+                int(linha[1]),
+                int(linha[2]),
+                int(linha[3]),
+            ])
+
+        preenchimento = PatternFill("solid", fgColor="2F6B4F")
+        for celula in planilha[1]:
+            celula.font = Font(bold=True, color="FFFFFF")
+            celula.fill = preenchimento
+            celula.alignment = Alignment(horizontal="center")
+
+        planilha.freeze_panes = "A2"
+        planilha.auto_filter.ref = planilha.dimensions
+        larguras = {
+            "A": 18,
+            "B": 25,
+            "C": 25,
+            "D": 20,
+        }
+        for coluna, largura in larguras.items():
+            planilha.column_dimensions[coluna].width = largura
+        for linha in planilha.iter_rows(min_row=2, min_col=2, max_col=4):
+            for celula in linha:
+                celula.number_format = '#,##0'
+                celula.alignment = Alignment(horizontal="center")
+
+        arquivo = BytesIO()
+        workbook.save(arquivo)
+        return arquivo.getvalue()
+
+    def exibir_caixas_ovos_quebrados(
+        df_quebrados_periodo, chave_download
+    ):
         st.markdown("##### Caixas de Ovos Quebrados por Galpão")
         st.caption(
             "Conversão estimada com a mesma capacidade de 360 ovos por caixa.")
@@ -115,6 +160,20 @@ def render_modulo_producao(
                     format='%d'),
                 'Ovos Restantes': st.column_config.NumberColumn(format='%d'),
             },
+        )
+        st.caption(
+            "Para abrir corretamente no Excel, use o botão abaixo em vez do "
+            "ícone de exportação rápida da tabela.")
+        st.download_button(
+            "Baixar planilha Excel (.xlsx)",
+            data=gerar_excel_caixas_quebrados(resumo_exibicao),
+            file_name="caixas_ovos_quebrados.xlsx",
+            mime=(
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            ),
+            width="stretch",
+            key=chave_download,
         )
 
     def obter_producao_duplicada(
@@ -568,7 +627,9 @@ def render_modulo_producao(
                             st.caption("Cada caixa comporta **360 ovos**")
 
                             exibir_caixas_ovos_quebrados(
-                                df_quebrados_monitor_filtrado)
+                                df_quebrados_monitor_filtrado,
+                                "baixar_caixas_quebrados_monitor",
+                            )
                             st.divider()
                             st.markdown("##### Caixas da Produção Classificada")
 
@@ -862,7 +923,10 @@ def render_modulo_producao(
                     "data_limite": data_limite,
                 })
 
-                exibir_caixas_ovos_quebrados(df_quebrados_caixas)
+                exibir_caixas_ovos_quebrados(
+                    df_quebrados_caixas,
+                    "baixar_caixas_quebrados_30_dias",
+                )
                 st.divider()
                 st.markdown("##### Caixas da Produção Classificada")
 

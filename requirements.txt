@@ -5,3 +5,4 @@ plotly
 psycopg2-binary
 PyJWT
 reportlab==4.2.5
+openpyxl==3.1.5
