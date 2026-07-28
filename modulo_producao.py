@@ -11,6 +11,8 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from plotly.subplots import make_subplots
 from sqlalchemy import text
 
+from modulo_pinteiro import render_area_pinteiro
+
 
 def render_modulo_producao(
     engine,
@@ -307,6 +309,7 @@ def render_modulo_producao(
         "🐔 Registrar Aves",
         "📈 Gráficos",
         "🔨 Ovos Quebrados",
+        "🐣 Pinteiro",
         "⚙️ Configurações"
     ])
 
@@ -2181,8 +2184,17 @@ def render_modulo_producao(
             except Exception as e:
                 st.error(f"Erro ao calcular resumo: {e}")
 
-    # ======================== ABA 5: CONFIGURAÇÕES ========================
+    # ======================== ABA 5: PINTEIRO ========================
     with tabs[5]:
+        render_area_pinteiro(
+            engine=engine,
+            registrar_log=registrar_log,
+            acao_repetida=acao_repetida,
+            liberar_acao=liberar_acao,
+        )
+
+    # ======================== ABA 6: CONFIGURAÇÕES ========================
+    with tabs[6]:
         st.markdown("### ⚙️ Configurações da Conta")
         st.markdown(f"**Usuário atual:** `{st.session_state.username}`")
         st.divider()

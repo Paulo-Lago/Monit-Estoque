@@ -131,6 +131,96 @@ def inicializar_estrutura_banco(_engine):
                 UNIQUE (username, data, galpao)
             )
         """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS pinteiro_lotes (
+                id SERIAL PRIMARY KEY,
+                username TEXT NOT NULL,
+                nome TEXT NOT NULL,
+                data_chegada DATE NOT NULL,
+                quantidade_inicial INTEGER NOT NULL CHECK (quantidade_inicial > 0),
+                fornecedor TEXT,
+                linhagem TEXT,
+                status TEXT NOT NULL DEFAULT 'ativo'
+                    CHECK (status IN ('ativo', 'pronto_transferencia', 'transferido', 'encerrado')),
+                data_prevista_transferencia DATE,
+                destino_previsto TEXT NOT NULL DEFAULT 'Galpão 4',
+                observacoes TEXT,
+                quantidade_transferida INTEGER NOT NULL DEFAULT 0
+                    CHECK (quantidade_transferida >= 0),
+                data_transferencia DATE,
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (username, nome)
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS pinteiro_registros_diarios (
+                id SERIAL PRIMARY KEY,
+                username TEXT NOT NULL,
+                lote_id INTEGER NOT NULL REFERENCES pinteiro_lotes(id) ON DELETE CASCADE,
+                data DATE NOT NULL,
+                racao_consumida NUMERIC(12, 3) NOT NULL DEFAULT 0
+                    CHECK (racao_consumida >= 0),
+                entrada_racao NUMERIC(12, 3) NOT NULL DEFAULT 0
+                    CHECK (entrada_racao >= 0),
+                mortes INTEGER NOT NULL DEFAULT 0 CHECK (mortes >= 0),
+                causa_mortalidade TEXT,
+                observacoes TEXT,
+                responsavel TEXT,
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (username, lote_id, data)
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS pinteiro_vacinacoes (
+                id SERIAL PRIMARY KEY,
+                username TEXT NOT NULL,
+                lote_id INTEGER NOT NULL REFERENCES pinteiro_lotes(id) ON DELETE CASCADE,
+                vacina TEXT NOT NULL,
+                data_prevista DATE NOT NULL,
+                data_aplicacao DATE,
+                dose NUMERIC(12, 3),
+                lote_vacina TEXT,
+                responsavel TEXT,
+                status TEXT NOT NULL DEFAULT 'prevista'
+                    CHECK (status IN ('prevista', 'aplicada', 'atrasada', 'cancelada')),
+                observacoes TEXT,
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS pinteiro_destinos (
+                username TEXT NOT NULL,
+                galpao TEXT NOT NULL,
+                ativo BOOLEAN NOT NULL DEFAULT FALSE,
+                atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (username, galpao)
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS pinteiro_transferencias (
+                id SERIAL PRIMARY KEY,
+                username TEXT NOT NULL,
+                lote_id INTEGER NOT NULL UNIQUE REFERENCES pinteiro_lotes(id) ON DELETE RESTRICT,
+                data DATE NOT NULL,
+                quantidade INTEGER NOT NULL CHECK (quantidade > 0),
+                destino TEXT NOT NULL DEFAULT 'Galpão 4',
+                responsavel TEXT,
+                observacoes TEXT,
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_pinteiro_lotes_usuario_status
+            ON pinteiro_lotes (username, status)
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_pinteiro_registros_lote_data
+            ON pinteiro_registros_diarios (username, lote_id, data DESC)
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_pinteiro_vacinacoes_lote_data
+            ON pinteiro_vacinacoes (username, lote_id, data_prevista)
+        """))
         conn.commit()
     return True
 
