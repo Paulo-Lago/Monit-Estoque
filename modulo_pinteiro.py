@@ -138,6 +138,11 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                 WHERE username = :username AND galpao = :galpao
             """), {"username": usuario, "galpao": DESTINO_PADRAO}).scalar() or False)
 
+    def exibir_grafico(figura, chave):
+        figura.update_xaxes(type="date", tickformat="%d/%m/%Y")
+        figura.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
+        st.plotly_chart(figura, width="stretch", key=chave)
+
     st.markdown("### Pinteiro")
     st.caption(
         "Controle isolado de pintos. Os dados desta área não entram nos indicadores "
@@ -290,7 +295,12 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                         mortalidade_diaria,
                         on="data",
                         how="outer",
-                    ).fillna(0).sort_values("data")
+                    ).sort_values("data")
+                    diario["data"] = pd.to_datetime(diario["data"], errors="coerce")
+                    diario = diario.dropna(subset=["data"])
+                    diario[["racao_consumida", "mortes"]] = diario[
+                        ["racao_consumida", "mortes"]
+                    ].fillna(0)
                     diario["racao_acumulada"] = diario["racao_consumida"].cumsum()
                     diario["mortes_acumuladas"] = diario["mortes"].cumsum()
                     diario["aves_vivas_periodo"] = aves_vivas + diario["mortes"].sum() - diario["mortes_acumuladas"]
@@ -300,21 +310,34 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                         axis=1,
                     )
 
-                    grafico_coluna_1, grafico_coluna_2 = st.columns(2)
-                    with grafico_coluna_1:
-                        fig = px.bar(diario, x="data", y="racao_consumida", title="Consumo diário de ração")
-                        st.plotly_chart(fig, width="stretch", key="pinteiro_grafico_consumo_diario")
-                        fig = px.line(diario, x="data", y="mortes", markers=True, title="Mortalidade diária")
-                        st.plotly_chart(fig, width="stretch", key="pinteiro_grafico_mortes_diarias")
-                        fig = px.line(diario, x="data", y="aves_vivas_periodo", markers=True, title="Evolução de aves vivas")
-                        st.plotly_chart(fig, width="stretch", key="pinteiro_grafico_aves_vivas")
-                    with grafico_coluna_2:
-                        fig = px.line(diario, x="data", y="racao_acumulada", markers=True, title="Consumo acumulado de ração")
-                        st.plotly_chart(fig, width="stretch", key="pinteiro_grafico_consumo_acumulado")
-                        fig = px.line(diario, x="data", y="mortes_acumuladas", markers=True, title="Mortalidade acumulada")
-                        st.plotly_chart(fig, width="stretch", key="pinteiro_grafico_mortes_acumuladas")
-                        fig = px.line(diario, x="data", y="racao_por_ave", markers=True, title="Consumo médio por ave")
-                        st.plotly_chart(fig, width="stretch", key="pinteiro_grafico_consumo_por_ave")
+                    tem_consumo = diario["racao_consumida"].sum() > 0
+                    tem_mortalidade = diario["mortes"].sum() > 0
+                    if not tem_consumo and not tem_mortalidade:
+                        st.info("Não há consumo de ração ou mortes no período para exibir em gráficos.")
+                    elif tem_consumo and tem_mortalidade:
+                        grafico_coluna_1, grafico_coluna_2 = st.columns(2)
+                        with grafico_coluna_1:
+                            exibir_grafico(px.bar(diario, x="data", y="racao_consumida", title="Consumo Diário de Ração"), "pinteiro_grafico_consumo_diario")
+                            exibir_grafico(px.line(diario, x="data", y="mortes", markers=True, title="Mortalidade Diária"), "pinteiro_grafico_mortes_diarias")
+                            exibir_grafico(px.line(diario, x="data", y="aves_vivas_periodo", markers=True, title="Evolução de Aves Vivas"), "pinteiro_grafico_aves_vivas")
+                        with grafico_coluna_2:
+                            exibir_grafico(px.line(diario, x="data", y="racao_acumulada", markers=True, title="Consumo Acumulado de Ração"), "pinteiro_grafico_consumo_acumulado")
+                            exibir_grafico(px.line(diario, x="data", y="mortes_acumuladas", markers=True, title="Mortalidade Acumulada"), "pinteiro_grafico_mortes_acumuladas")
+                            exibir_grafico(px.line(diario, x="data", y="racao_por_ave", markers=True, title="Consumo Médio por Ave"), "pinteiro_grafico_consumo_por_ave")
+                    elif tem_consumo:
+                        coluna_1, coluna_2 = st.columns(2)
+                        with coluna_1:
+                            exibir_grafico(px.bar(diario, x="data", y="racao_consumida", title="Consumo Diário de Ração"), "pinteiro_grafico_consumo_diario")
+                            exibir_grafico(px.line(diario, x="data", y="racao_por_ave", markers=True, title="Consumo Médio por Ave"), "pinteiro_grafico_consumo_por_ave")
+                        with coluna_2:
+                            exibir_grafico(px.line(diario, x="data", y="racao_acumulada", markers=True, title="Consumo Acumulado de Ração"), "pinteiro_grafico_consumo_acumulado")
+                    else:
+                        coluna_1, coluna_2 = st.columns(2)
+                        with coluna_1:
+                            exibir_grafico(px.line(diario, x="data", y="mortes", markers=True, title="Mortalidade Diária"), "pinteiro_grafico_mortes_diarias")
+                            exibir_grafico(px.line(diario, x="data", y="aves_vivas_periodo", markers=True, title="Evolução de Aves Vivas"), "pinteiro_grafico_aves_vivas")
+                        with coluna_2:
+                            exibir_grafico(px.line(diario, x="data", y="mortes_acumuladas", markers=True, title="Mortalidade Acumulada"), "pinteiro_grafico_mortes_acumuladas")
 
                 if not vacinas.empty:
                     vacinas_grafico = vacinas.copy()
