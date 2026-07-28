@@ -171,6 +171,58 @@ def inicializar_estrutura_banco(_engine):
             )
         """))
         conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS pinteiro_registros_racao (
+                id SERIAL PRIMARY KEY,
+                username TEXT NOT NULL,
+                lote_id INTEGER NOT NULL REFERENCES pinteiro_lotes(id) ON DELETE CASCADE,
+                data DATE NOT NULL,
+                racao_consumida NUMERIC(12, 3) NOT NULL DEFAULT 0
+                    CHECK (racao_consumida >= 0),
+                entrada_racao NUMERIC(12, 3) NOT NULL DEFAULT 0
+                    CHECK (entrada_racao >= 0),
+                observacoes TEXT,
+                responsavel TEXT,
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (username, lote_id, data)
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS pinteiro_registros_mortalidade (
+                id SERIAL PRIMARY KEY,
+                username TEXT NOT NULL,
+                lote_id INTEGER NOT NULL REFERENCES pinteiro_lotes(id) ON DELETE CASCADE,
+                data DATE NOT NULL,
+                mortes INTEGER NOT NULL CHECK (mortes > 0),
+                causa_mortalidade TEXT,
+                observacoes TEXT,
+                responsavel TEXT,
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (username, lote_id, data)
+            )
+        """))
+        conn.execute(text("""
+            INSERT INTO pinteiro_registros_racao (
+                username, lote_id, data, racao_consumida, entrada_racao,
+                observacoes, responsavel, criado_em
+            )
+            SELECT username, lote_id, data, racao_consumida, entrada_racao,
+                observacoes, responsavel, criado_em
+            FROM pinteiro_registros_diarios
+            WHERE racao_consumida > 0 OR entrada_racao > 0
+            ON CONFLICT (username, lote_id, data) DO NOTHING
+        """))
+        conn.execute(text("""
+            INSERT INTO pinteiro_registros_mortalidade (
+                username, lote_id, data, mortes, causa_mortalidade,
+                observacoes, responsavel, criado_em
+            )
+            SELECT username, lote_id, data, mortes, causa_mortalidade,
+                observacoes, responsavel, criado_em
+            FROM pinteiro_registros_diarios
+            WHERE mortes > 0
+            ON CONFLICT (username, lote_id, data) DO NOTHING
+        """))
+        conn.execute(text("""
             CREATE TABLE IF NOT EXISTS pinteiro_vacinacoes (
                 id SERIAL PRIMARY KEY,
                 username TEXT NOT NULL,
@@ -216,6 +268,14 @@ def inicializar_estrutura_banco(_engine):
         conn.execute(text("""
             CREATE INDEX IF NOT EXISTS idx_pinteiro_registros_lote_data
             ON pinteiro_registros_diarios (username, lote_id, data DESC)
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_pinteiro_racao_lote_data
+            ON pinteiro_registros_racao (username, lote_id, data DESC)
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_pinteiro_mortalidade_lote_data
+            ON pinteiro_registros_mortalidade (username, lote_id, data DESC)
         """))
         conn.execute(text("""
             CREATE INDEX IF NOT EXISTS idx_pinteiro_vacinacoes_lote_data
