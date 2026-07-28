@@ -345,7 +345,20 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                 "aves_vivas": "Aves vivas", "status": "Status",
                 "data_prevista_transferencia": "Previsao", "destino_previsto": "Destino",
             })
-            st.dataframe(exibicao, width="stretch", hide_index=True, height=min(420, 74 + len(exibicao) * 35))
+            st.dataframe(
+                exibicao,
+                width="stretch",
+                hide_index=True,
+                height=min(420, 74 + len(exibicao) * 35),
+                column_config={
+                    "Chegada": st.column_config.DateColumn(
+                        "Chegada", format="DD/MM/YYYY"
+                    ),
+                    "Previsao": st.column_config.DateColumn(
+                        "Previsao", format="DD/MM/YYYY"
+                    ),
+                },
+            )
 
             lotes_encerraveis = lotes[lotes["status"].isin(STATUS_ATIVOS)]
             if not lotes_encerraveis.empty:
@@ -449,7 +462,17 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                 "entrada_racao": "Entrada (kg)", "estoque_racao_lote": "Saldo de racao (kg)",
                 "mortes": "Mortes", "responsavel": "Responsavel",
             })
-            st.dataframe(exibicao, width="stretch", hide_index=True, height=min(420, 74 + len(exibicao) * 35))
+            st.dataframe(
+                exibicao,
+                width="stretch",
+                hide_index=True,
+                height=min(420, 74 + len(exibicao) * 35),
+                column_config={
+                    "Data": st.column_config.DateColumn(
+                        "Data", format="DD/MM/YYYY"
+                    ),
+                },
+            )
 
     with abas[3]:
         lotes = enriquecer_lotes(carregar_lotes())
@@ -520,7 +543,20 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                 "data_aplicacao": "Aplicacao", "dose": "Dose", "status_exibicao": "Status",
                 "responsavel": "Responsavel",
             })
-            st.dataframe(exibicao, width="stretch", hide_index=True, height=min(420, 74 + len(exibicao) * 35))
+            st.dataframe(
+                exibicao,
+                width="stretch",
+                hide_index=True,
+                height=min(420, 74 + len(exibicao) * 35),
+                column_config={
+                    "Prevista": st.column_config.DateColumn(
+                        "Prevista", format="DD/MM/YYYY"
+                    ),
+                    "Aplicacao": st.column_config.DateColumn(
+                        "Aplicacao", format="DD/MM/YYYY"
+                    ),
+                },
+            )
 
             pendentes = vacinas[vacinas["status"].isin(["prevista", "atrasada"])].copy()
             if not pendentes.empty:
