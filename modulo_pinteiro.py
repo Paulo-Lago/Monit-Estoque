@@ -52,7 +52,10 @@ def _formatar_inteiro(valor):
 
 
 def _formatar_kg(valor):
-    return f"{float(valor or 0):,.3f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    formatado = f"{float(valor or 0):,.3f}"
+    if formatado.endswith(".000"):
+        return formatado[:-4].replace(",", ".")
+    return formatado.replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
