@@ -187,6 +187,32 @@ def inicializar_estrutura_banco(_engine):
             )
         """))
         conn.execute(text("""
+            ALTER TABLE pinteiro_registros_racao
+            ADD COLUMN IF NOT EXISTS data_fim DATE
+        """))
+        conn.execute(text("""
+            UPDATE pinteiro_registros_racao
+            SET data_fim = data
+            WHERE data_fim IS NULL
+        """))
+        conn.execute(text("""
+            ALTER TABLE pinteiro_registros_racao
+            ALTER COLUMN data_fim SET NOT NULL
+        """))
+        conn.execute(text("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM pg_constraint
+                    WHERE conname = 'chk_pinteiro_racao_periodo'
+                ) THEN
+                    ALTER TABLE pinteiro_registros_racao
+                    ADD CONSTRAINT chk_pinteiro_racao_periodo CHECK (data_fim >= data);
+                END IF;
+            END $$
+        """))
+        conn.execute(text("""
             CREATE TABLE IF NOT EXISTS pinteiro_registros_mortalidade (
                 id SERIAL PRIMARY KEY,
                 username TEXT NOT NULL,

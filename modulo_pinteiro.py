@@ -112,6 +112,51 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
             ORDER BY r.data DESC, r.id DESC
         """), engine, params={"username": usuario})
 
+    def expandir_consumo_racao(registros):
+        if registros.empty:
+            return pd.DataFrame(columns=["data", "lote_id", "racao_consumida"])
+
+        consumo_diario = []
+        for registro in registros.itertuples():
+            data_inicio = pd.to_datetime(registro.data).date()
+            data_fim = pd.to_datetime(registro.data_fim).date()
+            for data_consumo in pd.date_range(data_inicio, data_fim, freq="D"):
+                consumo_diario.append({
+                    "data": data_consumo,
+                    "lote_id": int(registro.lote_id),
+                    "racao_consumida": float(registro.racao_consumida),
+                })
+        return pd.DataFrame(consumo_diario)
+
+    def periodo_racao_conflitante(conn, lote_id, data_inicio, data_fim, excluir_id=None):
+        parametros = {
+            "username": usuario,
+            "lote_id": int(lote_id),
+            "data_inicio": data_inicio,
+            "data_fim": data_fim,
+        }
+        filtro_id = ""
+        if excluir_id is not None:
+            filtro_id = " AND id <> :excluir_id"
+            parametros["excluir_id"] = int(excluir_id)
+        return conn.execute(text(f"""
+            SELECT id
+            FROM pinteiro_registros_racao
+            WHERE username = :username
+                AND lote_id = :lote_id
+                AND data <= :data_fim
+                AND COALESCE(data_fim, data) >= :data_inicio
+                {filtro_id}
+            LIMIT 1
+        """), parametros).scalar()
+
+    def bloquear_periodo_racao(conn, lote_id):
+        chave = f"pinteiro_racao|{usuario}|{int(lote_id)}"
+        conn.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:chave))"),
+            {"chave": chave},
+        )
+
     def carregar_registros_mortalidade():
         return pd.read_sql(text("""
             SELECT r.*, l.nome AS lote
@@ -207,19 +252,22 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                     ].copy()
                     vacinas = vacinas[vacinas["lote_id"] == lote_selecionado].copy()
 
-                for registros in (registros_racao, registros_mortalidade):
-                    if not registros.empty:
-                        registros["data"] = pd.to_datetime(registros["data"])
-
-                if not registros_racao.empty:
-                    racao_periodo = registros_racao[
-                        (registros_racao["data"].dt.date >= data_inicio)
-                        & (registros_racao["data"].dt.date <= data_fim)
+                racao_diaria_registrada = expandir_consumo_racao(registros_racao)
+                if not racao_diaria_registrada.empty:
+                    racao_diaria_registrada["data"] = pd.to_datetime(
+                        racao_diaria_registrada["data"]
+                    )
+                    racao_periodo = racao_diaria_registrada[
+                        (racao_diaria_registrada["data"].dt.date >= data_inicio)
+                        & (racao_diaria_registrada["data"].dt.date <= data_fim)
                     ].copy()
                 else:
-                    racao_periodo = registros_racao
+                    racao_periodo = racao_diaria_registrada
 
                 if not registros_mortalidade.empty:
+                    registros_mortalidade["data"] = pd.to_datetime(
+                        registros_mortalidade["data"]
+                    )
                     mortalidade_periodo = registros_mortalidade[
                         (registros_mortalidade["data"].dt.date >= data_inicio)
                         & (registros_mortalidade["data"].dt.date <= data_fim)
@@ -243,7 +291,7 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                 aves_vivas = int(lotes["aves_vivas"].sum())
                 mortes_acumuladas = int(lotes["mortes_acumuladas"].sum())
                 consumo_periodo = float(racao_periodo["racao_consumida"].sum()) if not racao_periodo.empty else 0
-                consumo_acumulado = float(registros_racao["racao_consumida"].sum()) if not registros_racao.empty else 0
+                consumo_acumulado = float(racao_diaria_registrada["racao_consumida"].sum()) if not racao_diaria_registrada.empty else 0
                 percentual_mortalidade = (mortes_acumuladas / quantidade_inicial * 100) if quantidade_inicial else 0
                 consumo_por_ave = consumo_periodo / aves_vivas if aves_vivas else 0
 
@@ -499,40 +547,62 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                     lote_id = st.selectbox("Lote", options=list(opcoes_lotes), format_func=lambda valor: opcoes_lotes[valor])
                     coluna_1, coluna_2 = st.columns(2)
                     with coluna_1:
-                        data_registro = st.date_input("Data", value=hoje, max_value=hoje, format="DD/MM/YYYY")
-                        racao_consumida = st.number_input("Ração Consumida (kg)", min_value=0.0, step=0.1, format="%.3f")
+                        periodo_racao = st.date_input(
+                            "Período do Consumo",
+                            value=(hoje, hoje),
+                            max_value=hoje,
+                            format="DD/MM/YYYY",
+                        )
+                        racao_consumida = st.number_input("Consumo por Dia (kg)", min_value=0.0, step=0.1, format="%.3f")
                     with coluna_2:
-                        entrada_racao = st.number_input("Entrada de Ração (kg)", min_value=0.0, step=0.1, format="%.3f")
+                        entrada_racao = st.number_input("Entrada de Ração no Período (kg)", min_value=0.0, step=0.1, format="%.3f")
                         responsavel = st.text_input("Responsável pelo Registro")
                     observacoes = st.text_area("Observações")
                     salvar_racao = st.form_submit_button("Salvar Registro de Ração", type="primary", width="stretch")
 
                 if salvar_racao:
-                    if racao_consumida <= 0 and entrada_racao <= 0:
+                    if not isinstance(periodo_racao, tuple) or len(periodo_racao) != 2:
+                        st.error("Selecione a data inicial e a data final do período.")
+                    elif racao_consumida <= 0 and entrada_racao <= 0:
                         st.error("Informe uma quantidade consumida ou uma entrada de ração.")
                     else:
+                        data_registro, data_fim_registro = periodo_racao
+                        total_consumo = float(racao_consumida) * (
+                            (data_fim_registro - data_registro).days + 1
+                        )
                         chave = "pinteiro_salvar_racao"
-                        payload = (usuario, lote_id, data_registro, float(racao_consumida), float(entrada_racao))
+                        payload = (usuario, lote_id, data_registro, data_fim_registro, float(racao_consumida), float(entrada_racao))
                         if not acao_repetida(chave, payload):
                             try:
+                                conflito = False
                                 with engine.connect() as conn:
                                     with conn.begin():
-                                        conn.execute(text("""
-                                            INSERT INTO pinteiro_registros_racao (
-                                                username, lote_id, data, racao_consumida,
-                                                entrada_racao, observacoes, responsavel
-                                            ) VALUES (
-                                                :username, :lote_id, :data, :racao_consumida,
-                                                :entrada_racao, :observacoes, :responsavel
-                                            )
-                                        """), {
-                                            "username": usuario, "lote_id": int(lote_id), "data": data_registro,
-                                            "racao_consumida": float(racao_consumida), "entrada_racao": float(entrada_racao),
-                                            "observacoes": observacoes.strip() or None,
-                                            "responsavel": responsavel.strip() or None,
-                                        })
-                                registrar_log("INSERT", "pinteiro_registros_racao", detalhes=f"Lançou ração do lote {opcoes_lotes[lote_id].split(' - ')[0]} em {data_registro.strftime('%d/%m/%Y')}.")
-                                st.success("Registro de ração salvo com sucesso.")
+                                        bloquear_periodo_racao(conn, lote_id)
+                                        conflito = bool(periodo_racao_conflitante(
+                                            conn, lote_id, data_registro, data_fim_registro
+                                        ))
+                                        if not conflito:
+                                            conn.execute(text("""
+                                                INSERT INTO pinteiro_registros_racao (
+                                                    username, lote_id, data, data_fim, racao_consumida,
+                                                    entrada_racao, observacoes, responsavel
+                                                ) VALUES (
+                                                    :username, :lote_id, :data, :data_fim, :racao_consumida,
+                                                    :entrada_racao, :observacoes, :responsavel
+                                                )
+                                            """), {
+                                                "username": usuario, "lote_id": int(lote_id), "data": data_registro,
+                                                "data_fim": data_fim_registro, "racao_consumida": float(racao_consumida),
+                                                "entrada_racao": float(entrada_racao),
+                                                "observacoes": observacoes.strip() or None,
+                                                "responsavel": responsavel.strip() or None,
+                                            })
+                                if conflito:
+                                    liberar_acao(chave)
+                                    st.warning("Já existe um registro de ração que se sobrepõe a esse período.")
+                                else:
+                                    registrar_log("INSERT", "pinteiro_registros_racao", detalhes=f"Lançou ração do lote {opcoes_lotes[lote_id].split(' - ')[0]} de {data_registro.strftime('%d/%m/%Y')} a {data_fim_registro.strftime('%d/%m/%Y')}.")
+                                    st.success(f"Registro salvo: {_formatar_kg(racao_consumida)} kg por dia, total de {_formatar_kg(total_consumo)} kg no período.")
                             except Exception as erro:
                                 liberar_acao(chave)
                                 if "unique" in str(erro).lower():
@@ -547,21 +617,39 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                 st.info("Nenhum registro de ração cadastrado.")
             else:
                 registros_racao = registros_racao.sort_values(["lote", "data", "id"]).copy()
-                saldo_diario = registros_racao["entrada_racao"] - registros_racao["racao_consumida"]
-                registros_racao["saldo_racao_lote"] = saldo_diario.groupby(registros_racao["lote"]).cumsum()
-                exibicao = registros_racao[["data", "lote", "racao_consumida", "entrada_racao", "saldo_racao_lote", "responsavel"]].rename(columns={
-                    "data": "Data", "lote": "Lote", "racao_consumida": "Consumida (kg)",
-                    "entrada_racao": "Entrada (kg)", "saldo_racao_lote": "Saldo de Ração (kg)",
+                registros_racao["data"] = pd.to_datetime(registros_racao["data"])
+                registros_racao["data_fim"] = pd.to_datetime(registros_racao["data_fim"])
+                registros_racao["dias_periodo"] = (
+                    registros_racao["data_fim"] - registros_racao["data"]
+                ).dt.days + 1
+                registros_racao["consumo_total"] = (
+                    registros_racao["racao_consumida"] * registros_racao["dias_periodo"]
+                )
+                saldo_periodo = registros_racao["entrada_racao"] - registros_racao["consumo_total"]
+                registros_racao["saldo_racao_lote"] = saldo_periodo.groupby(registros_racao["lote"]).cumsum()
+                registros_racao["periodo"] = registros_racao.apply(
+                    lambda linha: (
+                        f"{linha['data'].strftime('%d/%m/%Y')} a "
+                        f"{linha['data_fim'].strftime('%d/%m/%Y')}"
+                    ),
+                    axis=1,
+                )
+                exibicao = registros_racao[["periodo", "lote", "racao_consumida", "consumo_total", "entrada_racao", "saldo_racao_lote", "responsavel"]].rename(columns={
+                    "periodo": "Período", "lote": "Lote", "racao_consumida": "Consumo por Dia (kg)",
+                    "consumo_total": "Consumo Total (kg)", "entrada_racao": "Entrada no Período (kg)",
+                    "saldo_racao_lote": "Saldo de Ração (kg)",
                     "responsavel": "Responsável",
                 })
                 st.dataframe(
                     exibicao, width="stretch", hide_index=True,
                     height=min(420, 74 + len(exibicao) * 35),
-                    column_config={"Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY")},
                 )
 
                 opcoes_racao = {
-                    int(linha.id): f"{linha.lote} | {pd.to_datetime(linha.data).strftime('%d/%m/%Y')}"
+                    int(linha.id): (
+                        f"{linha.lote} | {pd.to_datetime(linha.data).strftime('%d/%m/%Y')} "
+                        f"a {pd.to_datetime(linha.data_fim).strftime('%d/%m/%Y')}"
+                    )
                     for linha in registros_racao.itertuples()
                 }
                 with st.expander("Editar ou Excluir Registro de Ração", expanded=False):
@@ -571,28 +659,45 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                         aba_editar, aba_excluir = st.tabs(["Editar", "Excluir"])
                         with aba_editar:
                             with st.form(f"pinteiro_editar_racao_{registro_id}"):
-                                nova_data = st.date_input("Data", value=pd.to_datetime(registro["data"]).date(), max_value=hoje, format="DD/MM/YYYY")
-                                nova_consumida = st.number_input("Ração Consumida (kg)", min_value=0.0, value=float(registro["racao_consumida"]), step=0.1, format="%.3f")
-                                nova_entrada = st.number_input("Entrada de Ração (kg)", min_value=0.0, value=float(registro["entrada_racao"]), step=0.1, format="%.3f")
+                                novo_periodo = st.date_input(
+                                    "Período do Consumo",
+                                    value=(pd.to_datetime(registro["data"]).date(), pd.to_datetime(registro["data_fim"]).date()),
+                                    max_value=hoje,
+                                    format="DD/MM/YYYY",
+                                )
+                                nova_consumida = st.number_input("Consumo por Dia (kg)", min_value=0.0, value=float(registro["racao_consumida"]), step=0.1, format="%.3f")
+                                nova_entrada = st.number_input("Entrada de Ração no Período (kg)", min_value=0.0, value=float(registro["entrada_racao"]), step=0.1, format="%.3f")
                                 novo_responsavel = st.text_input("Responsável", value=registro["responsavel"] or "")
                                 novas_observacoes = st.text_area("Observações", value=registro["observacoes"] or "")
                                 salvar_edicao = st.form_submit_button("Salvar Alterações", type="primary", width="stretch")
                             if salvar_edicao:
-                                if nova_consumida <= 0 and nova_entrada <= 0:
+                                if not isinstance(novo_periodo, tuple) or len(novo_periodo) != 2:
+                                    st.error("Selecione a data inicial e a data final do período.")
+                                elif nova_consumida <= 0 and nova_entrada <= 0:
                                     st.error("Informe uma quantidade consumida ou uma entrada de ração.")
                                 else:
                                     try:
+                                        nova_data, nova_data_fim = novo_periodo
+                                        conflito = False
                                         with engine.connect() as conn:
                                             with conn.begin():
-                                                conn.execute(text("""
-                                                    UPDATE pinteiro_registros_racao
-                                                    SET data = :data, racao_consumida = :consumida,
-                                                        entrada_racao = :entrada, responsavel = :responsavel,
-                                                        observacoes = :observacoes
-                                                    WHERE id = :id AND username = :username
-                                                """), {"data": nova_data, "consumida": float(nova_consumida), "entrada": float(nova_entrada), "responsavel": novo_responsavel.strip() or None, "observacoes": novas_observacoes.strip() or None, "id": int(registro_id), "username": usuario})
-                                        registrar_log("UPDATE", "pinteiro_registros_racao", int(registro_id), "Editou um registro de ração.")
-                                        st.success("Registro de ração atualizado com sucesso.")
+                                                bloquear_periodo_racao(conn, registro["lote_id"])
+                                                conflito = bool(periodo_racao_conflitante(
+                                                    conn, registro["lote_id"], nova_data, nova_data_fim, registro_id
+                                                ))
+                                                if not conflito:
+                                                    conn.execute(text("""
+                                                        UPDATE pinteiro_registros_racao
+                                                        SET data = :data, data_fim = :data_fim,
+                                                            racao_consumida = :consumida, entrada_racao = :entrada,
+                                                            responsavel = :responsavel, observacoes = :observacoes
+                                                        WHERE id = :id AND username = :username
+                                                    """), {"data": nova_data, "data_fim": nova_data_fim, "consumida": float(nova_consumida), "entrada": float(nova_entrada), "responsavel": novo_responsavel.strip() or None, "observacoes": novas_observacoes.strip() or None, "id": int(registro_id), "username": usuario})
+                                        if conflito:
+                                            st.warning("Já existe um registro de ração que se sobrepõe a esse período.")
+                                        else:
+                                            registrar_log("UPDATE", "pinteiro_registros_racao", int(registro_id), "Editou um registro de ração.")
+                                            st.success("Registro de ração atualizado com sucesso.")
                                     except Exception as erro:
                                         if "unique" in str(erro).lower():
                                             st.warning("Já existe um registro de ração para este lote nessa data.")
