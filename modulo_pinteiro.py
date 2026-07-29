@@ -555,7 +555,6 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                         )
                         racao_consumida = st.number_input("Consumo por Dia (kg)", min_value=0.0, step=0.1, format="%.3f")
                     with coluna_2:
-                        entrada_racao = st.number_input("Entrada de Ração no Período (kg)", min_value=0.0, step=0.1, format="%.3f")
                         responsavel = st.text_input("Responsável pelo Registro")
                     observacoes = st.text_area("Observações")
                     salvar_racao = st.form_submit_button("Salvar Registro de Ração", type="primary", width="stretch")
@@ -563,15 +562,15 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                 if salvar_racao:
                     if not isinstance(periodo_racao, tuple) or len(periodo_racao) != 2:
                         st.error("Selecione a data inicial e a data final do período.")
-                    elif racao_consumida <= 0 and entrada_racao <= 0:
-                        st.error("Informe uma quantidade consumida ou uma entrada de ração.")
+                    elif racao_consumida <= 0:
+                        st.error("Informe o consumo de ração por dia.")
                     else:
                         data_registro, data_fim_registro = periodo_racao
                         total_consumo = float(racao_consumida) * (
                             (data_fim_registro - data_registro).days + 1
                         )
                         chave = "pinteiro_salvar_racao"
-                        payload = (usuario, lote_id, data_registro, data_fim_registro, float(racao_consumida), float(entrada_racao))
+                        payload = (usuario, lote_id, data_registro, data_fim_registro, float(racao_consumida))
                         if not acao_repetida(chave, payload):
                             try:
                                 conflito = False
@@ -585,15 +584,14 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                                             conn.execute(text("""
                                                 INSERT INTO pinteiro_registros_racao (
                                                     username, lote_id, data, data_fim, racao_consumida,
-                                                    entrada_racao, observacoes, responsavel
+                                                    observacoes, responsavel
                                                 ) VALUES (
                                                     :username, :lote_id, :data, :data_fim, :racao_consumida,
-                                                    :entrada_racao, :observacoes, :responsavel
+                                                    :observacoes, :responsavel
                                                 )
                                             """), {
                                                 "username": usuario, "lote_id": int(lote_id), "data": data_registro,
                                                 "data_fim": data_fim_registro, "racao_consumida": float(racao_consumida),
-                                                "entrada_racao": float(entrada_racao),
                                                 "observacoes": observacoes.strip() or None,
                                                 "responsavel": responsavel.strip() or None,
                                             })
@@ -625,8 +623,6 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                 registros_racao["consumo_total"] = (
                     registros_racao["racao_consumida"] * registros_racao["dias_periodo"]
                 )
-                saldo_periodo = registros_racao["entrada_racao"] - registros_racao["consumo_total"]
-                registros_racao["saldo_racao_lote"] = saldo_periodo.groupby(registros_racao["lote"]).cumsum()
                 registros_racao["periodo"] = registros_racao.apply(
                     lambda linha: (
                         f"{linha['data'].strftime('%d/%m/%Y')} a "
@@ -634,10 +630,9 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                     ),
                     axis=1,
                 )
-                exibicao = registros_racao[["periodo", "lote", "racao_consumida", "consumo_total", "entrada_racao", "saldo_racao_lote", "responsavel"]].rename(columns={
+                exibicao = registros_racao[["periodo", "lote", "racao_consumida", "consumo_total", "responsavel"]].rename(columns={
                     "periodo": "Período", "lote": "Lote", "racao_consumida": "Consumo por Dia (kg)",
-                    "consumo_total": "Consumo Total (kg)", "entrada_racao": "Entrada no Período (kg)",
-                    "saldo_racao_lote": "Saldo de Ração (kg)",
+                    "consumo_total": "Consumo Total (kg)",
                     "responsavel": "Responsável",
                 })
                 st.dataframe(
@@ -666,15 +661,14 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                                     format="DD/MM/YYYY",
                                 )
                                 nova_consumida = st.number_input("Consumo por Dia (kg)", min_value=0.0, value=float(registro["racao_consumida"]), step=0.1, format="%.3f")
-                                nova_entrada = st.number_input("Entrada de Ração no Período (kg)", min_value=0.0, value=float(registro["entrada_racao"]), step=0.1, format="%.3f")
                                 novo_responsavel = st.text_input("Responsável", value=registro["responsavel"] or "")
                                 novas_observacoes = st.text_area("Observações", value=registro["observacoes"] or "")
                                 salvar_edicao = st.form_submit_button("Salvar Alterações", type="primary", width="stretch")
                             if salvar_edicao:
                                 if not isinstance(novo_periodo, tuple) or len(novo_periodo) != 2:
                                     st.error("Selecione a data inicial e a data final do período.")
-                                elif nova_consumida <= 0 and nova_entrada <= 0:
-                                    st.error("Informe uma quantidade consumida ou uma entrada de ração.")
+                                elif nova_consumida <= 0:
+                                    st.error("Informe o consumo de ração por dia.")
                                 else:
                                     try:
                                         nova_data, nova_data_fim = novo_periodo
@@ -689,10 +683,10 @@ def render_area_pinteiro(engine, registrar_log, acao_repetida, liberar_acao):
                                                     conn.execute(text("""
                                                         UPDATE pinteiro_registros_racao
                                                         SET data = :data, data_fim = :data_fim,
-                                                            racao_consumida = :consumida, entrada_racao = :entrada,
+                                                            racao_consumida = :consumida,
                                                             responsavel = :responsavel, observacoes = :observacoes
                                                         WHERE id = :id AND username = :username
-                                                    """), {"data": nova_data, "data_fim": nova_data_fim, "consumida": float(nova_consumida), "entrada": float(nova_entrada), "responsavel": novo_responsavel.strip() or None, "observacoes": novas_observacoes.strip() or None, "id": int(registro_id), "username": usuario})
+                                                    """), {"data": nova_data, "data_fim": nova_data_fim, "consumida": float(nova_consumida), "responsavel": novo_responsavel.strip() or None, "observacoes": novas_observacoes.strip() or None, "id": int(registro_id), "username": usuario})
                                         if conflito:
                                             st.warning("Já existe um registro de ração que se sobrepõe a esse período.")
                                         else:
