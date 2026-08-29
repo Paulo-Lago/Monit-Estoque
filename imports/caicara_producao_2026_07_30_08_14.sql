@@ -116,7 +116,7 @@ dados_producao(data, galpao, tipo, quantidade) AS (
         ('2026-08-14'::date, 'Galpão 2', 'A', 702),
         ('2026-08-14'::date, 'Galpão 2', 'Jumbo', 1586),
         ('2026-08-14'::date, 'Galpão 2', 'Extra', 578),
-        ('2026-08-14'::date, 'Galpão 3', 'A', 2353),
+        ('2026-08-14'::date, 'Galpão 3', 'A', 2313),
         ('2026-08-14'::date, 'Galpão 3', 'B', 237),
         ('2026-08-14'::date, 'Galpão 3', 'Extra', 944)
 )
