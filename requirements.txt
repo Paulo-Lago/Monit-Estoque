@@ -2,6 +2,7 @@ streamlit
 sqlalchemy
 pandas
 plotly
+psycopg[binary]
 psycopg2-binary
 PyJWT
 reportlab==4.2.5
