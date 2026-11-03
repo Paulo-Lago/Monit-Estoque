@@ -4,7 +4,7 @@ from sqlalchemy import text
 
 
 CATEGORIAS = {
-    "galpao": {"titulo": "Galpões", "singular": "galpão", "padroes": ["Galpão 2", "Galpão 3"]},
+    "galpao": {"titulo": "Galpões", "singular": "galpão", "padroes": ["Galpão 2", "Galpão 3", "Galpão 4"]},
     "tipo_ovo": {"titulo": "Tipos de ovo", "singular": "tipo de ovo", "padroes": ["A", "B", "Jumbo", "Extra"]},
     "cor_ovo": {"titulo": "Cores de ovo", "singular": "cor de ovo", "padroes": ["Branco", "Vermelho"]},
 }
