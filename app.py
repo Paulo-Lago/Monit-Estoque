@@ -6,6 +6,11 @@ import requests
 import time
 
 from recibo_pdf import gerar_pdf_recibo_reportlab
+from catalogo_producao import (
+    garantir_catalogo_usuario,
+    inicializar_catalogo_producao,
+    obter_catalogo_ativo,
+)
 from modulo_producao import render_modulo_producao
 from modulo_faturamento import render_modulo_faturamento
 
@@ -312,6 +317,7 @@ def inicializar_estrutura_banco(_engine):
 
 
 inicializar_estrutura_banco(engine)
+inicializar_catalogo_producao(engine)
 
 def registrar_log(acao, tabela, registro_id=None, detalhes=None):
     try:
@@ -374,12 +380,6 @@ if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
         st.session_state.username = ""
         st.session_state.modulo_atual = None
-
-# ==================== CONSTANTES ====================
-TIPOS_OVO = ["A", "B", "Jumbo", "Extra"]
-GALPOES = ["Galpão 2", "Galpão 3"]
-CORES = ["Branco", "Vermelho"]
-
 
 def acao_repetida(chave, payload=None, intervalo=8):
     """Evita que o mesmo envio seja processado duas vezes em poucos segundos."""
@@ -462,6 +462,9 @@ if not st.session_state.logged_in:
 # USUÁRIO LOGADO
 # ============================================================
 
+garantir_catalogo_usuario(engine, st.session_state.username)
+catalogo_producao = obter_catalogo_ativo(engine, st.session_state.username)
+
 # CONTROLE DE MÓDULO
 if st.session_state.modulo_atual is None:
     st.title("🐔 Bem-vindo ao Monit-Estoque")
@@ -493,9 +496,9 @@ else:
         render_modulo_producao(
             engine=engine,
             base_dir=BASE_DIR,
-            tipos_ovo=TIPOS_OVO,
-            galpoes=GALPOES,
-            cores=CORES,
+            tipos_ovo=catalogo_producao["tipo_ovo"],
+            galpoes=catalogo_producao["galpao"],
+            cores=catalogo_producao["cor_ovo"],
             registrar_log=registrar_log,
             acao_repetida=acao_repetida,
             liberar_acao=liberar_acao,
@@ -508,4 +511,6 @@ else:
             liberar_acao=liberar_acao,
             gerar_pdf_recibo_reportlab=gerar_pdf_recibo_reportlab,
             enviar_pdf_whatsapp=enviar_pdf_whatsapp,
+            tipos_ovo=catalogo_producao["tipo_ovo"],
+            cores=catalogo_producao["cor_ovo"],
         )

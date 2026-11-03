@@ -11,6 +11,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from plotly.subplots import make_subplots
 from sqlalchemy import text
 
+from catalogo_producao import render_gerenciamento_catalogo
 from modulo_pinteiro import render_area_pinteiro
 
 
@@ -34,6 +35,13 @@ def render_modulo_producao(
 
     def formatar_quantidade_inteira(valor):
         return f"{int(round(float(valor or 0))):,}".replace(",", ".")
+
+    def opcoes_com_valor_historico(opcoes_ativas, valor_atual):
+        """Preserva valores antigos em formulários de correção mesmo se foram desativados."""
+        opcoes = list(opcoes_ativas)
+        if valor_atual not in opcoes:
+            opcoes.insert(0, valor_atual)
+        return opcoes
 
     def exibir_resumo_graficos(
         df_periodo, data_inicio, data_fim, unidade, rotulo_total
@@ -599,13 +607,10 @@ def render_modulo_producao(
                                 st.info(
                                     f"**Total de Ovos:** {total_galpao} ovos")
 
-                                tipos_para_mostrar = [t for t in TIPOS_OVO]
-                                if galpao == "Galpão 2":
-                                    tipos_para_mostrar = [
-                                        t for t in TIPOS_OVO if t != "B"]
-                                elif galpao == "Galpão 3":
-                                    tipos_para_mostrar = [
-                                        t for t in TIPOS_OVO if t != "Jumbo"]
+                        tipos_para_mostrar = list(TIPOS_OVO)
+                        for tipo_historico in df_g['tipo'].dropna().tolist():
+                            if tipo_historico not in tipos_para_mostrar:
+                                tipos_para_mostrar.append(tipo_historico)
 
                                 tipo_cols = st.columns(
                                     len(tipos_para_mostrar))
@@ -782,21 +787,24 @@ def render_modulo_producao(
                                     novo_val = st.number_input(
                                         "Corrigir quantidade:", min_value=0, step=1,
                                         value=int(registro['quantidade']), key="edit_qtd")
+                                    tipos_edicao = opcoes_com_valor_historico(TIPOS_OVO, registro['tipo'])
                                     novo_tipo = st.selectbox(
-                                        "Corrigir tipo:", TIPOS_OVO,
-                                        index=TIPOS_OVO.index(registro['tipo']), key="edit_tipo")
+                                        "Corrigir tipo:", tipos_edicao,
+                                        index=tipos_edicao.index(registro['tipo']), key="edit_tipo")
                                     nova_data = st.date_input(
                                         "📅 Data da Colheita",
                                         value=min(pd.to_datetime(registro['data']).date(), datetime.now().date()),
                                         max_value=datetime.now().date(),
                                         format="DD/MM/YYYY", key="edit_data")
                                 with col2:
+                                    galpoes_edicao = opcoes_com_valor_historico(GALPOES, registro['galpao'])
+                                    cores_edicao = opcoes_com_valor_historico(CORES, registro['cor'])
                                     novo_galpao = st.selectbox(
-                                        "Corrigir galpão:", GALPOES,
-                                        index=GALPOES.index(registro['galpao']), key="edit_galpao")
+                                        "Corrigir galpão:", galpoes_edicao,
+                                        index=galpoes_edicao.index(registro['galpao']), key="edit_galpao")
                                     nova_cor = st.selectbox(
-                                        "Corrigir cor:", CORES,
-                                        index=CORES.index(registro['cor']), key="edit_cor")
+                                        "Corrigir cor:", cores_edicao,
+                                        index=cores_edicao.index(registro['cor']), key="edit_cor")
                                 salvar_colheita_editada = st.form_submit_button(
                                     "✅ Confirmar Alteração", type="primary", width="stretch")
                             else:
@@ -1195,9 +1203,10 @@ def render_modulo_producao(
                                         SELECT data_registro, galpao, quantidade_total
                                         FROM aves WHERE id = :id
                                     """), engine, params={"id": selected_id}).iloc[0]
+                                    galpoes_edicao = opcoes_com_valor_historico(GALPOES, registro['galpao'])
                                     novo_galpao = st.selectbox(
-                                        "Galpão", GALPOES,
-                                        index=GALPOES.index(registro['galpao']), key="edit_galpao_ave")
+                                        "Galpão", galpoes_edicao,
+                                        index=galpoes_edicao.index(registro['galpao']), key="edit_galpao_ave")
                                     nova_qtd = st.number_input(
                                         "Quantidade", min_value=1, step=1,
                                         value=int(registro['quantidade_total']), key="edit_qtd_ave")
@@ -1992,10 +2001,12 @@ def render_modulo_producao(
                                         key=f"editar_ovos_quebrados_data_{quebrados_id}",
                                     )
                                 with col_galpao:
+                                    galpoes_edicao = opcoes_com_valor_historico(
+                                        GALPOES, registro_quebrado['Galpão'])
                                     novo_galpao_quebrados = st.selectbox(
                                         "Galpão",
-                                        GALPOES,
-                                        index=GALPOES.index(
+                                        galpoes_edicao,
+                                        index=galpoes_edicao.index(
                                             registro_quebrado['Galpão']),
                                         key=f"editar_ovos_quebrados_galpao_{quebrados_id}",
                                     )
@@ -2197,6 +2208,13 @@ def render_modulo_producao(
     with tabs[6]:
         st.markdown("### ⚙️ Configurações da Conta")
         st.markdown(f"**Usuário atual:** `{st.session_state.username}`")
+        st.divider()
+        render_gerenciamento_catalogo(
+            engine=engine,
+            registrar_log=registrar_log,
+            acao_repetida=acao_repetida,
+            liberar_acao=liberar_acao,
+        )
         st.divider()
         st.markdown("#### 🔐 Alterar Senha")
 
