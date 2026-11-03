@@ -511,6 +511,4 @@ else:
             liberar_acao=liberar_acao,
             gerar_pdf_recibo_reportlab=gerar_pdf_recibo_reportlab,
             enviar_pdf_whatsapp=enviar_pdf_whatsapp,
-            tipos_ovo=catalogo_producao["tipo_ovo"],
-            cores=catalogo_producao["cor_ovo"],
         )

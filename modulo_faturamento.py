@@ -13,12 +13,8 @@ def render_modulo_faturamento(
     liberar_acao,
     gerar_pdf_recibo_reportlab,
     enviar_pdf_whatsapp,
-    tipos_ovo=None,
-    cores=None,
 ):
     st.header("💰 Faturamento & Controle de Estoque")
-    tipos_ovo = tipos_ovo or []
-    cores = cores or []
 
     # Converter colunas de quantidade para NUMERIC (aceitar decimais)
     with engine.connect() as conn:
@@ -1635,18 +1631,8 @@ def render_modulo_faturamento(
                 with st.form("form_novo_produto", clear_on_submit=True):
                     col1, col2 = st.columns([2, 1])
                     with col1:
-                        modelos_ovos = ["Produto livre"] + [
-                            f"Ovo {tipo} - {cor}"
-                            for tipo in tipos_ovo
-                            for cor in cores
-                        ]
-                        modelo_ovo = st.selectbox(
-                            "Modelo de produto de ovo",
-                            modelos_ovos,
-                            key="prod_modelo_catalogo",
-                        )
                         nome_prod = st.text_input(
-                            "Nome do Produto", key="prod_nome_novo")
+                            "Nome do Produto *", key="prod_nome_novo")
                         descricao = st.text_area(
                             "Descrição", key="prod_desc_novo")
                     with col2:
@@ -1655,9 +1641,6 @@ def render_modulo_faturamento(
                         preco = st.number_input(
                             "Preço Atual (R$)", min_value=0.0, step=0.01, format="%.2f", key="prod_preco_novo")
                     if st.form_submit_button("Cadastrar Produto"):
-                        nome_prod = (
-                            modelo_ovo if modelo_ovo != "Produto livre" else nome_prod.strip()
-                        )
                         if nome_prod:
                             chave_acao = "cadastrar_produto"
                             payload_acao = (st.session_state.username, nome_prod, descricao, unidade, preco)
