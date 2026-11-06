@@ -93,7 +93,12 @@ def get_engine():
     try:
         database_url = st.secrets["supabase"]["DATABASE_URL"]
         engine = create_engine(
-            database_url, pool_pre_ping=True, pool_recycle=3600)
+            database_url,
+            pool_pre_ping=True,
+            pool_recycle=3600,
+            # O pooler do Supabase não mantém prepared statements entre conexões.
+            connect_args={"prepare_threshold": None},
+        )
         return engine
     except Exception as e:
         st.error(f"Erro ao conectar no banco: {e}")
