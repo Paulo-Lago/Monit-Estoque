@@ -5,6 +5,7 @@ from pathlib import Path
 import requests
 import time
 
+from exportacao_csv import instalar_exportacao_csv_excel
 from recibo_pdf import gerar_pdf_recibo_reportlab
 from catalogo_producao import (
     garantir_catalogo_usuario,
@@ -372,6 +373,7 @@ def aplicar_estilo_customizado():
 
 st.set_page_config(page_title="Estoque Ovos Pro", layout="wide")
 aplicar_estilo_customizado()
+instalar_exportacao_csv_excel()
 
 # ==================== SESSION STATE ====================
 # Tenta restaurar sessão a partir da URL
