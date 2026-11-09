@@ -921,57 +921,84 @@ def render_modulo_producao(
 
          # ==================== CAIXAS DE OVOS ====================
             with prod_tabs[2]:
-                st.markdown(
-                    "#### 📦 Caixas de Ovos Fechadas (Últimos 30 dias)")
-                data_limite = datetime.now().date() - pd.Timedelta(days=30)
-                df_quebrados_caixas = pd.read_sql(text("""
-                    SELECT data, galpao, quantidade
-                    FROM ovos_quebrados
-                    WHERE username = :username AND data >= :data_limite
-                    ORDER BY data DESC, galpao
-                """), engine, params={
-                    "username": st.session_state.username,
-                    "data_limite": data_limite,
-                })
-
-                exibir_caixas_ovos_quebrados(
-                    df_quebrados_caixas,
-                    "baixar_caixas_quebrados_30_dias",
-                )
-                st.divider()
-                st.markdown("##### Caixas da Produção Classificada")
-
-                if df_producao.empty:
-                    st.info("Nenhum registro de produção.")
-                else:
-                    df_recente = df_producao[df_producao['data'].dt.date >= data_limite].copy(
+                st.markdown("#### 📦 Caixas de Ovos Fechadas")
+                col_inicio, col_fim = st.columns(2)
+                with col_inicio:
+                    data_inicio_caixas = st.date_input(
+                        "Data Inicial",
+                        value=datetime.now().date() - pd.Timedelta(days=30),
+                        format="DD/MM/YYYY",
+                        key="data_inicio_caixas_ovos",
+                    )
+                with col_fim:
+                    data_fim_caixas = st.date_input(
+                        "Data Final",
+                        value=datetime.now().date(),
+                        format="DD/MM/YYYY",
+                        key="data_fim_caixas_ovos",
                     )
 
-                    if df_recente.empty:
-                        st.warning("Nenhum registro nos últimos 30 dias.")
-                    else:
-                        resumo = df_recente.groupby(['galpao', 'tipo', 'cor'])[
-                            'quantidade'].sum().reset_index()
-                        resumo['caixas'] = resumo['quantidade'] // 360
-                        resumo['ovos_restantes'] = resumo['quantidade'] % 360
+                if data_inicio_caixas > data_fim_caixas:
+                    st.error("A data inicial não pode ser maior que a data final.")
+                else:
+                    st.caption(
+                        f"Período: {data_inicio_caixas.strftime('%d/%m/%Y')} até "
+                        f"{data_fim_caixas.strftime('%d/%m/%Y')}")
+                    df_quebrados_caixas = pd.read_sql(text("""
+                        SELECT data, galpao, quantidade
+                        FROM ovos_quebrados
+                        WHERE username = :username
+                          AND data BETWEEN :data_inicio AND :data_fim
+                        ORDER BY data DESC, galpao
+                    """), engine, params={
+                        "username": st.session_state.username,
+                        "data_inicio": data_inicio_caixas,
+                        "data_fim": data_fim_caixas,
+                    })
 
-                        resumo_exibicao = resumo[[
-                            'galpao', 'tipo', 'cor', 'quantidade',
-                            'caixas', 'ovos_restantes'
-                        ]].rename(columns={
-                            'galpao': 'Galpão',
-                            'tipo': 'Tipo',
-                            'cor': 'Cor',
-                            'quantidade': 'Total de Ovos',
-                            'caixas': 'Caixas Completas (360)',
-                            'ovos_restantes': 'Ovos Restantes',
-                        })
-                        st.dataframe(
-                            resumo_exibicao,
-                            width='stretch',
-                            hide_index=True,
-                            height=altura_tabela(resumo_exibicao, 380),
-                        )
+                    exibir_caixas_ovos_quebrados(
+                        df_quebrados_caixas,
+                        "baixar_caixas_quebrados_periodo",
+                    )
+                    st.divider()
+                    st.markdown("##### Caixas da Produção Classificada")
+
+                    if df_producao.empty:
+                        st.info("Nenhum registro de produção.")
+                    else:
+                        df_producao_caixas = df_producao.copy()
+                        df_producao_caixas['data'] = pd.to_datetime(
+                            df_producao_caixas['data'])
+                        df_recente = df_producao_caixas[
+                            (df_producao_caixas['data'].dt.date >= data_inicio_caixas)
+                            & (df_producao_caixas['data'].dt.date <= data_fim_caixas)
+                        ].copy()
+
+                        if df_recente.empty:
+                            st.warning("Nenhum registro de produção no período selecionado.")
+                        else:
+                            resumo = df_recente.groupby(['galpao', 'tipo', 'cor'])[
+                            'quantidade'].sum().reset_index()
+                            resumo['caixas'] = resumo['quantidade'] // 360
+                            resumo['ovos_restantes'] = resumo['quantidade'] % 360
+
+                            resumo_exibicao = resumo[[
+                                'galpao', 'tipo', 'cor', 'quantidade',
+                                'caixas', 'ovos_restantes'
+                            ]].rename(columns={
+                                'galpao': 'Galpão',
+                                'tipo': 'Tipo',
+                                'cor': 'Cor',
+                                'quantidade': 'Total de Ovos',
+                                'caixas': 'Caixas Completas (360)',
+                                'ovos_restantes': 'Ovos Restantes',
+                            })
+                            st.dataframe(
+                                resumo_exibicao,
+                                width='stretch',
+                                hide_index=True,
+                                height=altura_tabela(resumo_exibicao, 380),
+                            )
 
     # ======================== ABA 2: REGISTRAR AVES ========================
     with tabs[2]:
