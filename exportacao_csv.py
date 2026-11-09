@@ -26,16 +26,20 @@ def instalar_exportacao_csv_excel():
         return
 
     dataframe_original = st.dataframe
+    contador_exportacoes = 0
 
     def dataframe_com_exportacao(dados, *args, **kwargs):
+        nonlocal contador_exportacoes
         resultado = dataframe_original(dados, *args, **kwargs)
         if isinstance(dados, pd.DataFrame):
+            contador_exportacoes += 1
             chamada = inspect.currentframe().f_back
             chamada_pai = chamada.f_back
             arquivo_origem = Path(chamada.f_code.co_filename).stem
             identificador = (
                 f'{arquivo_origem}_{chamada.f_lineno}_'
-                f'{chamada_pai.f_lineno if chamada_pai else 0}'
+                f'{chamada_pai.f_lineno if chamada_pai else 0}_'
+                f'{contador_exportacoes}'
             )
             st.download_button(
                 'Baixar CSV para Excel',
