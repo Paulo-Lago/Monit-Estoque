@@ -480,7 +480,12 @@ def render_modulo_producao(
         st.markdown("### 📋 Produção & Histórico")
 
         prod_tabs = st.tabs(
-            ["📊 Monitoramento", "🔍 Histórico & Edição", "📦 Caixas de Ovos"])
+            [
+                "📊 Monitoramento",
+                "🔍 Histórico & Edição",
+                "📦 Caixas de Ovos",
+                "✅ Conferência Diária",
+            ])
 
         # ==================== SUB-ABA 1: MONITORAMENTO ====================
         with prod_tabs[0]:
@@ -999,6 +1004,145 @@ def render_modulo_producao(
                                 hide_index=True,
                                 height=altura_tabela(resumo_exibicao, 380),
                             )
+
+        # ==================== CONFERÊNCIA DIÁRIA ====================
+        with prod_tabs[3]:
+            st.markdown("### ✅ Conferência Diária por Galpão")
+            st.caption(
+                "Compare a soma da produção classificada com o Registro Geral "
+                "de Ovos informado para cada dia e galpão.")
+
+            col_inicio, col_fim = st.columns(2)
+            with col_inicio:
+                data_inicio_conferencia = st.date_input(
+                    "Data Inicial",
+                    value=datetime.now().date() - pd.Timedelta(days=30),
+                    format="DD/MM/YYYY",
+                    key="data_inicio_conferencia_diaria",
+                )
+            with col_fim:
+                data_fim_conferencia = st.date_input(
+                    "Data Final",
+                    value=datetime.now().date(),
+                    format="DD/MM/YYYY",
+                    key="data_fim_conferencia_diaria",
+                )
+
+            if data_inicio_conferencia > data_fim_conferencia:
+                st.error("A data inicial não pode ser maior que a data final.")
+            else:
+                try:
+                    df_conferencia = pd.read_sql(text("""
+                        WITH producao_classificada AS (
+                            SELECT
+                                data,
+                                TRIM(galpao) AS galpao,
+                                SUM(quantidade) AS total_classificado
+                            FROM producao
+                            WHERE username = :username
+                              AND data BETWEEN :data_inicio AND :data_fim
+                            GROUP BY data, TRIM(galpao)
+                        ),
+                        registro_geral AS (
+                            SELECT
+                                data,
+                                TRIM(galpao) AS galpao,
+                                SUM(quantidade) AS total_geral
+                            FROM ovos_geral_galpao
+                            WHERE username = :username
+                              AND data BETWEEN :data_inicio AND :data_fim
+                            GROUP BY data, TRIM(galpao)
+                        )
+                        SELECT
+                            COALESCE(p.data, g.data) AS data,
+                            COALESCE(p.galpao, g.galpao) AS galpao,
+                            p.total_classificado,
+                            g.total_geral
+                        FROM producao_classificada p
+                        FULL OUTER JOIN registro_geral g
+                            ON p.data = g.data AND p.galpao = g.galpao
+                        ORDER BY data DESC, galpao
+                    """), engine, params={
+                        "username": st.session_state.username,
+                        "data_inicio": data_inicio_conferencia,
+                        "data_fim": data_fim_conferencia,
+                    })
+
+                    if df_conferencia.empty:
+                        st.info("Nenhum registro encontrado no período selecionado.")
+                    else:
+                        possui_classificado = df_conferencia[
+                            'total_classificado'].notna()
+                        possui_geral = df_conferencia['total_geral'].notna()
+                        df_conferencia['total_classificado'] = pd.to_numeric(
+                            df_conferencia['total_classificado'], errors='coerce'
+                        ).fillna(0).astype(int)
+                        df_conferencia['total_geral'] = pd.to_numeric(
+                            df_conferencia['total_geral'], errors='coerce'
+                        ).fillna(0).astype(int)
+                        df_conferencia['diferenca'] = (
+                            df_conferencia['total_geral']
+                            - df_conferencia['total_classificado']
+                        )
+                        df_conferencia['situacao'] = 'Conferido'
+                        df_conferencia.loc[~possui_classificado, 'situacao'] = (
+                            'Sem produção classificada')
+                        df_conferencia.loc[~possui_geral, 'situacao'] = (
+                            'Sem registro geral')
+                        df_conferencia.loc[
+                            possui_classificado & possui_geral
+                            & (df_conferencia['diferenca'] != 0),
+                            'situacao'
+                        ] = 'Diferença encontrada'
+
+                        col_classificado, col_geral, col_diferenca, col_conferidos = st.columns(4)
+                        with col_classificado:
+                            st.metric(
+                                "Produção Classificada",
+                                f"{formatar_quantidade_inteira(df_conferencia['total_classificado'].sum())} ovos",
+                            )
+                        with col_geral:
+                            st.metric(
+                                "Registro Geral",
+                                f"{formatar_quantidade_inteira(df_conferencia['total_geral'].sum())} ovos",
+                            )
+                        with col_diferenca:
+                            st.metric(
+                                "Diferença do Período",
+                                f"{formatar_quantidade_inteira(df_conferencia['diferenca'].sum())} ovos",
+                            )
+                        with col_conferidos:
+                            st.metric(
+                                "Linhas Conferidas",
+                                int((df_conferencia['situacao'] == 'Conferido').sum()),
+                            )
+
+                        st.caption(
+                            "Diferença = Registro Geral - Produção Classificada. "
+                            "Valor positivo indica mais ovos no Registro Geral; negativo, mais ovos classificados.")
+                        tabela_conferencia = df_conferencia.rename(columns={
+                            'data': 'Data',
+                            'galpao': 'Galpão',
+                            'total_classificado': 'Produção Classificada',
+                            'total_geral': 'Registro Geral',
+                            'diferenca': 'Diferença',
+                            'situacao': 'Situação',
+                        })
+                        st.dataframe(
+                            tabela_conferencia,
+                            width='stretch',
+                            hide_index=True,
+                            height=altura_tabela(tabela_conferencia, 520),
+                            column_config={
+                                'Data': st.column_config.DateColumn(format='DD/MM/YYYY'),
+                                'Produção Classificada': st.column_config.NumberColumn(format='%d'),
+                                'Registro Geral': st.column_config.NumberColumn(format='%d'),
+                                'Diferença': st.column_config.NumberColumn(format='%d'),
+                                'Situação': st.column_config.TextColumn(width='medium'),
+                            },
+                        )
+                except Exception as erro:
+                    st.error(f"Erro ao carregar a conferência diária: {erro}")
 
     # ======================== ABA 2: REGISTRAR AVES ========================
     with tabs[2]:
